@@ -617,9 +617,7 @@ export default function Home() {
     if (!targetUserId) return;
 
     try {
-      const payload: any = {
-        id: targetUserId,
-      };
+      const payload: any = {};
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
       if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal ? parseFloat(updatedFields.heightVal) : null;
@@ -629,7 +627,11 @@ export default function Home() {
       if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal ? parseFloat(updatedFields.fcMaxVal) : null;
       if (updatedFields.recordsMap !== undefined) payload.records = updatedFields.recordsMap;
 
-      const { error } = await supabase.from("profiles").upsert(payload);
+      // ✅ UTILISATION DE UPDATE AU LIEU DE UPSERT
+      const { error } = await supabase
+        .from("profiles")
+        .update(payload)
+        .eq("id", targetUserId);
 
       if (updatedFields.fullName !== undefined && !isCoachInspecting) {
         await supabase.auth.updateUser({
@@ -637,7 +639,12 @@ export default function Home() {
         });
       }
 
-      if (error) console.error("❌ Erreur sauvegarde profil Supabase:", error.message);
+      if (error) {
+        console.error("❌ Erreur sauvegarde profil Supabase:", error.message);
+        alert(`Erreur de sauvegarde : ${error.message}`);
+      } else {
+        console.log("✅ Profil et records enregistrés !");
+      }
     } catch (err) {
       console.error("Erreur réseau sauvegarde profil:", err);
     }
