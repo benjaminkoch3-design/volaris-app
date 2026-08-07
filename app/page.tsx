@@ -84,6 +84,11 @@ export default function Home() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
+        const roleFromMeta = session.user?.user_metadata?.role as UserRole;
+        if (roleFromMeta) {
+          setUserRole(roleFromMeta);
+          setActiveTab(roleFromMeta === "coach" ? "athletes" : "accueil");
+        }
         setScreen("app");
       }
       setLoadingAuth(false);
@@ -94,6 +99,11 @@ export default function Home() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
+        const roleFromMeta = session.user?.user_metadata?.role as UserRole;
+        if (roleFromMeta) {
+          setUserRole(roleFromMeta);
+          setActiveTab(roleFromMeta === "coach" ? "athletes" : "accueil");
+        }
         setScreen("app");
       } else {
         setScreen("landing");
@@ -627,7 +637,6 @@ export default function Home() {
       if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal ? parseFloat(updatedFields.fcMaxVal) : null;
       if (updatedFields.recordsMap !== undefined) payload.records = updatedFields.recordsMap;
 
-      // ✅ UTILISATION DE UPDATE AU LIEU DE UPSERT
       const { error } = await supabase
         .from("profiles")
         .update(payload)
@@ -805,13 +814,18 @@ export default function Home() {
     eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   });
 
-  // HANDLERS AUTHENTIFICATION SUPABASE
+  // HANDLERS AUTHENTIFICATION SUPABASE (SÉPARATION ATHLÈTE / COACH VIA +COACH ALIAS)
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const formattedEmail = userRole === "coach"
+      ? email.replace("@", "+coach@")
+      : email;
+
     try {
       if (authMode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: formattedEmail,
           password,
           options: {
             data: {
@@ -831,7 +845,7 @@ export default function Home() {
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: formattedEmail,
           password,
         });
         if (error) throw error;
@@ -1700,13 +1714,6 @@ export default function Home() {
       <Header
         userRole={userRole}
         athleteName={session?.user?.user_metadata?.full_name || athleteName}
-        onToggleRole={() => {
-          const nextRole = userRole === "athlete" ? "coach" : "athlete";
-          setUserRole(nextRole);
-          setInspectingAthleteId(null);
-          setShowAthleteLibrary(false);
-          setActiveTab(nextRole === "coach" ? "athletes" : "accueil");
-        }}
         onLogout={handleLogout}
       />
 
