@@ -6,7 +6,7 @@ import { UserRole } from "../../types";
 interface HeaderProps {
   userRole: UserRole;
   athleteName: string;
-  onToggleRole: () => void;
+  onToggleRole?: () => void;
   onLogout: () => void;
   onNavigateToVolumeChart?: () => void;
 }
