@@ -1,4 +1,5 @@
 // app/layout.tsx
+import type { Viewport } from 'next';
 import './globals.css';
 
 export const metadata = {
@@ -9,6 +10,19 @@ export const metadata = {
     icon: '/icon-192x192.jpeg',
     apple: '/icon-512x512.jpeg',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Volaris',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#1c1917',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -23,4 +37,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-} 
+}
