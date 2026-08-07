@@ -27,12 +27,17 @@ export type WorkoutType =
 // TYPES POUR LES SÉANCES ET LE PLAN
 // ==========================================
 
+// Ajout des types explicites demandés par vos composants
+export type StepType = "echauffement" | "corps" | "recup" | "retour_calme" | "repeat" | string;
+export type EndCondition = "temps" | "distance" | string;
+export type GoalType = "allure" | "frequence_cardiaque" | "sensations" | string;
+
 export interface WorkoutStep {
   id: string;
-  type: "echauffement" | "corps" | "recup" | "retour_calme" | "repeat" | string;
+  type: StepType;
   durationOrDist?: string;
-  endCondition?: "temps" | "distance" | string;
-  goalType?: "allure" | "frequence_cardiaque" | "sensations" | string;
+  endCondition?: EndCondition;
+  goalType?: GoalType;
   goalValue?: string;
   reps?: number;
   nestedSteps?: WorkoutStep[];
