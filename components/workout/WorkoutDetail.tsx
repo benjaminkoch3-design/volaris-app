@@ -8,6 +8,7 @@ import {
   getStepTypeLabel,
   generatePaceProfile,
 } from "../../utils/calculations";
+import { exportWorkoutToTCX } from "../../utils/tcxExporter";
 
 interface WorkoutDetailProps {
   workout: Workout;
@@ -248,6 +249,15 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             <span className="text-sm font-black text-[#CDCF61]">{estimatedLoad}</span>
           </div>
         </div>
+
+        {/* BOUTON D'EXPORTATION VERS MONTRE GPS (.TCX) */}
+        <button
+          type="button"
+          onClick={() => exportWorkoutToTCX(workout)}
+          className="w-full py-3 bg-stone-950 hover:bg-stone-850 border border-[#CF9A61]/50 text-[#CF9A61] font-extrabold text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+        >
+          <span>⌚ Exporter vers ma montre (.TCX)</span>
+        </button>
 
         {/* GRAPHIQUE DU PROFIL D'ALLURE */}
         <PaceProfileChart steps={workout.steps} />
