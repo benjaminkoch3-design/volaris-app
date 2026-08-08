@@ -1,6 +1,7 @@
 // src/components/workout/WorkoutDebriefView.tsx
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import FitParser from "fit-file-parser";
 import { Workout, Shoe } from "../../types";
 
 interface WorkoutDebriefViewProps {
@@ -31,6 +32,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   onClose,
   onSaveDebrief,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [completedRpe, setCompletedRpe] = useState<number>(
     workout.completedRpe ?? (workout.rpe ? parseInt(workout.rpe, 10) : 5)
   );
@@ -51,31 +54,97 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout.completedElevationGain ?? 0
   );
 
+  // Données physiologiques supplémentaires (ex: Fréquence cardiaque)
+  const [avgHeartRate, setAvgHeartRate] = useState<number | null>(null);
+  const [maxHeartRate, setMaxHeartRate] = useState<number | null>(null);
+
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncSuccess, setSyncSuccess] = useState<boolean>(false);
+  const [importedFileName, setImportedFileName] = useState<string>("");
 
-  // Transfert des données réelles de la montre GPS
-  const handleSyncWatch = () => {
+  // LECTEUR DE FICHIER GPS (.FIT, .TCX, .GPX)
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     setIsSyncing(true);
-    setTimeout(() => {
+    setImportedFileName(file.name);
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith(".fit")) {
+      parseFitFile(file);
+    } else if (fileName.endsWith(".tcx") || fileName.endsWith(".gpx")) {
+      parseXmlFile(file);
+    } else {
+      alert("Format non supporté. Veuillez importer un fichier .FIT, .TCX ou .GPX");
+      setIsSyncing(false);
+    }
+  };
+
+  // Traitement des fichiers binaires .FIT
+  const parseFitFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const buffer = e.target?.result as ArrayBuffer;
+      const fitParser = new FitParser({ force: true, speedUnit: "km/h" });
+
+      fitParser.parse(buffer, (error: any, data: any) => {
+        setIsSyncing(false);
+
+        if (error || !data?.sessions?.length) {
+          alert("Impossible de lire ce fichier .FIT.");
+          return;
+        }
+
+        const session = data.sessions[0];
+        
+        // Extraction des valeurs
+        const totalDistKm = session.total_distance ? parseFloat((session.total_distance / 1000).toFixed(2)) : completedKm;
+        const totalDurationMin = session.total_elapsed_time ? Math.round(session.total_elapsed_time / 60) : completedTimeMinutes;
+        const totalElevation = session.total_ascent ? Math.round(session.total_ascent) : completedElevationGain;
+
+        setCompletedKm(totalDistKm);
+        setCompletedTimeMinutes(totalDurationMin);
+        setCompletedElevationGain(totalElevation);
+
+        if (session.avg_heart_rate) setAvgHeartRate(session.avg_heart_rate);
+        if (session.max_heart_rate) setMaxHeartRate(session.max_heart_rate);
+
+        setSyncSuccess(true);
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Traitement des fichiers XML .TCX et .GPX
+  const parseXmlFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(content, "text/xml");
+
+      let distKm = completedKm;
+      let durationMin = completedTimeMinutes;
+
+      // Extraction TCX
+      const distElem = xmlDoc.getElementsByTagName("DistanceMeters")[0];
+      const timeElem = xmlDoc.getElementsByTagName("TotalTimeSeconds")[0];
+
+      if (distElem) distKm = parseFloat((parseFloat(distElem.textContent || "0") / 1000).toFixed(2));
+      if (timeElem) durationMin = Math.round(parseFloat(timeElem.textContent || "0") / 60);
+
+      setCompletedKm(distKm);
+      setCompletedTimeMinutes(durationMin);
       setIsSyncing(false);
       setSyncSuccess(true);
-      
-      // Extraction des métriques de la montre GPS
-      const syncedKm = defaultKm > 0 ? parseFloat((defaultKm * 1.02).toFixed(2)) : 8.5;
-      const syncedTime = Math.round(syncedKm * 5.2);
-      const syncedElev = 120;
-
-      setCompletedKm(syncedKm);
-      setCompletedTimeMinutes(syncedTime);
-      setCompletedElevationGain(syncedElev);
-    }, 1000);
+    };
+    reader.readAsText(file);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Transmet l'ensemble des métriques de la montre pour mise à jour immédiate du Plan et des Stats
+
     onSaveDebrief({
       workoutId: workout.id,
       completedRpe,
@@ -85,7 +154,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       completedTimeMinutes,
       completedElevationGain,
     });
-    
+
     onClose();
   };
 
@@ -114,49 +183,86 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SYNCHRONISATION MONTRE GPS */}
+        {/* IMPORTATION FICHIER MONTRE GPS */}
         <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-stone-200">
-              ⌚ Données de la montre GPS
+              ⌚ Fichier Activité Montre GPS
             </span>
             {syncSuccess && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
-                ✓ Données importées
+                ✓ Données extraites
               </span>
             )}
           </div>
 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".fit,.tcx,.gpx"
+            className="hidden"
+          />
+
           <button
             type="button"
-            onClick={handleSyncWatch}
-            disabled={isSyncing || syncSuccess}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isSyncing}
             className="w-full py-2.5 px-3 bg-stone-900 hover:bg-stone-850 border border-stone-700 text-stone-200 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isSyncing ? (
-              <span>⏳ Transfert des données en cours...</span>
+              <span>⏳ Anayse du fichier en cours...</span>
             ) : syncSuccess ? (
-              <span>✓ Activité Strava/Garmin synchronisée</span>
+              <span>📂 Fichier : {importedFileName} (Changer)</span>
             ) : (
-              <span>📥 Transférer l'activité depuis ma montre</span>
+              <span>📁 Importer le fichier .FIT, .TCX ou .GPX</span>
             )}
           </button>
 
-          {/* RÉCAPITULATIF DES MÉTRIQUES RÉELLES IMPORTÉES */}
+          {/* RÉCAPITULATIF DES MÉTRIQUES RÉELLES IMPORTÉES / ÉDITABLES */}
           <div className="grid grid-cols-3 gap-2 pt-1 text-center">
             <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800">
               <span className="block text-[8px] font-bold text-stone-400 uppercase">Distance</span>
-              <span className="text-xs font-black text-[#CF9A61]">{completedKm} km</span>
+              <input
+                type="number"
+                step="0.01"
+                value={completedKm}
+                onChange={(e) => setCompletedKm(parseFloat(e.target.value) || 0)}
+                className="w-full text-center text-xs font-black text-[#CF9A61] bg-transparent focus:outline-none"
+              />
+              <span className="text-[8px] text-stone-500">km</span>
             </div>
+
             <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800">
               <span className="block text-[8px] font-bold text-stone-400 uppercase">Durée</span>
-              <span className="text-xs font-black text-[#CF9A61]">{completedTimeMinutes} min</span>
+              <input
+                type="number"
+                value={completedTimeMinutes}
+                onChange={(e) => setCompletedTimeMinutes(parseInt(e.target.value, 10) || 0)}
+                className="w-full text-center text-xs font-black text-[#CF9A61] bg-transparent focus:outline-none"
+              />
+              <span className="text-[8px] text-stone-500">min</span>
             </div>
+
             <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800">
               <span className="block text-[8px] font-bold text-stone-400 uppercase">Dénivelé</span>
-              <span className="text-xs font-black text-[#CF9A61]">{completedElevationGain}m D+</span>
+              <input
+                type="number"
+                value={completedElevationGain}
+                onChange={(e) => setCompletedElevationGain(parseInt(e.target.value, 10) || 0)}
+                className="w-full text-center text-xs font-black text-[#CF9A61] bg-transparent focus:outline-none"
+              />
+              <span className="text-[8px] text-stone-500">m D+</span>
             </div>
           </div>
+
+          {/* AFFICHAGE PHYSIOLOGIQUE (FC) SI DISPONIBLE DANS LE FICHIER .FIT */}
+          {avgHeartRate && (
+            <div className="flex justify-around items-center bg-stone-900/40 p-2 rounded-xl border border-stone-800/80 text-[10px]">
+              <span className="text-stone-400">❤️ FC Moyenne : <strong className="text-stone-200">{avgHeartRate} bpm</strong></span>
+              {maxHeartRate && <span className="text-stone-400">⚡ FC Max : <strong className="text-stone-200">{maxHeartRate} bpm</strong></span>}
+            </div>
+          )}
         </div>
 
         {/* FORMULAIRE DÉBRIEFING */}
