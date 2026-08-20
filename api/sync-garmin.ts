@@ -34,19 +34,37 @@ const getGarminStepType = (type: string) => {
 };
 
 export default async function handler(req: any, res: any) {
+  // En-têtes CORS pour autoriser les requêtes POST et les pré-vols OPTIONS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { email, password, workout } = req.body;
+  const { email, password, workout, testOnly } = req.body || {};
 
-  if (!email || !password || !workout) {
-    return res.status(400).json({ error: "Identifiants ou séance manquante." });
+  if (!email || !password) {
+    return res.status(400).json({ error: "Identifiants Garmin manquants." });
   }
 
   try {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
+
+    // Cas d'un simple test d'authentification depuis le profil
+    if (testOnly || workout?.title === "Test Connexion") {
+      return res.status(200).json({ success: true, message: "Authentification Garmin réussie !" });
+    }
+
+    if (!workout) {
+      return res.status(400).json({ error: "Aucune séance fournie pour la synchronisation." });
+    }
 
     // Construction des étapes au format officiel Workout JSON de Garmin
     const workoutSteps: any[] = [];
@@ -123,7 +141,10 @@ export default async function handler(req: any, res: any) {
     // Appel direct au service d'entraînement de Garmin Connect
     await gc.client.post("https://connect.garmin.com/workout-service/workout", payload);
 
-    return res.status(200).json({ success: true, message: "Séance synchronisée sur Garmin Connect avec succès !" });
+    return res.status(200).json({
+      success: true,
+      message: "Séance synchronisée sur Garmin Connect avec succès !",
+    });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
     return res.status(401).json({
