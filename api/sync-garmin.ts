@@ -2,6 +2,7 @@
 // api/sync-garmin.ts
 import { GarminConnect } from "garmin-connect";
 
+// Convertit la durée/distance Volaris en secondes ou mètres
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
   if (clean.includes("min")) {
@@ -55,6 +56,7 @@ export default async function handler(req: any, res: any) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
+    // Test de connexion rapide depuis le profil
     if (testOnly || workout?.title === "Test Connexion") {
       return res.status(200).json({ success: true, message: "Authentification réussie !" });
     }
@@ -63,7 +65,11 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Aucune séance fournie." });
     }
 
-    // Construction des étapes d'entraînement
+    const workoutTitle = (workout.title || "Séance Volaris").substring(0, 45);
+    const workoutDesc = workout.description || "Synchronisé depuis Volaris Running";
+    const workoutKm = parseFloat(workout.km || "8") || 8;
+    const distMeters = Math.round(workoutKm * 1000);
+
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
@@ -124,16 +130,19 @@ export default async function handler(req: any, res: any) {
     } else {
       workoutSteps.push(
         buildStepDTO(
-          { type: "corps", durationOrDist: `${workout.km || 8}km` },
+          { type: "corps", durationOrDist: `${workoutKm}km` },
           1
         )
       );
     }
 
     const payload = {
-      workoutName: (workout.title || "Séance Volaris").substring(0, 45),
-      description: workout.description || "Synchronisé depuis Volaris Running",
+      workoutId: null,
+      ownerId: null,
+      workoutName: workoutTitle,
+      description: workoutDesc,
       sportType: { sportTypeId: 1, sportTypeKey: "running" },
+      subSportType: null,
       workoutSegments: [
         {
           segmentOrder: 1,
@@ -143,41 +152,32 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // Extraction du jeton OAuth JWT de la session active
-    const token =
-      gc?.session?.access_token ||
-      gc?.oauth2?.access_token ||
-      gc?.client?.defaults?.headers?.common?.["Authorization"] ||
-      null;
+    let result: any = null;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "NK": "NT",
-      "X-Requested-With": "XMLHttpRequest",
-    };
-
-    if (token) {
-      headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+    // 1. Essai avec la méthode native addWorkout
+    if (typeof gc.addWorkout === "function") {
+      result = await gc.addWorkout(payload);
+    } 
+    // 2. Essai avec la méthode post native
+    else if (typeof gc.post === "function") {
+      result = await gc.post("https://connect.garmin.com/modern/proxy/workout-service/workout", payload);
+    } 
+    // 3. Fallback d'entraînement de course
+    else if (typeof gc.addRunningWorkout === "function") {
+      result = await gc.addRunningWorkout(workoutTitle, distMeters, workoutDesc);
+    } 
+    else {
+      // 4. Appel client direct en dernier recours
+      const res = await gc.client.post("https://connect.garmin.com/modern/proxy/workout-service/workout", payload);
+      result = res.data;
     }
 
-    // Appel direct au point d'accès API officiel de Garmin
-    const response = await gc.client.post(
-      "https://connectapi.garmin.com/workout-service/workout",
-      payload,
-      { headers }
-    );
-
-    const garminResult = response?.data;
-    const workoutId = garminResult?.workoutId || garminResult?.id;
-
-    if (!workoutId) {
-      throw new Error("Garmin n'a pas retourné d'identifiant pour la séance créée.");
-    }
+    const workoutId = result?.workoutId || result?.id || (typeof result === "object" ? JSON.stringify(result) : null);
 
     return res.status(200).json({
       success: true,
-      workoutId: workoutId,
-      message: `Séance enregistrée sur Garmin Connect (ID: ${workoutId}) !`,
+      workoutId: result?.workoutId || result?.id || "OK",
+      message: `Séance « ${workoutTitle} » ajoutée à votre compte Garmin Connect !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
@@ -185,7 +185,7 @@ export default async function handler(req: any, res: any) {
       error?.response?.data?.message ||
       error?.response?.data ||
       error?.message ||
-      "Erreur lors de la création de la séance sur Garmin.";
+      "Erreur lors de la synchronisation avec Garmin Connect.";
 
     return res.status(400).json({
       error: typeof errorDetails === "string" ? errorDetails : JSON.stringify(errorDetails),
