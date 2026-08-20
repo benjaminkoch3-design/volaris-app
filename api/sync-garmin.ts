@@ -1,6 +1,6 @@
 // api/sync-garmin.ts
+import { GarminConnect } from "garmin-connect";
 
-// Convertit la durée/distance Volaris en secondes ou mètres
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
   if (clean.includes("min")) {
@@ -51,14 +51,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // Import dynamique pour compatibilité ES Module / CommonJS Vercel
-    const garminModule = await import("garmin-connect");
-    const GarminConnect = garminModule.GarminConnect || (garminModule as any).default?.GarminConnect || (garminModule as any).default;
-
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Cas de test d'authentification depuis le profil
     if (testOnly || workout?.title === "Test Connexion") {
       return res.status(200).json({ success: true, message: "Authentification Garmin réussie !" });
     }
