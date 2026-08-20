@@ -5,11 +5,11 @@ const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: n
   const clean = (val || "").toLowerCase().trim();
   if (clean.includes("min")) {
     const mins = parseFloat(clean) || 0;
-    return { type: "time", value: Math.round(mins * 60) };
+    return { type: "time", value: Math.round(mins * 60) }; // secondes
   }
   if (clean.includes("km")) {
     const km = parseFloat(clean) || 0;
-    return { type: "distance", value: Math.round(km * 1000) };
+    return { type: "distance", value: Math.round(km * 1000) }; // mètres
   }
   if (clean.includes("m")) {
     const m = parseFloat(clean) || 0;
@@ -54,7 +54,6 @@ export default async function handler(req: any, res: any) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Cas de test d'authentification
     if (testOnly || workout?.title === "Test Connexion") {
       return res.status(200).json({ success: true, message: "Authentification réussie !" });
     }
@@ -66,6 +65,37 @@ export default async function handler(req: any, res: any) {
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
+    const buildStepDTO = (step: any, customOrder: number) => {
+      const parsed = parseDurationOrDist(step.durationOrDist || "");
+      const isTime = parsed.type === "time";
+      return {
+        type: "ExecutableStepDTO",
+        stepId: null,
+        stepOrder: customOrder,
+        stepType: getGarminStepType(step.type),
+        childStepId: null,
+        description: null,
+        endCondition: {
+          conditionTypeId: isTime ? 2 : 1,
+          conditionTypeKey: isTime ? "time" : "distance",
+          displayOrder: isTime ? 2 : 1,
+          displayable: true,
+        },
+        endConditionValue: parsed.value,
+        endConditionCompare: null,
+        endConditionZone: null,
+        targetType: {
+          workoutTargetTypeId: 1,
+          workoutTargetTypeKey: "no.target",
+          displayOrder: 1,
+          displayable: true,
+        },
+        targetValueOne: null,
+        targetValueTwo: null,
+        zoneNumber: null,
+      };
+    };
+
     if (workout.steps && workout.steps.length > 0) {
       workout.steps.forEach((step: any) => {
         if (step.type === "repeat" && step.nestedSteps) {
@@ -73,58 +103,38 @@ export default async function handler(req: any, res: any) {
           const repeatSteps: any[] = [];
 
           step.nestedSteps.forEach((nStep: any) => {
-            const parsed = parseDurationOrDist(nStep.durationOrDist || "");
-            repeatSteps.push({
-              type: "ExecutableStepDTO",
-              stepOrder: stepOrder++,
-              stepType: getGarminStepType(nStep.type),
-              endCondition: {
-                conditionTypeId: parsed.type === "time" ? 2 : 1,
-                conditionTypeKey: parsed.type === "time" ? "time" : "distance",
-              },
-              endConditionValue: parsed.value,
-              targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target" },
-            });
+            repeatSteps.push(buildStepDTO(nStep, stepOrder++));
           });
 
           workoutSteps.push({
             type: "RepeatGroupDTO",
+            stepId: null,
             stepOrder: stepOrder++,
             stepType: { stepTypeId: 6, stepTypeKey: "repeat" },
             numberOfIterations: reps,
             workoutSteps: repeatSteps,
+            smartRepeat: false,
           });
         } else {
-          const parsed = parseDurationOrDist(step.durationOrDist || "");
-          workoutSteps.push({
-            type: "ExecutableStepDTO",
-            stepOrder: stepOrder++,
-            stepType: getGarminStepType(step.type),
-            endCondition: {
-              conditionTypeId: parsed.type === "time" ? 2 : 1,
-              conditionTypeKey: parsed.type === "time" ? "time" : "distance",
-            },
-            endConditionValue: parsed.value,
-            targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target" },
-          });
+          workoutSteps.push(buildStepDTO(step, stepOrder++));
         }
       });
     } else {
-      const distMeters = (parseFloat(workout.km || "8") || 8) * 1000;
-      workoutSteps.push({
-        type: "ExecutableStepDTO",
-        stepOrder: 1,
-        stepType: { stepTypeId: 3, stepTypeKey: "interval" },
-        endCondition: { conditionTypeId: 1, conditionTypeKey: "distance" },
-        endConditionValue: distMeters,
-        targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: "no.target" },
-      });
+      workoutSteps.push(
+        buildStepDTO(
+          { type: "corps", durationOrDist: `${workout.km || 8}km` },
+          1
+        )
+      );
     }
 
     const payload = {
-      workoutName: workout.title || "Séance Volaris",
+      workoutId: null,
+      ownerId: null,
+      workoutName: (workout.title || "Séance Volaris").substring(0, 50),
       description: workout.description || "Synchronisé depuis Volaris Running",
       sportType: { sportTypeId: 1, sportTypeKey: "running" },
+      subSportType: null,
       workoutSegments: [
         {
           segmentOrder: 1,
@@ -134,24 +144,39 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // Appel vers le proxy API moderne de Garmin Connect avec en-têtes requis
-    const proxyUrl = "https://connect.garmin.com/modern/proxy/workout-service/workout";
-    
-    await gc.client.post(proxyUrl, payload, {
-      headers: {
-        "Content-Type": "application/json",
-        "NK": "NT",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-    });
+    // Envoi de l'entraînement
+    const response = await gc.client.post(
+      "https://connect.garmin.com/workout-service/workout",
+      payload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "NK": "NT",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      }
+    );
+
+    const garminResult = response?.data;
+    const workoutId = garminResult?.workoutId || garminResult?.id;
+
+    if (!workoutId && typeof garminResult === "string" && garminResult.includes("<!DOCTYPE")) {
+      throw new Error("Garmin a rejeté la requête (session non authentifiée).");
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Séance synchronisée sur Garmin Connect avec succès !",
+      workoutId: workoutId,
+      message: `Séance créée avec succès dans Garmin Connect (ID: ${workoutId || "OK"}) !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
-    const errorDetails = error?.response?.data || error?.message || "Erreur de synchronisation Garmin";
+    const errorDetails =
+      error?.response?.data?.message ||
+      error?.response?.data ||
+      error?.message ||
+      "Erreur de synchronisation Garmin";
+
     return res.status(400).json({
       error: typeof errorDetails === "string" ? errorDetails : JSON.stringify(errorDetails),
     });
