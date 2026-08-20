@@ -2,24 +2,88 @@
 // api/sync-garmin.ts
 import { GarminConnect } from "garmin-connect";
 
-// Convertit la durée/distance Volaris en secondes ou mètres
+// Convertit la durée / distance Volaris en valeur exploitable par Garmin
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
-  if (clean.includes("min")) {
-    const mins = parseFloat(clean) || 0;
-    return { type: "time", value: Math.round(mins * 60) }; // secondes
+
+  // Détection des distances en km (ex: 10km, 1.5 km, 10 k)
+  if (clean.includes("km") || (clean.endsWith("k") && !clean.includes("min"))) {
+    const km = parseFloat(clean.replace(",", ".")) || 0;
+    return { type: "distance", value: Math.round(km * 1000) };
   }
-  if (clean.includes("km")) {
-    const km = parseFloat(clean) || 0;
-    return { type: "distance", value: Math.round(km * 1000) }; // mètres
-  }
-  if (clean.includes("m")) {
-    const m = parseFloat(clean) || 0;
+
+  // Détection des distances en mètres (ex: 400m, 1000 m)
+  if (clean.includes("m") && !clean.includes("min")) {
+    const m = parseFloat(clean.replace(",", ".")) || 0;
     return { type: "distance", value: Math.round(m) };
   }
-  return { type: "time", value: 300 };
+
+  // Détection des durées en heures (ex: 1h, 1h30)
+  if (clean.includes("h")) {
+    const parts = clean.split("h");
+    const hours = parseFloat(parts[0]) || 0;
+    const mins = parseFloat(parts[1]) || 0;
+    return { type: "time", value: Math.round(hours * 3600 + mins * 60) };
+  }
+
+  // Détection des durées en secondes (ex: 45s, 30sec)
+  if (clean.includes("s") && !clean.includes("min")) {
+    const sec = parseFloat(clean) || 0;
+    return { type: "time", value: Math.round(sec) };
+  }
+
+  // Détection des durées en minutes (ex: 20min, 15', 10 min)
+  if (clean.includes("min") || clean.includes("'")) {
+    const mins = parseFloat(clean.replace("'", ".")) || 0;
+    return { type: "time", value: Math.round(mins * 60) };
+  }
+
+  // Format mm:ss (ex: 04:30)
+  if (clean.includes(":")) {
+    const [min, sec] = clean.split(":").map((v) => parseFloat(v) || 0);
+    return { type: "time", value: Math.round(min * 60 + sec) };
+  }
+
+  // Par défaut : si c'est un nombre >= 100 on considère que ce sont des mètres, sinon des minutes
+  const rawNum = parseFloat(clean) || 0;
+  if (rawNum >= 100) {
+    return { type: "distance", value: Math.round(rawNum) };
+  }
+  return { type: "time", value: Math.round((rawNum || 5) * 60) };
 };
 
+// Convertit une allure (min/km ou km/h) en vitesse m/s pour Garmin
+const parsePaceToMetersPerSecond = (paceStr: string): number | null => {
+  if (!paceStr) return null;
+  const clean = paceStr.toString().toLowerCase().trim();
+
+  // Si c'est déjà en km/h (ex: "14 km/h" ou "14.5")
+  if (clean.includes("km/h")) {
+    const speedKmh = parseFloat(clean.replace(",", ".")) || 0;
+    return speedKmh > 0 ? speedKmh / 3.6 : null;
+  }
+
+  // Si c'est au format "4:30", "4'30" ou "04:30 min/km"
+  const paceMatch = clean.match(/(\d+)[':](\d+)/);
+  if (paceMatch) {
+    const mins = parseInt(paceMatch[1], 10);
+    const secs = parseInt(paceMatch[2], 10);
+    const totalSecPerKm = mins * 60 + secs;
+    return totalSecPerKm > 0 ? 1000 / totalSecPerKm : null;
+  }
+
+  const numericSpeed = parseFloat(clean.replace(",", "."));
+  if (!isNaN(numericSpeed) && numericSpeed > 0) {
+    // Si la valeur est entre 6 et 25, c'est probablement des km/h
+    if (numericSpeed >= 6 && numericSpeed <= 25) {
+      return numericSpeed / 3.6;
+    }
+  }
+
+  return null;
+};
+
+// Types d'étapes Garmin
 const getGarminStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -56,7 +120,6 @@ export default async function handler(req: any, res: any) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Test de connexion rapide depuis le profil
     if (testOnly || workout?.title === "Test Connexion") {
       return res.status(200).json({ success: true, message: "Authentification réussie !" });
     }
@@ -67,39 +130,52 @@ export default async function handler(req: any, res: any) {
 
     const workoutTitle = (workout.title || "Séance Volaris").substring(0, 45);
     const workoutDesc = workout.description || "Synchronisé depuis Volaris Running";
-    const workoutKm = parseFloat(workout.km || "8") || 8;
-    const distMeters = Math.round(workoutKm * 1000);
 
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
     const buildStepDTO = (step: any, customOrder: number) => {
-      const parsed = parseDurationOrDist(step.durationOrDist || "");
+      const parsed = parseDurationOrDist(step.durationOrDist || step.distance || step.duration || "");
       const isTime = parsed.type === "time";
+
+      // Analyse de l'allure cible
+      const rawPace = step.targetPace || step.pace || step.speed || step.targetSpeed || "";
+      const baseSpeedMs = parsePaceToMetersPerSecond(rawPace);
+
+      let targetType = {
+        workoutTargetTypeId: 1,
+        workoutTargetTypeKey: "no.target",
+      };
+      let targetValueOne = null;
+      let targetValueTwo = null;
+
+      if (baseSpeedMs && baseSpeedMs > 0) {
+        targetType = {
+          workoutTargetTypeId: 6,
+          workoutTargetTypeKey: "pace.zone",
+        };
+        // Marge de tolérance de ± 5% pour l'allure cible
+        targetValueOne = parseFloat((baseSpeedMs * 0.95).toFixed(3)); // Borne basse (m/s)
+        targetValueTwo = parseFloat((baseSpeedMs * 1.05).toFixed(3)); // Borne haute (m/s)
+      }
+
       return {
         type: "ExecutableStepDTO",
         stepId: null,
         stepOrder: customOrder,
         stepType: getGarminStepType(step.type),
         childStepId: null,
-        description: null,
+        description: step.description || null,
         endCondition: {
-          conditionTypeId: isTime ? 2 : 1,
+          conditionTypeId: isTime ? 2 : 3, // 2 = TIME, 3 = DISTANCE chez Garmin
           conditionTypeKey: isTime ? "time" : "distance",
-          displayOrder: isTime ? 2 : 1,
-          displayable: true,
         },
         endConditionValue: parsed.value,
         endConditionCompare: null,
         endConditionZone: null,
-        targetType: {
-          workoutTargetTypeId: 1,
-          workoutTargetTypeKey: "no.target",
-          displayOrder: 1,
-          displayable: true,
-        },
-        targetValueOne: null,
-        targetValueTwo: null,
+        targetType: targetType,
+        targetValueOne: targetValueOne,
+        targetValueTwo: targetValueTwo,
         zoneNumber: null,
       };
     };
@@ -107,7 +183,7 @@ export default async function handler(req: any, res: any) {
     if (workout.steps && workout.steps.length > 0) {
       workout.steps.forEach((step: any) => {
         if (step.type === "repeat" && step.nestedSteps) {
-          const reps = step.reps || 1;
+          const reps = parseInt(step.reps || step.repeatCount || "1", 10) || 1;
           const repeatSteps: any[] = [];
 
           step.nestedSteps.forEach((nStep: any) => {
@@ -130,7 +206,11 @@ export default async function handler(req: any, res: any) {
     } else {
       workoutSteps.push(
         buildStepDTO(
-          { type: "corps", durationOrDist: `${workoutKm}km` },
+          {
+            type: "corps",
+            durationOrDist: `${workout.km || 8}km`,
+            targetPace: workout.targetPace || workout.pace || "",
+          },
           1
         )
       );
@@ -153,42 +233,26 @@ export default async function handler(req: any, res: any) {
     };
 
     let result: any = null;
-
-    // 1. Essai avec la méthode native addWorkout
     if (typeof gc.addWorkout === "function") {
       result = await gc.addWorkout(payload);
-    } 
-    // 2. Essai avec la méthode post native
-    else if (typeof gc.post === "function") {
+    } else if (typeof gc.post === "function") {
       result = await gc.post("https://connect.garmin.com/modern/proxy/workout-service/workout", payload);
-    } 
-    // 3. Fallback d'entraînement de course
-    else if (typeof gc.addRunningWorkout === "function") {
-      result = await gc.addRunningWorkout(workoutTitle, distMeters, workoutDesc);
-    } 
-    else {
-      // 4. Appel client direct en dernier recours
+    } else {
       const res = await gc.client.post("https://connect.garmin.com/modern/proxy/workout-service/workout", payload);
       result = res.data;
     }
 
-    const workoutId = result?.workoutId || result?.id || (typeof result === "object" ? JSON.stringify(result) : null);
+    const workoutId = result?.workoutId || result?.id || "OK";
 
     return res.status(200).json({
       success: true,
-      workoutId: result?.workoutId || result?.id || "OK",
-      message: `Séance « ${workoutTitle} » ajoutée à votre compte Garmin Connect !`,
+      workoutId: workoutId,
+      message: `Séance « ${workoutTitle} » synchronisée avec cibles d'allure et distances !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
-    const errorDetails =
-      error?.response?.data?.message ||
-      error?.response?.data ||
-      error?.message ||
-      "Erreur lors de la synchronisation avec Garmin Connect.";
-
     return res.status(400).json({
-      error: typeof errorDetails === "string" ? errorDetails : JSON.stringify(errorDetails),
+      error: error?.message || "Erreur de synchronisation.",
     });
   }
 }
