@@ -2,42 +2,53 @@
 
 import { Workout, WorkoutStep } from "../types";
 
-// Convertit la durée ou la distance Volaris (ex: "1000m", "45min", "5km") en secondes ou mètres pour Garmin
 const parseDurationOrDist = (val: string): { type: "Time" | "Distance"; value: number } => {
-  const cleanVal = val.toLowerCase().trim();
+  const cleanVal = (val || "").toLowerCase().trim();
   if (cleanVal.includes("min")) {
     const mins = parseFloat(cleanVal) || 0;
-    return { type: "Time", value: mins * 60 };
+    return { type: "Time", value: Math.round(mins * 60) };
   }
   if (cleanVal.includes("km")) {
     const km = parseFloat(cleanVal) || 0;
-    return { type: "Distance", value: km * 1000 };
+    return { type: "Distance", value: Math.round(km * 1000) };
   }
   if (cleanVal.includes("m")) {
     const m = parseFloat(cleanVal) || 0;
-    return { type: "Distance", value: m };
+    return { type: "Distance", value: Math.round(m) };
   }
-  // Par défaut : 300 secondes (5 min) si la donnée n'est pas reconnue
   return { type: "Time", value: 300 };
 };
 
-// Génère les balises XML TCX compatibles Garmin Connect
-const buildStepXML = (step: WorkoutStep, stepName: string): string => {
+const buildStepXML = (step: WorkoutStep, stepId: number, stepName: string): string => {
   const parsed = parseDurationOrDist(step.durationOrDist || "");
-  const durationType = parsed.type === "Time" ? "Time" : "Distance";
   const intensity = step.type === "recup" ? "Resting" : "Active";
 
+  let durationBlock = "";
+  if (parsed.type === "Time") {
+    durationBlock = `
+        <Duration xsi:type="Time_t">
+          <Seconds>${parsed.value}</Seconds>
+        </Duration>`;
+  } else {
+    durationBlock = `
+        <Duration xsi:type="Distance_t">
+          <Meters>${parsed.value}</Meters>
+        </Duration>`;
+  }
+
   return `
-      <Step Name="${stepName}">
+      <Step xsi:type="Step_t">
+        <StepId>${stepId}</StepId>
+        <Name>${stepName.substring(0, 15)}</Name>
         <Intensity>${intensity}</Intensity>
-        <DurationType>${durationType}</DurationType>
-        <DurationValue>${parsed.value}</DurationValue>
+        ${durationBlock}
+        <Target xsi:type="None_t"/>
       </Step>`;
 };
 
-// Fonction principale d'exportation avec support du partage Bluetooth / Garmin Connect
 export const exportWorkoutToTCX = async (workout: Workout) => {
   let stepsXML = "";
+  let currentStepId = 1;
 
   if (workout.steps && workout.steps.length > 0) {
     workout.steps.forEach((step, idx) => {
@@ -45,27 +56,39 @@ export const exportWorkoutToTCX = async (workout: Workout) => {
         const reps = step.reps || 1;
         for (let i = 0; i < reps; i++) {
           step.nestedSteps.forEach((nStep, nIdx) => {
-            stepsXML += buildStepXML(nStep, `Rep ${i + 1}/${reps} - Bloc ${nIdx + 1}`);
+            stepsXML += buildStepXML(nStep, currentStepId++, `R${i + 1} E${nIdx + 1}`);
           });
         }
       } else {
-        stepsXML += buildStepXML(step, `Etape ${idx + 1}`);
+        stepsXML += buildStepXML(step, currentStepId++, `Etape ${idx + 1}`);
       }
     });
   } else {
-    const distMeters = (parseFloat(workout.km || "8") || 8) * 1000;
+    const distMeters = Math.round((parseFloat(workout.km || "8") || 8) * 1000);
     stepsXML = `
-      <Step Name="${workout.title}">
+      <Step xsi:type="Step_t">
+        <StepId>1</StepId>
+        <Name>Course</Name>
         <Intensity>Active</Intensity>
-        <DurationType>Distance</DurationType>
-        <DurationValue>${distMeters}</DurationValue>
+        <Duration xsi:type="Distance_t">
+          <Meters>${distMeters}</Meters>
+        </Duration>
+        <Target xsi:type="None_t"/>
       </Step>`;
   }
 
-  const cleanTitle = workout.title.replace(/[^\w\s-]/gi, "") || "Seance_Volaris";
+  const cleanTitle = (workout.title || "Entrainement")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/gi, "")
+    .trim()
+    .substring(0, 15);
 
   const tcxContent = `<?xml version="1.0" encoding="UTF-8"?>
-<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+<TrainingCenterDatabase
+  xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
   <Workouts>
     <Workout Sport="Running">
       <Name>${cleanTitle}</Name>
@@ -79,7 +102,6 @@ export const exportWorkoutToTCX = async (workout: Workout) => {
     type: "application/vnd.garmin.tcx+xml",
   });
 
-  // 1. SUR MOBILE : Utilise le partage natif pour ouvrir directement dans Garmin Connect
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
@@ -88,12 +110,11 @@ export const exportWorkoutToTCX = async (workout: Workout) => {
         files: [file],
       });
       return;
-    } catch (err) {
-      console.log("Partage annuler ou non supporté, repli sur le téléchargement classique.");
+    } catch {
+      // Repli sur le téléchargement standard
     }
   }
 
-  // 2. SUR ORDINATEUR : Téléchargement du fichier classique
   const blob = new Blob([tcxContent], { type: "application/vnd.garmin.tcx+xml" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
