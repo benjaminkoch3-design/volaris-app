@@ -1,5 +1,4 @@
 // api/sync-garmin.ts
-import { GarminConnect } from "garmin-connect";
 
 // Convertit la durée/distance Volaris en secondes ou mètres
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
@@ -19,7 +18,6 @@ const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: n
   return { type: "time", value: 300 };
 };
 
-// Convertit les types d'étapes Volaris vers les clés Garmin
 const getGarminStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -34,7 +32,6 @@ const getGarminStepType = (type: string) => {
 };
 
 export default async function handler(req: any, res: any) {
-  // En-têtes CORS pour autoriser les requêtes POST et les pré-vols OPTIONS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -54,19 +51,22 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // Import dynamique pour compatibilité ES Module / CommonJS Vercel
+    const garminModule = await import("garmin-connect");
+    const GarminConnect = garminModule.GarminConnect || (garminModule as any).default?.GarminConnect || (garminModule as any).default;
+
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Cas d'un simple test d'authentification depuis le profil
+    // Cas de test d'authentification depuis le profil
     if (testOnly || workout?.title === "Test Connexion") {
       return res.status(200).json({ success: true, message: "Authentification Garmin réussie !" });
     }
 
     if (!workout) {
-      return res.status(400).json({ error: "Aucune séance fournie pour la synchronisation." });
+      return res.status(400).json({ error: "Aucune séance fournie." });
     }
 
-    // Construction des étapes au format officiel Workout JSON de Garmin
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
@@ -138,7 +138,6 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // Appel direct au service d'entraînement de Garmin Connect
     await gc.client.post("https://connect.garmin.com/workout-service/workout", payload);
 
     return res.status(200).json({
@@ -148,7 +147,7 @@ export default async function handler(req: any, res: any) {
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
     return res.status(401).json({
-      error: error?.message || "Identifiants Garmin invalides ou erreur de synchronisation.",
+      error: error?.message || "Identifiants Garmin invalides ou erreur de connexion.",
     });
   }
 }
