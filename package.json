@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.112.0",
     "exceljs": "^4.4.0",
     "fit-file-parser": "^4.1.0",
+    "garmin-connect": "^1.6.2",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
