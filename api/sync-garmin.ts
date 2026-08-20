@@ -54,8 +54,9 @@ export default async function handler(req: any, res: any) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
+    // Cas de test d'authentification
     if (testOnly || workout?.title === "Test Connexion") {
-      return res.status(200).json({ success: true, message: "Authentification Garmin réussie !" });
+      return res.status(200).json({ success: true, message: "Authentification réussie !" });
     }
 
     if (!workout) {
@@ -133,7 +134,16 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    await gc.client.post("https://connect.garmin.com/workout-service/workout", payload);
+    // Appel vers le proxy API moderne de Garmin Connect avec en-têtes requis
+    const proxyUrl = "https://connect.garmin.com/modern/proxy/workout-service/workout";
+    
+    await gc.client.post(proxyUrl, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "NK": "NT",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
 
     return res.status(200).json({
       success: true,
@@ -141,8 +151,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
-    return res.status(401).json({
-      error: error?.message || "Identifiants Garmin invalides ou erreur de connexion.",
+    const errorDetails = error?.response?.data || error?.message || "Erreur de synchronisation Garmin";
+    return res.status(400).json({
+      error: typeof errorDetails === "string" ? errorDetails : JSON.stringify(errorDetails),
     });
   }
 }
