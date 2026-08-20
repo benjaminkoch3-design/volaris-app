@@ -27,21 +27,18 @@ interface WorkoutEditorProps {
   draggedStepPath: string[] | null;
   setDraggedStepPath: (path: string[] | null) => void;
 
-  // PROPS D'IMPORT DE LA BIBLIOTHÈQUE & RÔLE UTILISATEUR
   libraryWorkouts?: LibraryWorkout[];
   categories?: LibraryCategory[];
   userRole?: UserRole;
 }
 
-// Fonction utilitaire pour calculer la couleur exacte du RPE (du vert au rouge)
 const getRpeColor = (rpe: number) => {
-  if (rpe <= 3) return "#10b981"; // Vert
-  if (rpe <= 5) return "#f59e0b"; // Jaune / Ambre
-  if (rpe <= 7) return "#f97316"; // Orange
-  return "#ef4444"; // Rouge
+  if (rpe <= 3) return "#10b981";
+  if (rpe <= 5) return "#f59e0b";
+  if (rpe <= 7) return "#f97316";
+  return "#ef4444";
 };
 
-// COMPOSANT VISUALISATION DU PROFIL D'ALLURE
 export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
   const profile = generatePaceProfile(steps);
 
@@ -184,7 +181,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const metrics = calculateStepMetrics(workout.steps);
   const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
 
-  // Définition de la couleur thème selon le rôle (Coach = Jaune-Vert #CDCF61, Athlète = Ocre/Brun #CF9A61)
   const isCoach = userRole === "coach";
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
@@ -378,20 +374,14 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   type="text"
                   placeholder="Ex: 4:15"
                   value={step.paceMin || step.goalValue || ""}
-                  onChange={(e) => {
+                  onChange={(e) =>
                     onUpdateStep(
                       workout.id,
                       currentPath,
                       "paceMin",
                       e.target.value
-                    );
-                    onUpdateStep(
-                      workout.id,
-                      currentPath,
-                      "goalValue",
-                      e.target.value
-                    );
-                  }}
+                    )
+                  }
                   className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
                 />
               </div>
@@ -488,7 +478,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </button>
               </div>
 
-              {/* SÉLECTEUR DE CATÉGORIES EN COULEUR THÈME */}
               {categories.length > 0 && (
                 <div className="flex overflow-x-auto gap-1.5 pb-1 custom-scrollbar">
                   {categories.map((cat) => {
@@ -512,7 +501,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               )}
 
-              {/* LISTE DES SÉANCES DISPONIBLES */}
               <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                 {filteredLibraryWorkouts.length === 0 ? (
                   <p className="text-xs text-stone-500 italic text-center py-4">
@@ -583,7 +571,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* GRAPHIQUE D'ALLURE DYNAMIQUE */}
         <PaceProfileChart steps={workout.steps} />
 
         {/* PARAMÈTRES GÉNÉRAUX */}

@@ -2,23 +2,19 @@
 // api/sync-garmin.ts
 import { GarminConnect } from "garmin-connect";
 
-// 1. Analyse et conversion de la durée ou distance
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
 
-  // Distances en km (ex: 10km, 1.5 km, 10 k)
   if (clean.includes("km") || (clean.endsWith("k") && !clean.includes("min"))) {
     const km = parseFloat(clean.replace(",", ".")) || 0;
     return { type: "distance", value: Math.round(km * 1000) };
   }
 
-  // Distances en mètres (ex: 400m, 1000 m)
   if (clean.includes("m") && !clean.includes("min")) {
     const m = parseFloat(clean.replace(",", ".")) || 0;
     return { type: "distance", value: Math.round(m) };
   }
 
-  // Durées en heures (ex: 1h, 1h30)
   if (clean.includes("h")) {
     const parts = clean.split("h");
     const hours = parseFloat(parts[0]) || 0;
@@ -26,19 +22,16 @@ const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: n
     return { type: "time", value: Math.round(hours * 3600 + mins * 60) };
   }
 
-  // Durées en secondes (ex: 45s, 30sec)
   if (clean.includes("s") && !clean.includes("min")) {
     const sec = parseFloat(clean) || 0;
     return { type: "time", value: Math.round(sec) };
   }
 
-  // Durées en minutes (ex: 20min, 15', 10 min)
   if (clean.includes("min") || clean.includes("'")) {
     const mins = parseFloat(clean.replace("'", ".")) || 0;
     return { type: "time", value: Math.round(mins * 60) };
   }
 
-  // Format mm:ss (ex: 04:30)
   if (clean.includes(":")) {
     const [min, sec] = clean.split(":").map((v) => parseFloat(v) || 0);
     return { type: "time", value: Math.round(min * 60 + sec) };
@@ -51,78 +44,102 @@ const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: n
   return { type: "time", value: Math.round((rawNum || 5) * 60) };
 };
 
-// 2. Analyse et extraction d'une fourchette d'allure (min/km ou km/h) vers des vitesses en m/s pour Garmin
-const parsePaceRangeToMetersPerSecond = (
-  step: any,
-  workoutFallback?: string
-): { minSpeed: number; maxSpeed: number } | null => {
-  // Liste de tous les champs potentiels où l'allure peut se trouver
-  const sources = [
-    step.pace,
-    step.targetPace,
-    step.allure,
-    step.targetSpeed,
-    step.speed,
-    step.target,
-    step.intensity,
-    step.description,
-    step.title,
-    workoutFallback,
-  ];
+const parsePaceStringToSeconds = (str: string): number | null => {
+  if (!str) return null;
+  const clean = str.toString().trim().toLowerCase();
 
-  const textToScan = sources.filter(Boolean).join(" ");
-  if (!textToScan) return null;
-
-  // Cas 1 : Fourchette d'allure explicite (ex: "4:15 - 4:25", "4'15 à 4'25", "04:10/04:20")
-  const rangeMatch = textToScan.match(/(\d+)[':](\d+)\s*(?:-|à|to|\/)\s*(\d+)[':](\d+)/i);
-  if (rangeMatch) {
-    const fastSec = parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
-    const slowSec = parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
-    const actualFastSec = Math.min(fastSec, slowSec);
-    const actualSlowSec = Math.max(fastSec, slowSec);
-    if (actualFastSec > 0 && actualSlowSec > 0) {
-      return {
-        minSpeed: 1000 / actualSlowSec, // Borne basse en m/s (allure plus lente)
-        maxSpeed: 1000 / actualFastSec, // Borne haute en m/s (allure plus rapide)
-      };
-    }
+  if (clean.includes("km/h")) {
+    const kmh = parseFloat(clean.replace(",", ".")) || 0;
+    return kmh > 0 ? 3600 / kmh : null;
   }
 
-  // Cas 2 : Allure unique au format min/km (ex: "4:30", "4'30", "4:30 min/km", "@ 4:15")
-  const singlePaceMatch = textToScan.match(/(\d{1,2})[':](\d{2})(?:\s*(?:min\/km|\/km|min))?/i);
-  if (singlePaceMatch) {
-    const min = parseInt(singlePaceMatch[1], 10);
-    const sec = parseInt(singlePaceMatch[2], 10);
-    // Filtrage pour éviter de confondre une durée avec une allure (ex: allure réaliste entre 2:30 et 10:00 min/km)
-    if (min >= 2 && min <= 10 && sec < 60) {
-      const paceSec = min * 60 + sec;
-      // Tolérance standard de ± 5 secondes au kilomètre pour la cible Garmin
-      const slowSec = paceSec + 5;
-      const fastSec = Math.max(1, paceSec - 5);
-      return {
-        minSpeed: 1000 / slowSec,
-        maxSpeed: 1000 / fastSec,
-      };
-    }
+  const match = clean.match(/(\d{1,2})[':](\d{2})/);
+  if (match) {
+    const mins = parseInt(match[1], 10);
+    const secs = parseInt(match[2], 10);
+    return mins * 60 + secs;
   }
 
-  // Cas 3 : Vitesse en km/h (ex: "14.5 km/h", "15km/h")
-  const speedMatch = textToScan.match(/(\d+(?:[.,]\d+)?)\s*km\/h/i);
-  if (speedMatch) {
-    const kmh = parseFloat(speedMatch[1].replace(",", "."));
-    if (kmh > 0) {
-      const baseMs = kmh / 3.6;
-      return {
-        minSpeed: baseMs * 0.95,
-        maxSpeed: baseMs * 1.05,
-      };
-    }
+  const raw = parseFloat(clean.replace(",", "."));
+  if (!isNaN(raw) && raw >= 2 && raw <= 15) {
+    const mins = Math.floor(raw);
+    const secs = Math.round((raw - mins) * 60);
+    return mins * 60 + secs;
   }
 
   return null;
 };
 
-// 3. Typage d'étape Garmin
+const extractPaceRangeInMetersPerSecond = (
+  step: any,
+  workoutFallback?: string
+): { slowSpeedMs: number; fastSpeedMs: number } | null => {
+  let fastSec: number | null = null;
+  let slowSec: number | null = null;
+
+  // 1. Détection des champs explicites paceMin et paceMax
+  const explicitMin = step.paceMin || step.targetPaceMin || step.minPace;
+  const explicitMax = step.paceMax || step.targetPaceMax || step.maxPace;
+
+  if (explicitMin && explicitMax) {
+    const s1 = parsePaceStringToSeconds(explicitMin);
+    const s2 = parsePaceStringToSeconds(explicitMax);
+    if (s1 && s2) {
+      fastSec = Math.min(s1, s2);
+      slowSec = Math.max(s1, s2);
+    }
+  } else if (explicitMin || explicitMax) {
+    const single = parsePaceStringToSeconds(explicitMin || explicitMax);
+    if (single && single >= 120 && single <= 700) {
+      fastSec = Math.max(60, single - 5);
+      slowSec = single + 5;
+    }
+  }
+
+  // 2. Détection dans les chaînes de texte concaténées
+  if (!fastSec || !slowSec) {
+    const textToScan = [
+      step.pace,
+      step.targetPace,
+      step.goalValue,
+      step.allure,
+      step.targetSpeed,
+      step.speed,
+      step.description,
+      step.title,
+      workoutFallback,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const rangeMatch = textToScan.match(/(\d{1,2})[':](\d{2})\s*(?:-|–|—|à|to|\/|\s)\s*(\d{1,2})[':](\d{2})/i);
+    if (rangeMatch) {
+      const s1 = parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
+      const s2 = parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
+      fastSec = Math.min(s1, s2);
+      slowSec = Math.max(s1, s2);
+    } else {
+      const singleMatch = textToScan.match(/(\d{1,2})[':](\d{2})/);
+      if (singleMatch) {
+        const s = parseInt(singleMatch[1], 10) * 60 + parseInt(singleMatch[2], 10);
+        if (s >= 120 && s <= 700) {
+          fastSec = Math.max(60, s - 5);
+          slowSec = s + 5;
+        }
+      }
+    }
+  }
+
+  if (fastSec && slowSec && fastSec > 0 && slowSec > 0) {
+    return {
+      slowSpeedMs: 1000 / slowSec, // vitesse minimale en m/s (allure lente)
+      fastSpeedMs: 1000 / fastSec, // vitesse maximale en m/s (allure rapide)
+    };
+  }
+
+  return null;
+};
+
 const getGarminStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -141,13 +158,8 @@ export default async function handler(req: any, res: any) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Méthode non autorisée" });
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
 
   const { email, password, workout, testOnly } = req.body || {};
 
@@ -179,8 +191,7 @@ export default async function handler(req: any, res: any) {
       );
       const isTime = parsed.type === "time";
 
-      // Détection de l'allure cible
-      const paceRange = parsePaceRangeToMetersPerSecond(
+      const paceRange = extractPaceRangeInMetersPerSecond(
         step,
         workout.targetPace || workout.pace || workout.description
       );
@@ -188,18 +199,22 @@ export default async function handler(req: any, res: any) {
       let targetType = {
         workoutTargetTypeId: 1,
         workoutTargetTypeKey: "no.target",
+        displayOrder: 1,
+        displayable: true,
       };
       let targetValueOne = null;
       let targetValueTwo = null;
 
-      // Type 6 = pace.zone chez Garmin (targetValueOne = min speed, targetValueTwo = max speed)
-      if (paceRange && paceRange.minSpeed > 0 && paceRange.maxSpeed > 0) {
+      if (paceRange) {
         targetType = {
           workoutTargetTypeId: 6,
           workoutTargetTypeKey: "pace.zone",
+          displayOrder: 6,
+          displayable: true,
         };
-        targetValueOne = parseFloat(paceRange.minSpeed.toFixed(4));
-        targetValueTwo = parseFloat(paceRange.maxSpeed.toFixed(4));
+        // Garmin attend des nombres flottants pour targetValueOne (min speed) et targetValueTwo (max speed)
+        targetValueOne = paceRange.slowSpeedMs;
+        targetValueTwo = paceRange.fastSpeedMs;
       }
 
       return {
@@ -210,8 +225,10 @@ export default async function handler(req: any, res: any) {
         childStepId: null,
         description: step.description || null,
         endCondition: {
-          conditionTypeId: isTime ? 2 : 3, // 2 = temps, 3 = distance
+          conditionTypeId: isTime ? 2 : 3,
           conditionTypeKey: isTime ? "time" : "distance",
+          displayOrder: isTime ? 2 : 3,
+          displayable: true,
         },
         endConditionValue: parsed.value,
         endConditionCompare: null,
@@ -252,6 +269,8 @@ export default async function handler(req: any, res: any) {
           {
             type: "corps",
             durationOrDist: `${workout.km || 8}km`,
+            paceMin: workout.paceMin || workout.targetPaceMin || "",
+            paceMax: workout.paceMax || workout.targetPaceMax || "",
             pace: workout.targetPace || workout.pace || "",
           },
           1
@@ -291,12 +310,10 @@ export default async function handler(req: any, res: any) {
       result = res.data;
     }
 
-    const workoutId = result?.workoutId || result?.id || "OK";
-
     return res.status(200).json({
       success: true,
-      workoutId: workoutId,
-      message: `Séance « ${workoutTitle} » synchronisée avec cibles d'allure et distances !`,
+      workoutId: result?.workoutId || result?.id || "OK",
+      message: `Séance « ${workoutTitle} » synchronisée avec cibles d'allure !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
