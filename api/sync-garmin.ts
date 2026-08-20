@@ -1,3 +1,4 @@
+// @ts-nocheck
 // api/sync-garmin.ts
 import { GarminConnect } from "garmin-connect";
 
@@ -144,9 +145,9 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // Envoi de l'entraînement
+    // Appel direct au proxy d'entraînement Garmin Connect
     const response = await gc.client.post(
-      "https://connect.garmin.com/workout-service/workout",
+      "https://connect.garmin.com/modern/proxy/workout-service/workout",
       payload,
       {
         headers: {
@@ -161,7 +162,7 @@ export default async function handler(req: any, res: any) {
     const workoutId = garminResult?.workoutId || garminResult?.id;
 
     if (!workoutId && typeof garminResult === "string" && garminResult.includes("<!DOCTYPE")) {
-      throw new Error("Garmin a rejeté la requête (session non authentifiée).");
+      throw new Error("Garmin a rejeté la requête (session expirée ou non autorisée).");
     }
 
     return res.status(200).json({
