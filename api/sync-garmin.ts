@@ -63,6 +63,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Aucune séance fournie." });
     }
 
+    // Construction des étapes d'entraînement
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
@@ -130,12 +131,9 @@ export default async function handler(req: any, res: any) {
     }
 
     const payload = {
-      workoutId: null,
-      ownerId: null,
-      workoutName: (workout.title || "Séance Volaris").substring(0, 50),
+      workoutName: (workout.title || "Séance Volaris").substring(0, 45),
       description: workout.description || "Synchronisé depuis Volaris Running",
       sportType: { sportTypeId: 1, sportTypeKey: "running" },
-      subSportType: null,
       workoutSegments: [
         {
           segmentOrder: 1,
@@ -145,30 +143,41 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // Appel direct au proxy d'entraînement Garmin Connect
+    // Extraction du jeton OAuth JWT de la session active
+    const token =
+      gc?.session?.access_token ||
+      gc?.oauth2?.access_token ||
+      gc?.client?.defaults?.headers?.common?.["Authorization"] ||
+      null;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "NK": "NT",
+      "X-Requested-With": "XMLHttpRequest",
+    };
+
+    if (token) {
+      headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+    }
+
+    // Appel direct au point d'accès API officiel de Garmin
     const response = await gc.client.post(
-      "https://connect.garmin.com/modern/proxy/workout-service/workout",
+      "https://connectapi.garmin.com/workout-service/workout",
       payload,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "NK": "NT",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      }
+      { headers }
     );
 
     const garminResult = response?.data;
     const workoutId = garminResult?.workoutId || garminResult?.id;
 
-    if (!workoutId && typeof garminResult === "string" && garminResult.includes("<!DOCTYPE")) {
-      throw new Error("Garmin a rejeté la requête (session expirée ou non autorisée).");
+    if (!workoutId) {
+      throw new Error("Garmin n'a pas retourné d'identifiant pour la séance créée.");
     }
 
     return res.status(200).json({
       success: true,
       workoutId: workoutId,
-      message: `Séance créée avec succès dans Garmin Connect (ID: ${workoutId || "OK"}) !`,
+      message: `Séance enregistrée sur Garmin Connect (ID: ${workoutId}) !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
@@ -176,7 +185,7 @@ export default async function handler(req: any, res: any) {
       error?.response?.data?.message ||
       error?.response?.data ||
       error?.message ||
-      "Erreur de synchronisation Garmin";
+      "Erreur lors de la création de la séance sur Garmin.";
 
     return res.status(400).json({
       error: typeof errorDetails === "string" ? errorDetails : JSON.stringify(errorDetails),
