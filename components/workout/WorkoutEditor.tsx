@@ -324,7 +324,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div>
                 <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
                   Condition
@@ -372,21 +372,47 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
               <div>
                 <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                  Allure Cible
+                  Allure Min (Rapide)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: 4:30"
-                  value={step.goalValue || ""}
-                  onChange={(e) =>
+                  placeholder="Ex: 4:15"
+                  value={step.paceMin || step.goalValue || ""}
+                  onChange={(e) => {
+                    onUpdateStep(
+                      workout.id,
+                      currentPath,
+                      "paceMin",
+                      e.target.value
+                    );
                     onUpdateStep(
                       workout.id,
                       currentPath,
                       "goalValue",
                       e.target.value
+                    );
+                  }}
+                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
+                  Allure Max (Lente)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 4:25"
+                  value={step.paceMax || ""}
+                  onChange={(e) =>
+                    onUpdateStep(
+                      workout.id,
+                      currentPath,
+                      "paceMax",
+                      e.target.value
                     )
                   }
-                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none"
+                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
                 />
               </div>
             </div>
@@ -439,7 +465,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* MODALE DE SÉLECTION / IMPORTATION DE MODÈLE AVEC COULEURS VERTES POUR LE COACH ET BRUNES POUR L'ATHLÈTE */}
+        {/* MODALE DE SÉLECTION / IMPORTATION DE MODÈLE */}
         {showImportModal && (
           <div className="fixed inset-0 bg-stone-950/95 z-50 flex items-center justify-center p-4">
             <div

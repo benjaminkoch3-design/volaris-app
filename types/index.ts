@@ -27,8 +27,13 @@ export type WorkoutType =
 // TYPES POUR LES SÉANCES ET LE PLAN
 // ==========================================
 
-// Ajout des types explicites demandés par vos composants
-export type StepType = "echauffement" | "corps" | "recup" | "retour_calme" | "repeat" | string;
+export type StepType =
+  | "echauffement"
+  | "corps"
+  | "recup"
+  | "retour_calme"
+  | "repeat"
+  | string;
 export type EndCondition = "temps" | "distance" | string;
 export type GoalType = "allure" | "frequence_cardiaque" | "sensations" | string;
 
@@ -39,8 +44,13 @@ export interface WorkoutStep {
   endCondition?: EndCondition;
   goalType?: GoalType;
   goalValue?: string;
+  // Fourchette d'allure cible pour Garmin et l'affichage Volaris
+  paceMin?: string; // Allure rapide (ex: "4:15")
+  paceMax?: string; // Allure lente (ex: "4:25")
+  targetPace?: string; // Texte libre ou allure simple (ex: "4:15 - 4:25" ou "4:20")
   reps?: number;
   nestedSteps?: WorkoutStep[];
+  description?: string;
 }
 
 export interface Workout {
@@ -57,11 +67,15 @@ export interface Workout {
   rpe?: string;
   completedRpe?: number;
   athleteComment?: string;
-  shoeId?: string; 
-  completedKm?: number; 
-  completedTimeMinutes?: number; 
-  completedElevationGain?: number; 
+  shoeId?: string;
+  completedKm?: number;
+  completedTimeMinutes?: number;
+  completedElevationGain?: number;
   remark?: string;
+  // Allure générale optionnelle
+  targetPace?: string;
+  paceMin?: string;
+  paceMax?: string;
   steps: WorkoutStep[];
 }
 
@@ -153,6 +167,9 @@ export interface LibraryWorkout {
   description?: string;
   km?: string;
   rpe?: string;
+  targetPace?: string;
+  paceMin?: string;
+  paceMax?: string;
   steps: WorkoutStep[];
   createdAt?: string;
 }

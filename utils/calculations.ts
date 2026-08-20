@@ -110,22 +110,16 @@ export const getDaysUntilEvent = (eventDateStr: string) => {
   return diffDays >= 0 ? diffDays : 0;
 };
 
-/**
- * Extrait année, mois (0-11) et jour directement sans décalage de fuseau horaire
- */
 export const parseYMD = (dateStr: string) => {
   if (!dateStr) return { year: 2026, month: 0, day: 1 };
   const parts = dateStr.split("T")[0].split("-").map((p) => parseInt(p, 10));
   return {
     year: parts[0] || 2026,
-    month: (parts[1] || 1) - 1, // Mois de 0 (Janvier) à 11 (Décembre)
+    month: (parts[1] || 1) - 1,
     day: parts[2] || 1,
   };
 };
 
-/**
- * Calcul de la semaine ISO strict sans décalage de fuseau horaire
- */
 export const getISOWeekNumberFromParts = (
   year: number,
   month: number,
@@ -138,9 +132,6 @@ export const getISOWeekNumberFromParts = (
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 };
 
-/**
- * Retourne la liste exacte de TOUTES les semaines ISO qui touchent au moins un jour du mois
- */
 export const getISOWeeksForMonth = (year: number, monthIndex: number): number[] => {
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
   const weeksSet = new Set<number>();
@@ -178,19 +169,59 @@ export const formatPaceFromSpeed = (speedKmH: number): string => {
 };
 
 /**
- * Convertit une allure ("MM:SS" ou "X.X min/km") en secondes par km
+ * Convertit une allure ou une fourchette d'allure en secondes par km
  */
 export function parsePaceToSeconds(paceStr?: string): number {
-  if (!paceStr) return 300; // Allure par défaut : 5:00 min/km (300s)
-  const cleanStr = paceStr.replace("min/km", "").trim();
-  const parts = cleanStr.split(":");
-  if (parts.length === 2) {
-    const mins = parseInt(parts[0], 10) || 0;
-    const secs = parseInt(parts[1], 10) || 0;
+  if (!paceStr) return 300; // 5:00 min/km par défaut
+
+  const clean = paceStr.toString().toLowerCase().replace("min/km", "").replace("/km", "").trim();
+
+  // Cas fourchette (ex: "4:15 - 4:25" ou "4'15 à 4'25")
+  const rangeMatch = clean.match(/(\d{1,2})[':](\d{2})\s*(?:-|à|to|\/)\s*(\d{1,2})[':](\d{2})/);
+  if (rangeMatch) {
+    const s1 = parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
+    const s2 = parseInt(rangeMatch[3], 10) * 60 + parseInt(rangeMatch[4], 10);
+    return Math.round((s1 + s2) / 2);
+  }
+
+  // Format mm:ss ou m'ss
+  const singleMatch = clean.match(/(\d{1,2})[':](\d{2})/);
+  if (singleMatch) {
+    const mins = parseInt(singleMatch[1], 10) || 0;
+    const secs = parseInt(singleMatch[2], 10) || 0;
     return mins * 60 + secs;
   }
-  const val = parseFloat(cleanStr);
-  return !isNaN(val) ? val * 60 : 300;
+
+  const val = parseFloat(clean.replace("'", "."));
+  return !isNaN(val) && val > 0 ? Math.round(val * 60) : 300;
+}
+
+/**
+ * Récupère l'allure représentative en secondes pour une étape
+ */
+export function getStepPaceInSeconds(step: WorkoutStep): number {
+  if (step.paceMin && step.paceMax) {
+    const s1 = parsePaceToSeconds(step.paceMin);
+    const s2 = parsePaceToSeconds(step.paceMax);
+    return Math.round((s1 + s2) / 2);
+  }
+  if (step.paceMin) return parsePaceToSeconds(step.paceMin);
+  if (step.paceMax) return parsePaceToSeconds(step.paceMax);
+  if (step.targetPace) return parsePaceToSeconds(step.targetPace);
+  if (step.goalValue) return parsePaceToSeconds(step.goalValue);
+
+  // Valeurs par défaut selon la nature du bloc
+  switch (step.type) {
+    case "echauffement":
+      return 340; // 5:40/km
+    case "recup":
+    case "retour_calme":
+      return 360; // 6:00/km
+    case "corps":
+      return 270; // 4:30/km
+    default:
+      return 300;
+  }
 }
 
 // ==========================================
@@ -222,9 +253,6 @@ export const calculateWeeklyCompletedKm = (
     }, 0);
 };
 
-/**
- * Calcule récursivement la distance (km) et la durée (minutes) d'une liste de blocs (steps)
- */
 export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; totalMinutes: number } {
   let totalKm = 0;
   let totalSeconds = 0;
@@ -245,7 +273,7 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
     } else {
       const rawVal = step.durationOrDist || "";
       const valueNum = parseFloat(rawVal) || 0;
-      const paceSec = parsePaceToSeconds(step.goalValue);
+      const paceSec = getStepPaceInSeconds(step);
 
       if (step.endCondition === "distance") {
         const isMeters = rawVal.toLowerCase().includes("m") && !rawVal.toLowerCase().includes("km");
@@ -346,9 +374,6 @@ export interface PaceProfilePoint {
   type: string;
 }
 
-/**
- * Génère le profil chronologique des allures bloc par bloc (gère les répétitions)
- */
 export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
   if (!steps || steps.length === 0) return [];
 
@@ -363,7 +388,7 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
       } else {
         const rawVal = step.durationOrDist || "";
         const valueNum = parseFloat(rawVal) || 0;
-        const paceSec = parsePaceToSeconds(step.goalValue);
+        const paceSec = getStepPaceInSeconds(step);
 
         let durSec = 0;
         if (step.endCondition === "distance") {

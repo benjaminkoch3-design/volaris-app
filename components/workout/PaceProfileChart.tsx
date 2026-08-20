@@ -12,7 +12,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
   const totalTimeSec = profile.reduce((acc, p) => acc + p.durationSec, 0);
   if (totalTimeSec === 0) return null;
 
-  // Calcul des bornes d'allure pour l'axe des ordonnées
+  // Calcul des bornes d'allure
   const minPaceSec = Math.min(...profile.map((p) => p.paceSecPerKm));
   const maxPaceSec = Math.max(...profile.map((p) => p.paceSecPerKm));
   const paceRange = maxPaceSec - minPaceSec || 60;
@@ -24,24 +24,24 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  // Couleurs par type de bloc
+  // Couleurs Volaris par type de bloc
   const getColor = (type: string) => {
     switch (type) {
       case "echauffement":
-        return "#f59e0b"; // Amber
+        return "#CF6361"; // Rouge léger / Échauffement
       case "corps":
-        return "#ef4444"; // Red
+        return "#CF9A61"; // Ocre / Course
       case "recup":
-        return "#06b6d4"; // Cyan
+        return "#CDCF61"; // Jaune-Vert / Récup
       case "retour_calme":
-        return "#3b82f6"; // Blue
+        return "#3b82f6"; // Bleu / Cooldown
       default:
-        return "#10b981"; // Emerald
+        return "#10b981"; // Vert
     }
   };
 
   return (
-    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2">
+    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
       <div className="flex justify-between items-center">
         <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
           📈 Profil d'allure de la séance
@@ -53,17 +53,16 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
 
       <div className="flex gap-2 items-stretch h-28">
         {/* AXE DES ORDONNÉES (Y) : GRADUATION DES ALLURES (MIN/KM) */}
-        <div className="flex flex-col justify-between text-[8px] font-bold text-stone-500 py-1 text-right w-8 select-none">
-          <span className="text-amber-400">{formatPace(minPaceSec)}</span>
+        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-500 py-1 text-right w-8 select-none border-r border-stone-800/80 pr-1">
+          <span className="text-[#CF9A61]">{formatPace(minPaceSec)}</span>
           <span>{formatPace(minPaceSec + paceRange / 2)}</span>
           <span className="text-stone-600">{formatPace(maxPaceSec)}</span>
         </div>
 
-        {/* ZONE DU GRAPHIQUE EN BÂTONS (ABSCISSE = CHRONOLOGIE DE LA SÉANCE) */}
+        {/* ZONE DU GRAPHIQUE */}
         <div className="flex-1 bg-stone-900/60 rounded-xl p-2 flex items-end gap-1 relative overflow-hidden border border-stone-800/60">
           {profile.map((point, i) => {
             const widthPct = (point.durationSec / totalTimeSec) * 100;
-            // Hauteur inversée : Plus l'allure est rapide (secondes plus petites), plus la barre est haute
             const normalizedHeight =
               paceRange === 0
                 ? 60
@@ -83,7 +82,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
                   <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
                     <div>{point.label}</div>
-                    <div className="text-amber-400">{point.paceFormatted} min/km</div>
+                    <div className="text-[#CF9A61]">{point.paceFormatted} min/km</div>
                   </div>
                 </div>
               </div>
@@ -96,13 +95,16 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
       <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> Échauffement
+            <span className="w-2 h-2 rounded-full bg-[#CF6361] inline-block"></span> Échauff.
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span> Course / Corps
+            <span className="w-2 h-2 rounded-full bg-[#CF9A61] inline-block"></span> Course
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-cyan-500 inline-block"></span> Récupération
+            <span className="w-2 h-2 rounded-full bg-[#CDCF61] inline-block"></span> Récup.
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span> Calme
           </span>
         </div>
         <span className="text-[8px] text-stone-500 italic">← Évolution dans le temps →</span>
