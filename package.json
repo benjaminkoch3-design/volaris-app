@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@garmin/fitsdk": "^21.213.0",
     "@supabase/supabase-js": "^2.112.0",
     "exceljs": "^4.4.0",
     "fit-file-parser": "^4.1.0",
