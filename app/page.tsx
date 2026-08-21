@@ -1,5 +1,3 @@
-// src/app/page.tsx
-
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -554,6 +552,7 @@ export default function Home() {
               completedKm: w.completed_km,
               completedTimeMinutes: w.completed_time_minutes,
               completedElevationGain: w.completed_elevation_gain,
+              importedActivityName: w.imported_activity_name,
             };
           });
         };
@@ -1384,6 +1383,7 @@ export default function Home() {
         completed_km: w.completedKm || null,
         completed_time_minutes: w.completedTimeMinutes || null,
         completed_elevation_gain: w.completedElevationGain || null,
+        imported_activity_name: w.importedActivityName || null,
       };
     });
 
@@ -1429,6 +1429,56 @@ export default function Home() {
     setCompletedWorkouts((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // HANDLER POUR SUPPRIMER L'IMPORT D'UNE SÉANCE
+  const handleDeleteWorkoutImport = async (workoutId: string) => {
+    if (activePlan) {
+      const updatedWorkouts = activePlan.workouts.map((w) => {
+        if (w.id === workoutId) {
+          const defaultKm = parseFloat(w.km || "0") || 0;
+          return {
+            ...w,
+            completed: false,
+            completedRpe: undefined,
+            athleteComment: "",
+            completedKm: undefined,
+            completedTimeMinutes: undefined,
+            completedElevationGain: undefined,
+            importedActivityName: undefined,
+          };
+        }
+        return w;
+      });
+
+      setActivePlan({ ...activePlan, workouts: updatedWorkouts });
+    }
+
+    setCompletedWorkouts((prev) => {
+      const next = { ...prev };
+      delete next[workoutId];
+      return next;
+    });
+
+    setCompletedRuns((prev) => prev.filter((r) => !r.id.includes(workoutId)));
+
+    if (session?.user) {
+      await supabase.from("workouts").update({
+        completed_rpe: null,
+        athlete_comment: null,
+        completed_km: null,
+        completed_time_minutes: null,
+        completed_elevation_gain: null,
+        imported_activity_name: null,
+      }).eq("id", workoutId);
+
+      await supabase.from("completed_runs")
+        .delete()
+        .eq("user_id", session.user.id)
+        .like("id", `%${workoutId}%`);
+    }
+
+    setDebriefWorkout(null);
+  };
+
   // HANDLER POUR SAUVEGARDER LE DÉBRIEFING D'UNE SÉANCE
   const handleSaveDebrief = async ({
     workoutId,
@@ -1438,6 +1488,7 @@ export default function Home() {
     completedKm,
     completedTimeMinutes,
     completedElevationGain,
+    importedActivityName,
   }: {
     workoutId: string;
     completedRpe: number;
@@ -1446,6 +1497,7 @@ export default function Home() {
     completedKm: number;
     completedTimeMinutes: number;
     completedElevationGain: number;
+    importedActivityName?: string;
   }) => {
     if (shoeId && completedKm > 0) {
       setShoes((prevShoes) =>
@@ -1462,12 +1514,14 @@ export default function Home() {
         if (w.id === workoutId) {
           return {
             ...w,
+            completed: true,
             completedRpe,
             athleteComment: comment,
             shoeId,
             completedKm,
             completedTimeMinutes,
             completedElevationGain,
+            importedActivityName,
           };
         }
         return w;
@@ -1484,6 +1538,7 @@ export default function Home() {
         completed_km: completedKm,
         completed_time_minutes: completedTimeMinutes,
         completed_elevation_gain: completedElevationGain,
+        imported_activity_name: importedActivityName || null,
       }).eq("id", workoutId);
 
       if (completedKm > 0) {
@@ -1731,6 +1786,7 @@ export default function Home() {
           shoes={shoes}
           onClose={() => setDebriefWorkout(null)}
           onSaveDebrief={handleSaveDebrief}
+          onDeleteImport={handleDeleteWorkoutImport}
         />
       )}
 
@@ -1836,14 +1892,14 @@ export default function Home() {
             {/* 2. PLAN & CRÉATION (MODIFICATION AUTORISÉE POUR L'ENTRAÎNEUR) */}
             {activeTab === "plan" && (
               <div className="space-y-6 animate-fadeIn">
-                {/* BOUTON ÉVOLUTION VOLUME & CHARGE EN TEXTE BLANC */}
+                {/* BOUTON ÉVOLUTION VOLUME & CHARGE */}
                 {activePlan && !isCreatingPlan && (
-                  <div className="flex justify-between items-[#stone-100] items-center flex-wrap gap-2">
+                  <div className="flex justify-between items-center flex-wrap gap-2">
                     <button
                       onClick={() => setActiveTab("stats")}
                       className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
                     >
-                      <span>📊 Évoluton Volume & Charge</span>
+                      <span>📊 Évolution Volume & Charge</span>
                     </button>
 
                     <button
@@ -1963,7 +2019,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL (SYNCHRONISÉ À 100%) */}
+            {/* 5. PROFIL */}
             {activeTab === "profil" && !showAthleteLibrary && (
               <ProfileView
                 athleteName={selectedAthlete ? selectedAthlete.name : (session?.user?.user_metadata?.full_name || athleteName)}

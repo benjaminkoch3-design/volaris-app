@@ -17,7 +17,7 @@ interface WorkoutDebriefViewProps {
     completedElevationGain: number;
     importedActivityName?: string;
   }) => void;
-  onDeleteImport: (workoutId: string) => void;
+  onDeleteImport?: (workoutId: string) => void;
 }
 
 const getRpeColor = (rpe: number) => {
@@ -162,8 +162,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       setImportedActivityName("");
       setIsActivityImported(false);
 
-      // Déclenche la suppression au niveau du parent (BDD et état)
-      onDeleteImport(workout.id);
+      if (onDeleteImport) {
+        onDeleteImport(workout.id);
+      }
     }
   };
 
