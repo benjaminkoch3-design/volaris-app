@@ -1,6 +1,6 @@
-// src/components/workout/WorkoutDebriefView.tsx
+// app/components/workout/WorkoutDebriefView.tsx
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import FitParser from "fit-file-parser";
 import { Workout, Shoe } from "../../types";
 
@@ -54,7 +54,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout.completedElevationGain ?? 0
   );
 
-  // Données physiologiques supplémentaires (ex: Fréquence cardiaque)
+  // Données physiologiques
   const [avgHeartRate, setAvgHeartRate] = useState<number | null>(null);
   const [maxHeartRate, setMaxHeartRate] = useState<number | null>(null);
 
@@ -62,7 +62,74 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [syncSuccess, setSyncSuccess] = useState<boolean>(false);
   const [importedFileName, setImportedFileName] = useState<string>("");
 
-  // LECTEUR DE FICHIER GPS (.FIT, .TCX, .GPX)
+  // Synchronisation directe Garmin Connect
+  const [hasGarmin, setHasGarmin] = useState<boolean>(false);
+  const [garminLoading, setGarminLoading] = useState<boolean>(false);
+  const [garminError, setGarminError] = useState<string | null>(null);
+  const [garminActivities, setGarminActivities] = useState<any[]>([]);
+  const [showActivityPicker, setShowActivityPicker] = useState<boolean>(false);
+
+  useEffect(() => {
+    const gEmail = localStorage.getItem("volaris_garmin_email");
+    const gPwd = localStorage.getItem("volaris_garmin_pwd");
+    setHasGarmin(Boolean(gEmail && gPwd));
+  }, []);
+
+  const handleFetchGarminActivities = async () => {
+    const email = localStorage.getItem("volaris_garmin_email");
+    const password = localStorage.getItem("volaris_garmin_pwd");
+
+    if (!email || !password) {
+      setGarminError("Veuillez connecter votre compte Garmin dans l'onglet Profil.");
+      return;
+    }
+
+    setGarminLoading(true);
+    setGarminError(null);
+
+    try {
+      const res = await fetch("/api/garmin-activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, limit: 5 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Impossible de récupérer les activités Garmin.");
+
+      if (!data.activities || data.activities.length === 0) {
+        setGarminError("Aucune activité de course récente trouvée sur Garmin Connect.");
+        return;
+      }
+
+      if (data.activities.length === 1) {
+        applyGarminActivity(data.activities[0]);
+      } else {
+        setGarminActivities(data.activities);
+        setShowActivityPicker(true);
+      }
+    } catch (err: any) {
+      setGarminError(`❌ ${err.message}`);
+    } finally {
+      setGarminLoading(false);
+    }
+  };
+
+  const applyGarminActivity = (act: any) => {
+    if (act.distanceKm) setCompletedKm(act.distanceKm);
+    if (act.durationMinutes) setCompletedTimeMinutes(act.durationMinutes);
+    if (act.elevationGain !== undefined && act.elevationGain !== null) {
+      setCompletedElevationGain(act.elevationGain);
+    }
+    if (act.avgHr) setAvgHeartRate(act.avgHr);
+    if (act.maxHr) setMaxHeartRate(act.maxHr);
+
+    setImportedFileName(`${act.title} (${act.date})`);
+    setSyncSuccess(true);
+    setShowActivityPicker(false);
+  };
+
+  // Traitement fichier GPS
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -81,7 +148,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     }
   };
 
-  // Traitement des fichiers binaires .FIT
   const parseFitFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -97,11 +163,15 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
         }
 
         const session = data.sessions[0];
-        
-        // Extraction des valeurs
-        const totalDistKm = session.total_distance ? parseFloat((session.total_distance / 1000).toFixed(2)) : completedKm;
-        const totalDurationMin = session.total_elapsed_time ? Math.round(session.total_elapsed_time / 60) : completedTimeMinutes;
-        const totalElevation = session.total_ascent ? Math.round(session.total_ascent) : completedElevationGain;
+        const totalDistKm = session.total_distance
+          ? parseFloat((session.total_distance / 1000).toFixed(2))
+          : completedKm;
+        const totalDurationMin = session.total_elapsed_time
+          ? Math.round(session.total_elapsed_time / 60)
+          : completedTimeMinutes;
+        const totalElevation = session.total_ascent
+          ? Math.round(session.total_ascent)
+          : completedElevationGain;
 
         setCompletedKm(totalDistKm);
         setCompletedTimeMinutes(totalDurationMin);
@@ -116,7 +186,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     reader.readAsArrayBuffer(file);
   };
 
-  // Traitement des fichiers XML .TCX et .GPX
   const parseXmlFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -127,7 +196,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       let distKm = completedKm;
       let durationMin = completedTimeMinutes;
 
-      // Extraction TCX
       const distElem = xmlDoc.getElementsByTagName("DistanceMeters")[0];
       const timeElem = xmlDoc.getElementsByTagName("TotalTimeSeconds")[0];
 
@@ -183,17 +251,71 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* IMPORTATION FICHIER MONTRE GPS */}
-        <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2.5">
+        {/* SECTION IMPORTATION */}
+        <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-stone-200">
-              ⌚ Fichier Activité Montre GPS
+              ⌚ Synchronisation Activité Réelle
             </span>
             {syncSuccess && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
-                ✓ Données extraites
+                ✓ Données synchronisées
               </span>
             )}
+          </div>
+
+          {/* BOUTON GARMIN DIRECT */}
+          {hasGarmin && (
+            <button
+              type="button"
+              onClick={handleFetchGarminActivities}
+              disabled={garminLoading}
+              style={{ backgroundColor: "#4D80B3" }}
+              className="w-full py-2.5 px-3 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md hover:opacity-90 disabled:opacity-50"
+            >
+              <span>{garminLoading ? "⏳ Récupération..." : "⌚ Importer depuis Garmin Connect"}</span>
+            </button>
+          )}
+
+          {garminError && (
+            <p className="text-[10px] text-[#ef4444] font-bold text-center animate-fadeIn">
+              {garminError}
+            </p>
+          )}
+
+          {/* SÉLECTEUR D'ACTIVITÉ GARMIN */}
+          {showActivityPicker && (
+            <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
+              <span className="text-[9px] font-bold text-stone-400 uppercase block">
+                Sélectionnez votre sortie récente :
+              </span>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                {garminActivities.map((act) => (
+                  <div
+                    key={act.id}
+                    onClick={() => applyGarminActivity(act)}
+                    className="p-2 bg-stone-950 hover:bg-stone-800 border border-stone-800 rounded-lg flex items-center justify-between cursor-pointer transition text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-stone-200">{act.title}</div>
+                      <div className="text-[9px] text-stone-400">
+                        {act.date} • {act.distanceKm} km • {act.durationMinutes} min
+                      </div>
+                    </div>
+                    <span className="text-[#4D80B3] font-mono text-xs font-black">
+                      {act.avgPace} /km ➔
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SÉPARATEUR OU FICHIER MANUEL */}
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-stone-800"></div>
+            <span className="flex-shrink mx-2 text-[9px] uppercase font-bold text-stone-500">ou par fichier GPS</span>
+            <div className="flex-grow border-t border-stone-800"></div>
           </div>
 
           <input
@@ -208,18 +330,18 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isSyncing}
-            className="w-full py-2.5 px-3 bg-stone-900 hover:bg-stone-850 border border-stone-700 text-stone-200 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-2 px-3 bg-stone-900 hover:bg-stone-850 border border-stone-800 text-stone-300 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isSyncing ? (
-              <span>⏳ Anayse du fichier en cours...</span>
-            ) : syncSuccess ? (
-              <span>📂 Fichier : {importedFileName} (Changer)</span>
+              <span>⏳ Analyse du fichier...</span>
+            ) : syncSuccess && importedFileName ? (
+              <span className="truncate">📂 {importedFileName} (Changer)</span>
             ) : (
-              <span>📁 Importer le fichier .FIT, .TCX ou .GPX</span>
+              <span>📁 Importer un fichier .FIT, .TCX ou .GPX</span>
             )}
           </button>
 
-          {/* RÉCAPITULATIF DES MÉTRIQUES RÉELLES IMPORTÉES / ÉDITABLES */}
+          {/* RÉCAPITULATIF DES MÉTRIQUES RÉELLES */}
           <div className="grid grid-cols-3 gap-2 pt-1 text-center">
             <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800">
               <span className="block text-[8px] font-bold text-stone-400 uppercase">Distance</span>
@@ -256,7 +378,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </div>
           </div>
 
-          {/* AFFICHAGE PHYSIOLOGIQUE (FC) SI DISPONIBLE DANS LE FICHIER .FIT */}
           {avgHeartRate && (
             <div className="flex justify-around items-center bg-stone-900/40 p-2 rounded-xl border border-stone-800/80 text-[10px]">
               <span className="text-stone-400">❤️ FC Moyenne : <strong className="text-stone-200">{avgHeartRate} bpm</strong></span>
@@ -267,8 +388,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
         {/* FORMULAIRE DÉBRIEFING */}
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          
-          {/* CHOIX DE LA CHAUSSURE UTILISÉE */}
+          {/* CHOIX DE LA CHAUSSURE */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase font-bold text-stone-400">
               👟 Chaussures utilisées
@@ -287,7 +407,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </select>
           </div>
 
-          {/* CURSEUR RPE RESSENTI */}
+          {/* CURSEUR RPE */}
           <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
             <div className="flex justify-between items-center">
               <label className="block text-[10px] uppercase font-bold text-stone-400">
@@ -334,7 +454,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             />
           </div>
 
-          {/* BOUTONS */}
+          {/* BOUTONS D'ACTION */}
           <div className="flex gap-2 pt-2 border-t border-stone-800">
             <button
               type="button"
