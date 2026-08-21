@@ -44,7 +44,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout.shoeId || shoes.find((s) => s.isActive)?.id || ""
   );
 
-  // Métriques réelles
   const [completedKm, setCompletedKm] = useState<number>(
     workout.completedKm !== undefined ? workout.completedKm : defaultKm
   );
@@ -57,7 +56,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout.completedElevationGain ?? 0
   );
 
-  // Données physiologiques
   const [avgHeartRate, setAvgHeartRate] = useState<number | null>(
     workout.actualAvgHr ? parseInt(workout.actualAvgHr, 10) : null
   );
@@ -65,7 +63,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout.actualMaxHr ? parseInt(workout.actualMaxHr, 10) : null
   );
 
-  // Activité importée
   const [importedActivityName, setImportedActivityName] = useState<string>(
     workout.importedActivityName || ""
   );
@@ -73,12 +70,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     Boolean(workout.importedActivityName)
   );
 
-  // Synchronisation Garmin
   const [hasGarmin, setHasGarmin] = useState<boolean>(false);
   const [garminLoading, setGarminLoading] = useState<boolean>(false);
   const [garminError, setGarminError] = useState<string | null>(null);
   const [garminActivities, setGarminActivities] = useState<any[]>([]);
   const [showActivityPicker, setShowActivityPicker] = useState<boolean>(false);
+
+  const isAlreadyDebriefed = Boolean(workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -148,23 +146,15 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setShowActivityPicker(false);
   };
 
-  // Suppression immédiate de l'import et réinitialisation
-  const handleRemoveImport = (e: React.MouseEvent) => {
+  const handleCancelDebrief = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (window.confirm("Voulez-vous supprimer l'importation de cette activité et réinitialiser les données réelles ?")) {
-      setCompletedKm(defaultKm);
-      setCompletedTimeMinutes(Math.round(defaultKm * 5.5));
-      setCompletedElevationGain(0);
-      setAvgHeartRate(null);
-      setMaxHeartRate(null);
-      setImportedActivityName("");
-      setIsActivityImported(false);
-
+    if (window.confirm("Voulez-vous annuler complètement le débriefing de cette séance et réinitialiser vos statistiques ?")) {
       if (onDeleteImport) {
         onDeleteImport(workout.id);
       }
+      onClose();
     }
   };
 
@@ -190,6 +180,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-fadeIn my-auto">
+        
         {/* HEADER */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3">
           <div>
@@ -217,17 +208,16 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </span>
             {isActivityImported && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
-                ✓ Réalisée
+                ✓ Importée
               </span>
             )}
           </div>
 
-          {/* AFFICHAGE DE L'ACTIVITÉ SI DÉJÀ IMPORTÉE */}
           {isActivityImported && importedActivityName ? (
             <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
               <div className="space-y-0.5 overflow-hidden">
                 <span className="text-[9px] font-bold uppercase text-[#4D80B3] block">
-                  Activité synchronisée
+                  Activité liée
                 </span>
                 <p className="text-xs font-bold text-stone-200 truncate">
                   {importedActivityName}
@@ -240,22 +230,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   onClick={handleFetchGarminActivities}
                   disabled={garminLoading}
                   className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                  title="Changer d'activité"
                 >
                   {garminLoading ? "⏳" : "🔄 Changer"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRemoveImport}
-                  className="text-[10px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20 border border-[#ef4444]/30 bg-[#ef4444]/10 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                  title="Supprimer cette activité importée"
-                >
-                  🗑️ Supprimer
                 </button>
               </div>
             </div>
           ) : (
-            /* BOUTON D'IMPORT DIRECT GARMIN */
             <>
               {hasGarmin ? (
                 <button
@@ -270,7 +250,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               ) : (
                 <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
                   <p className="text-[11px] text-stone-400">
-                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour importer automatiquement vos courses Garmin.
+                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour importer automatiquement vos données Garmin.
                   </p>
                 </div>
               )}
@@ -283,7 +263,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </p>
           )}
 
-          {/* SÉLECTEUR D'ACTIVITÉ GARMIN */}
           {showActivityPicker && (
             <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center">
@@ -367,7 +346,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
         {/* FORMULAIRE DÉBRIEFING */}
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          {/* CHOIX DE LA CHAUSSURE */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase font-bold text-stone-400">
               👟 Chaussures utilisées
@@ -386,7 +364,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </select>
           </div>
 
-          {/* CURSEUR RPE */}
           <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
             <div className="flex justify-between items-center">
               <label className="block text-[10px] uppercase font-bold text-stone-400">
@@ -419,7 +396,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </div>
           </div>
 
-          {/* COMMENTAIRE ATHLÈTE */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase font-bold text-stone-400">
               Commentaires & Sensations (Optionnel)
@@ -433,21 +409,34 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             />
           </div>
 
-          {/* BOUTONS D'ACTION */}
-          <div className="flex gap-2 pt-2 border-t border-stone-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase rounded-xl shadow-lg transition cursor-pointer"
-            >
-              Enregistrer le débrief
-            </button>
+          {/* ACTIONS */}
+          <div className="space-y-2 pt-2 border-t border-stone-800">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
+              >
+                Fermer
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase rounded-xl shadow-lg transition cursor-pointer"
+              >
+                Enregistrer le débrief
+              </button>
+            </div>
+
+            {/* BOUTON D'ANNULATION DU DÉBRIEFING */}
+            {isAlreadyDebriefed && (
+              <button
+                type="button"
+                onClick={handleCancelDebrief}
+                className="w-full py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-400 font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer"
+              >
+                🗑️ Annuler le débriefing de cette séance
+              </button>
+            )}
           </div>
         </form>
       </div>

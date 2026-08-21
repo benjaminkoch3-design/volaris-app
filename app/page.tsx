@@ -1431,10 +1431,10 @@ export default function Home() {
 
   // HANDLER POUR SUPPRIMER L'IMPORT D'UNE SÉANCE
   const handleDeleteWorkoutImport = async (workoutId: string) => {
+    // 1.1 Réinitialiser la séance dans le plan actif
     if (activePlan) {
       const updatedWorkouts = activePlan.workouts.map((w) => {
         if (w.id === workoutId) {
-          const defaultKm = parseFloat(w.km || "0") || 0;
           return {
             ...w,
             completed: false,
@@ -1444,26 +1444,30 @@ export default function Home() {
             completedTimeMinutes: undefined,
             completedElevationGain: undefined,
             importedActivityName: undefined,
+            shoeId: undefined,
           };
         }
         return w;
       });
-
       setActivePlan({ ...activePlan, workouts: updatedWorkouts });
     }
 
+    // 1.2 Décocher la séance terminée
     setCompletedWorkouts((prev) => {
       const next = { ...prev };
       delete next[workoutId];
       return next;
     });
 
+    // 1.3 Supprimer TOUTES les entrées associées dans l'historique des sorties locales (anti-doublon)
     setCompletedRuns((prev) => prev.filter((r) => !r.id.includes(workoutId)));
 
+    // 1.4 Nettoyer la base de données Supabase
     if (session?.user) {
       await supabase.from("workouts").update({
         completed_rpe: null,
         athlete_comment: null,
+        shoe_id: null,
         completed_km: null,
         completed_time_minutes: null,
         completed_elevation_gain: null,
@@ -1479,7 +1483,7 @@ export default function Home() {
     setDebriefWorkout(null);
   };
 
-  // HANDLER POUR SAUVEGARDER LE DÉBRIEFING D'UNE SÉANCE
+  // 2. SAUVEGARDER LE DÉBRIEFING (AVEC SUPPRESSION DES DOUBLONS)
   const handleSaveDebrief = async ({
     workoutId,
     completedRpe,
@@ -1530,7 +1534,16 @@ export default function Home() {
       setActivePlan({ ...activePlan, workouts: updatedWorkouts });
     }
 
+    // Nettoyage préalable des doublons locaux pour cette même séance
+    setCompletedRuns((prev) => prev.filter((r) => !r.id.includes(workoutId)));
+
     if (session?.user) {
+      // Nettoyage préalable des doublons dans Supabase
+      await supabase.from("completed_runs")
+        .delete()
+        .eq("user_id", session.user.id)
+        .like("id", `%${workoutId}%`);
+
       await supabase.from("workouts").update({
         completed_rpe: completedRpe,
         athlete_comment: comment,
@@ -1544,7 +1557,7 @@ export default function Home() {
       if (completedKm > 0) {
         const runDate = new Date().toISOString().split("T")[0];
         const durationHours = completedTimeMinutes / 60;
-        const runId = `debrief_${workoutId}_${Date.now()}`;
+        const runId = `debrief_${workoutId}`;
 
         const newRunObj: CompletedRun = {
           id: runId,
@@ -1569,7 +1582,7 @@ export default function Home() {
             },
           ]);
         } catch (err) {
-          console.error("Erreur sauvegarde débriefing Supabase:", err);
+          console.error("Erreur débriefing Supabase:", err);
         }
       }
     }
