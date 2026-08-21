@@ -1,4 +1,4 @@
-// src/components/workout/WorkoutDetail.tsx
+// app/components/workout/WorkoutDetail.tsx
 
 import React, { useState, useEffect } from "react";
 import { Workout, Plan, WorkoutStep } from "../../types";
@@ -6,6 +6,7 @@ import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import {
   calculateStepMetrics,
   getStepTypeLabel,
+  generatePaceProfile,
 } from "../../utils/calculations";
 
 interface WorkoutDetailProps {
@@ -16,6 +17,144 @@ interface WorkoutDetailProps {
   onToggleWorkout?: (id: string) => void;
 }
 
+// Fonction utilitaire pour calculer la couleur exacte du gradient RPE
+const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
+  if (rpe <= 3) {
+    return { text: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" }; // Vert (Facile)
+  }
+  if (rpe <= 5) {
+    return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" }; // Jaune / Ambre (Modéré)
+  }
+  if (rpe <= 7) {
+    return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" }; // Orange (Soutenu)
+  }
+  return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" }; // Rouge (Maximal)
+};
+
+// COMPOSANT DU PROFIL D'ALLURE CHRONOLOGIQUE
+export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
+  const profile = generatePaceProfile(steps);
+
+  if (!profile || profile.length === 0) return null;
+
+  const totalTimeSec = profile.reduce((acc, p) => acc + p.durationSec, 0);
+  if (totalTimeSec === 0) return null;
+
+  const minPace = Math.min(...profile.map((p) => p.paceSecPerKm));
+  const maxPace = Math.max(...profile.map((p) => p.paceSecPerKm));
+  const paceRange = maxPace - minPace || 60;
+
+  const formatPaceFromSec = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  const getColor = (type: string) => {
+    switch (type) {
+      case "echauffement":
+        return "#CF6361";
+      case "corps":
+        return "#CF9A61";
+      case "recup":
+        return "#CDCF61";
+      case "retour_calme":
+        return "#3b82f6";
+      default:
+        return "#10b981";
+    }
+  };
+
+  return (
+    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
+          📈 Profil d'allure de la séance
+        </span>
+        <span className="text-[9px] font-semibold text-stone-400">
+          Total : {Math.round(totalTimeSec / 60)} min
+        </span>
+      </div>
+
+      <div className="flex gap-2 items-stretch">
+        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80">
+          <span>{formatPaceFromSec(minPace)}</span>
+          <span>{formatPaceFromSec(minPace + paceRange / 2)}</span>
+          <span>{formatPaceFromSec(maxPace)}</span>
+        </div>
+
+        <div className="flex-1 space-y-1">
+          <div className="h-24 w-full bg-stone-900/60 rounded-xl p-2 flex items-end gap-1.5 relative overflow-hidden border border-stone-800/60">
+            {profile.map((point, i) => {
+              const widthPct = (point.durationSec / totalTimeSec) * 100;
+              const normalizedHeight =
+                paceRange === 0
+                  ? 60
+                  : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
+
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: `${Math.max(widthPct, 4)}%`,
+                    height: `${normalizedHeight}%`,
+                    backgroundColor: getColor(point.type),
+                  }}
+                  className="rounded-t-sm transition-all relative group cursor-pointer hover:brightness-125 flex flex-col justify-end items-center"
+                >
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                    <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                      <div>{point.label}</div>
+                      <div className="text-[#CF9A61]">{point.paceFormatted} min/km</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-1.5 px-2">
+            {profile.map((point, i) => {
+              const widthPct = (point.durationSec / totalTimeSec) * 100;
+              return (
+                <div
+                  key={i}
+                  style={{ width: `${Math.max(widthPct, 4)}%` }}
+                  className="text-center overflow-hidden"
+                >
+                  <span className="block text-[8px] font-bold text-[#CDCF61] truncate">
+                    {point.paceFormatted}
+                  </span>
+                  <span className="block text-[7px] font-semibold text-stone-500 truncate">
+                    {point.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#CF6361] inline-block"></span> Échauff.
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#CF9A61] inline-block"></span> Course
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#CDCF61] inline-block"></span> Récup.
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span> Retour au calme
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   workout,
   onClose,
@@ -23,8 +162,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const typeConfig =
     WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
   const metrics = calculateStepMetrics(workout.steps);
-  const targetRpe = workout.rpe ? parseInt(workout.rpe, 10) : 5;
+  const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
+  const rpeTheme = getRpeColor(targetRpe);
 
   // Détection des comptes liés
   const [hasGarmin, setHasGarmin] = useState(false);
@@ -142,7 +282,21 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
   };
 
+  // Rendu de l'allure au format : Allure Max (Lente) - Allure Min (Rapide)
   const renderPaceBadge = (step: WorkoutStep) => {
+    if (step.paceMax && step.paceMin) {
+      return (
+        <div className="text-right">
+          <span className="text-[9px] text-stone-500 uppercase block font-bold">
+            Allure Cible
+          </span>
+          <span className="font-black text-[#CF9A61] font-mono text-[11px]">
+            {step.paceMax} - {step.paceMin} /km
+          </span>
+        </div>
+      );
+    }
+
     if (step.paceMin && step.paceMax) {
       return (
         <div className="text-right">
@@ -150,14 +304,14 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             Allure Cible
           </span>
           <span className="font-black text-[#CF9A61] font-mono text-[11px]">
-            {step.paceMin} - {step.paceMax} /km
+            {step.paceMax} - {step.paceMin} /km
           </span>
         </div>
       );
     }
 
-    if (step.paceMin || step.paceMax || step.targetPace) {
-      const paceText = step.targetPace || step.paceMin || step.paceMax;
+    if (step.paceMax || step.paceMin || step.targetPace) {
+      const paceText = step.targetPace || step.paceMax || step.paceMin;
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
@@ -265,8 +419,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         </div>
 
-        {/* MÉTRIQUES CIBLES */}
-        <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center">
+        {/* MÉTRIQUES CIBLES AVEC COULEURS DU GRADIENT POUR LE RPE ET LA CHARGE */}
+        <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
             <span className="block text-[8px] font-bold text-stone-400 uppercase">
               Distance
@@ -275,6 +429,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               {workout.km || metrics.totalKm} km
             </span>
           </div>
+
           <div>
             <span className="block text-[8px] font-bold text-stone-400 uppercase">
               Durée
@@ -283,19 +438,45 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               {metrics.totalMinutes} min
             </span>
           </div>
-          <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">
+
+          <div
+            style={{
+              backgroundColor: rpeTheme.bg,
+              borderColor: rpeTheme.border,
+            }}
+            className="border rounded-xl py-1 px-1 transition-all"
+          >
+            <span
+              style={{ color: rpeTheme.text }}
+              className="block text-[8px] font-bold uppercase opacity-90"
+            >
               RPE Cible
             </span>
-            <span className="text-sm font-black text-[#CDCF61]">
-              {workout.rpe ? `${workout.rpe}/10` : "-"}
+            <span
+              style={{ color: rpeTheme.text }}
+              className="text-sm font-black"
+            >
+              {workout.rpe ? `${workout.rpe}/10` : "5/10"}
             </span>
           </div>
-          <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl py-0.5">
-            <span className="block text-[8px] font-bold text-[#CDCF61] uppercase">
+
+          <div
+            style={{
+              backgroundColor: rpeTheme.bg,
+              borderColor: rpeTheme.border,
+            }}
+            className="border rounded-xl py-1 px-1 transition-all"
+          >
+            <span
+              style={{ color: rpeTheme.text }}
+              className="block text-[8px] font-bold uppercase opacity-90"
+            >
               Charge
             </span>
-            <span className="text-sm font-black text-[#CDCF61]">
+            <span
+              style={{ color: rpeTheme.text }}
+              className="text-sm font-black"
+            >
               {estimatedLoad}
             </span>
           </div>
@@ -304,7 +485,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         {/* SECTION SYNCHRONISATION CONDITIONNELLE */}
         <div className="space-y-1.5">
           {!hasGarmin && !hasCoros ? (
-            /* AUCUN COMPTE LIÉ : MESSAGE INFORMATIF */
+            /* AUCUN COMPTE LIÉ */
             <div className="bg-stone-950/80 border border-stone-800/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-inner">
               <div className="w-8 h-8 rounded-xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] shrink-0 text-sm">
                 ⌚
@@ -360,6 +541,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             </p>
           )}
         </div>
+
+        {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
+        <PaceProfileChart steps={workout.steps} />
 
         {/* DESCRIPTION */}
         {workout.description && (
