@@ -17,7 +17,7 @@ interface WorkoutDebriefViewProps {
     completedElevationGain: number;
     importedActivityName?: string;
   }) => void;
-  onDeleteImport?: (workoutId: string) => void;
+  onDeleteImport: (workoutId: string) => void;
 }
 
 const getRpeColor = (rpe: number) => {
@@ -34,8 +34,10 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   onSaveDebrief,
   onDeleteImport,
 }) => {
+  const defaultKm = parseFloat(String(workout.km || "0")) || 0;
+
   const [completedRpe, setCompletedRpe] = useState<number>(
-    workout.completedRpe ?? (workout.rpe ? parseInt(workout.rpe, 10) : 5)
+    workout.completedRpe ?? (workout.rpe ? parseInt(String(workout.rpe), 10) : 5)
   );
   const [comment, setComment] = useState<string>(workout.athleteComment || "");
   const [selectedShoeId, setSelectedShoeId] = useState<string>(
@@ -43,30 +45,35 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   );
 
   // Métriques réelles
-  const defaultKm = parseFloat(workout.km || "0") || 0;
   const [completedKm, setCompletedKm] = useState<number>(
-    workout.completedKm ?? defaultKm
+    workout.completedKm !== undefined ? workout.completedKm : defaultKm
   );
   const [completedTimeMinutes, setCompletedTimeMinutes] = useState<number>(
-    workout.completedTimeMinutes ?? Math.round(defaultKm * 5.5)
+    workout.completedTimeMinutes !== undefined
+      ? workout.completedTimeMinutes
+      : Math.round(defaultKm * 5.5)
   );
   const [completedElevationGain, setCompletedElevationGain] = useState<number>(
     workout.completedElevationGain ?? 0
   );
 
   // Données physiologiques
-  const [avgHeartRate, setAvgHeartRate] = useState<number | null>(null);
-  const [maxHeartRate, setMaxHeartRate] = useState<number | null>(null);
+  const [avgHeartRate, setAvgHeartRate] = useState<number | null>(
+    workout.actualAvgHr ? parseInt(workout.actualAvgHr, 10) : null
+  );
+  const [maxHeartRate, setMaxHeartRate] = useState<number | null>(
+    workout.actualMaxHr ? parseInt(workout.actualMaxHr, 10) : null
+  );
 
-  // Activité importée (persistante)
+  // Activité importée
   const [importedActivityName, setImportedActivityName] = useState<string>(
     workout.importedActivityName || ""
   );
   const [isActivityImported, setIsActivityImported] = useState<boolean>(
-    Boolean(workout.importedActivityName || workout.completedKm)
+    Boolean(workout.importedActivityName)
   );
 
-  // Synchronisation directe Garmin Connect
+  // Synchronisation Garmin
   const [hasGarmin, setHasGarmin] = useState<boolean>(false);
   const [garminLoading, setGarminLoading] = useState<boolean>(false);
   const [garminError, setGarminError] = useState<string | null>(null);
@@ -74,12 +81,15 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [showActivityPicker, setShowActivityPicker] = useState<boolean>(false);
 
   useEffect(() => {
-    const gEmail = localStorage.getItem("volaris_garmin_email");
-    const gPwd = localStorage.getItem("volaris_garmin_pwd");
-    setHasGarmin(Boolean(gEmail && gPwd));
+    if (typeof window !== "undefined") {
+      const gEmail = localStorage.getItem("volaris_garmin_email");
+      const gPwd = localStorage.getItem("volaris_garmin_pwd");
+      setHasGarmin(Boolean(gEmail && gPwd));
+    }
   }, []);
 
   const handleFetchGarminActivities = async () => {
+    if (typeof window === "undefined") return;
     const email = localStorage.getItem("volaris_garmin_email");
     const password = localStorage.getItem("volaris_garmin_pwd");
 
@@ -120,23 +130,30 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   };
 
   const applyGarminActivity = (act: any) => {
-    if (act.distanceKm) setCompletedKm(act.distanceKm);
-    if (act.durationMinutes) setCompletedTimeMinutes(act.durationMinutes);
-    if (act.elevationGain !== undefined && act.elevationGain !== null) {
-      setCompletedElevationGain(act.elevationGain);
-    }
-    if (act.avgHr) setAvgHeartRate(act.avgHr);
-    if (act.maxHr) setMaxHeartRate(act.maxHr);
+    const dist = parseFloat(String(act.distanceKm)) || 0;
+    const dur = parseInt(String(act.durationMinutes), 10) || 0;
+    const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
+    const hr = parseInt(String(act.avgHr || 0), 10) || null;
+    const maxHr = parseInt(String(act.maxHr || 0), 10) || null;
 
-    const label = `${act.title} (${act.date})`;
+    setCompletedKm(dist);
+    setCompletedTimeMinutes(dur);
+    setCompletedElevationGain(elev);
+    setAvgHeartRate(hr);
+    setMaxHeartRate(maxHr);
+
+    const label = `${act.title || "Course"} (${act.date || ""})`;
     setImportedActivityName(label);
     setIsActivityImported(true);
     setShowActivityPicker(false);
   };
 
-  // Suppression / Réinitialisation de l'activité importée
-  const handleRemoveImport = () => {
-    if (confirm("Voulez-vous supprimer l'importation de cette activité et réinitialiser les métriques ?")) {
+  // Suppression immédiate de l'import et réinitialisation
+  const handleRemoveImport = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (window.confirm("Voulez-vous supprimer l'importation de cette activité et réinitialiser les données réelles ?")) {
       setCompletedKm(defaultKm);
       setCompletedTimeMinutes(Math.round(defaultKm * 5.5));
       setCompletedElevationGain(0);
@@ -145,9 +162,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       setImportedActivityName("");
       setIsActivityImported(false);
 
-      if (onDeleteImport) {
-        onDeleteImport(workout.id);
-      }
+      // Déclenche la suppression au niveau du parent (BDD et état)
+      onDeleteImport(workout.id);
     }
   };
 
@@ -162,7 +178,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       completedKm,
       completedTimeMinutes,
       completedElevationGain,
-      importedActivityName,
+      importedActivityName: isActivityImported ? importedActivityName : undefined,
     });
 
     onClose();
@@ -173,7 +189,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-fadeIn my-auto">
-        
         {/* HEADER */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3">
           <div>
@@ -206,7 +221,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             )}
           </div>
 
-          {/* AFFICHAGE DE L'ACTIVITÉ SI DÉJÀ IMPORTÉE / RÉALISÉE */}
+          {/* AFFICHAGE DE L'ACTIVITÉ SI DÉJÀ IMPORTÉE */}
           {isActivityImported && importedActivityName ? (
             <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
               <div className="space-y-0.5 overflow-hidden">
@@ -224,7 +239,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   onClick={handleFetchGarminActivities}
                   disabled={garminLoading}
                   className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                  title="Réimporter une autre sortie"
+                  title="Changer d'activité"
                 >
                   {garminLoading ? "⏳" : "🔄 Changer"}
                 </button>
@@ -234,12 +249,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   className="text-[10px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20 border border-[#ef4444]/30 bg-[#ef4444]/10 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
                   title="Supprimer cette activité importée"
                 >
-                  🗑️
+                  🗑️ Supprimer
                 </button>
               </div>
             </div>
           ) : (
-            /* BOUTON D'IMPORT DIRECT GARMIN (SI PAS ENCORE D'ACTIVITÉ LIÉE) */
+            /* BOUTON D'IMPORT DIRECT GARMIN */
             <>
               {hasGarmin ? (
                 <button
@@ -267,7 +282,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </p>
           )}
 
-          {/* SÉLECTEUR D'ACTIVITÉ GARMIN (SI PLUSIEURS SORTIES DISPONIBLES) */}
+          {/* SÉLECTEUR D'ACTIVITÉ GARMIN */}
           {showActivityPicker && (
             <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center">
@@ -277,7 +292,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowActivityPicker(false)}
-                  className="text-stone-400 hover:text-stone-200 text-xs font-bold"
+                  className="text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
                 >
                   ✕
                 </button>

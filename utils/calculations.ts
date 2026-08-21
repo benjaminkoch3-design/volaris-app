@@ -1,4 +1,4 @@
-// src/utils/calculations.ts
+// app/utils/calculations.ts
 
 import {
   WorkoutType,
@@ -47,6 +47,39 @@ export const getStepTypeLabel = (type: string) => {
 // ==========================================
 // DATE & CALENDAR CALCULATIONS
 // ==========================================
+
+// Ordre strict des jours de la semaine (Lundi -> Dimanche)
+export const DAYS_ORDER_FR = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+  "Dimanche",
+];
+
+export const getDayOrderIndex = (dayName: string): number => {
+  const clean = (dayName || "").trim().toLowerCase();
+  const idx = DAYS_ORDER_FR.findIndex(
+    (d) => d.toLowerCase() === clean
+  );
+  return idx !== -1 ? idx : 0;
+};
+
+/**
+ * Trie les séances par semaine puis par ordre strict du jour (Lundi -> Dimanche)
+ */
+export const sortWorkoutsByDay = (workouts: Workout[]): Workout[] => {
+  return [...workouts].sort((a, b) => {
+    if (a.weekNumber !== b.weekNumber) {
+      return a.weekNumber - b.weekNumber;
+    }
+    const orderA = a.dayIndex !== undefined && a.dayIndex >= 0 ? a.dayIndex : getDayOrderIndex(a.dayName);
+    const orderB = b.dayIndex !== undefined && b.dayIndex >= 0 ? b.dayIndex : getDayOrderIndex(b.dayName);
+    return orderA - orderB;
+  });
+};
 
 export const safeFormatDateFr = (dateStr: string) => {
   if (!dateStr) return "";
@@ -246,9 +279,41 @@ export const calculateWeeklyCompletedKm = (
   completedMap: Record<string, boolean>
 ): number => {
   return workouts
-    .filter((w) => w.weekNumber === weekNum && !w.isRest && completedMap[w.id])
+    .filter((w) => w.weekNumber === weekNum && !w.isRest && (completedMap[w.id] || w.completed))
     .reduce((acc, w) => {
-      const kmVal = w.km !== undefined && w.km !== null ? parseFloat(String(w.km)) : 0;
+      const kmVal =
+        w.completedKm !== undefined && w.completedKm !== null
+          ? parseFloat(String(w.completedKm))
+          : parseFloat(String(w.km || "0"));
+      return acc + (isNaN(kmVal) ? 0 : kmVal);
+    }, 0);
+};
+
+/**
+ * Calcule le kilométrage réalisé sans compter plusieurs fois la même activité Garmin importée
+ */
+export const calculateWeeklyCompletedKmDeduplicated = (
+  workouts: Workout[],
+  weekNum: number,
+  completedMap: Record<string, boolean>
+): number => {
+  const seenActivities = new Set<string>();
+
+  return workouts
+    .filter((w) => w.weekNumber === weekNum && !w.isRest && (completedMap[w.id] || w.completed))
+    .reduce((acc, w) => {
+      if (w.importedActivityName) {
+        if (seenActivities.has(w.importedActivityName)) {
+          return acc;
+        }
+        seenActivities.add(w.importedActivityName);
+      }
+
+      const kmVal =
+        w.completedKm !== undefined && w.completedKm !== null
+          ? parseFloat(String(w.completedKm))
+          : parseFloat(String(w.km || "0"));
+
       return acc + (isNaN(kmVal) ? 0 : kmVal);
     }, 0);
 };

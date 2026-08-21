@@ -1,4 +1,4 @@
-// src/components/plan/ActivePlanView.tsx
+// app/components/plan/ActivePlanView.tsx
 
 import React from "react";
 import { Plan, Workout, WeekType } from "../../types";
@@ -7,10 +7,11 @@ import {
   getCurrentWeekNumber,
   getWeekTypeLabel,
   calculateWeeklyPlannedKm,
-  calculateWeeklyCompletedKm,
+  calculateWeeklyCompletedKmDeduplicated,
   getWeekDateRange,
   getExactDayDate,
   getWorkoutTypeConfig,
+  sortWorkoutsByDay,
 } from "../../utils/calculations";
 
 interface ActivePlanViewProps {
@@ -22,7 +23,7 @@ interface ActivePlanViewProps {
   onChangePlanRequest?: () => void;
   onSelectWorkoutDetail: (workout: Workout) => void;
   onToggleWorkout: (id: string) => void;
-  onNavigateToVolumeChart: () => void;
+  onNavigateToVolumeChart?: () => void;
 }
 
 const getRpeGradientColor = (rpeStr?: string) => {
@@ -122,16 +123,20 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
             const isOpen = openWeeks[wNum] ?? isCurrentWeek;
 
-            const weekWorkouts = activePlan.workouts.filter(
+            // Filtrage et tri strict Lundi -> Dimanche
+            const rawWeekWorkouts = activePlan.workouts.filter(
               (w) => w.weekNumber === wNum
             );
+            const weekWorkouts = sortWorkoutsByDay(rawWeekWorkouts);
             const nonRestCount = weekWorkouts.filter((w) => !w.isRest).length;
 
             const weeklyPlannedKm = calculateWeeklyPlannedKm(
               activePlan.workouts,
               wNum
             );
-            const weeklyCompletedKm = calculateWeeklyCompletedKm(
+            
+            // Calcul dédupliqué sans double-comptage
+            const weeklyCompletedKm = calculateWeeklyCompletedKmDeduplicated(
               activePlan.workouts,
               wNum,
               completedWorkouts
@@ -198,7 +203,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                   <div className="p-4 pt-0 space-y-3 border-t border-stone-800/60">
                     <div className="space-y-2.5 pt-3">
                       {weekWorkouts.map((w) => {
-                        const isDone = completedWorkouts[w.id];
+                        const isDone = completedWorkouts[w.id] || w.completed;
                         const exactDate = getExactDayDate(
                           activePlan.startDate,
                           w.weekNumber,
@@ -286,7 +291,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {w.km && (
                                   <span className="text-[9px] font-extrabold bg-stone-900 text-stone-100 px-2 py-0.5 rounded-md border border-stone-800">
-                                    {w.km} km
+                                    {w.completedKm !== undefined ? `${w.completedKm} km (réel)` : `${w.km} km`}
                                   </span>
                                 )}
 
@@ -299,7 +304,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                     }}
                                     className="text-[9px] font-bold px-2 py-0.5 rounded-md border"
                                   >
-                                    RPE {w.rpe}/10
+                                    RPE {w.completedRpe ?? w.rpe}/10
                                   </span>
                                 )}
                                 <span className="text-xs text-[#CF9A61] font-bold ml-1">
