@@ -1,4 +1,4 @@
-// src/types/index.ts
+// app/types/index.ts
 
 export type UserRole = "athlete" | "coach";
 
@@ -34,6 +34,7 @@ export type StepType =
   | "retour_calme"
   | "repeat"
   | string;
+
 export type EndCondition = "temps" | "distance" | string;
 export type GoalType = "allure" | "frequence_cardiaque" | "sensations" | string;
 
@@ -44,7 +45,7 @@ export interface WorkoutStep {
   endCondition?: EndCondition;
   goalType?: GoalType;
   goalValue?: string;
-  // Fourchette d'allure cible pour Garmin et l'affichage Volaris
+  // Fourchette d'allure cible pour Garmin, COROS et l'affichage Volaris
   paceMin?: string; // Allure rapide (ex: "4:15")
   paceMax?: string; // Allure lente (ex: "4:25")
   targetPace?: string; // Texte libre ou allure simple (ex: "4:15 - 4:25" ou "4:20")
@@ -65,13 +66,26 @@ export interface Workout {
   description?: string;
   km?: string;
   rpe?: string;
+  remark?: string;
+
+  // Données de réalisation et débriefing
+  completed?: boolean;
   completedRpe?: number;
   athleteComment?: string;
+  feedback?: string;
   shoeId?: string;
   completedKm?: number;
   completedTimeMinutes?: number;
   completedElevationGain?: number;
-  remark?: string;
+  importedActivityName?: string;
+  actualDuration?: string;
+  actualKm?: string;
+  actualPace?: string;
+  actualAvgHr?: string;
+  actualMaxHr?: string;
+  actualElevation?: string;
+  actualRpe?: string;
+
   // Allure générale optionnelle
   targetPace?: string;
   paceMin?: string;
@@ -161,7 +175,7 @@ export interface LibraryCategory {
 
 export interface LibraryWorkout {
   id: string;
-  categoryId: string; // Fait référence à l'ID de la catégorie créée par le coach
+  categoryId: string; // Fait référence à l'ID de la catégorie
   category?: string; // Alias de rétrocompatibilité
   title: string;
   description?: string;

@@ -1,7 +1,6 @@
 // app/components/workout/WorkoutDebriefView.tsx
 
-import React, { useState, useRef, useEffect } from "react";
-import FitParser from "fit-file-parser";
+import React, { useState, useEffect } from "react";
 import { Workout, Shoe } from "../../types";
 
 interface WorkoutDebriefViewProps {
@@ -16,7 +15,9 @@ interface WorkoutDebriefViewProps {
     completedKm: number;
     completedTimeMinutes: number;
     completedElevationGain: number;
+    importedActivityName?: string;
   }) => void;
+  onDeleteImport?: (workoutId: string) => void;
 }
 
 const getRpeColor = (rpe: number) => {
@@ -31,9 +32,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   shoes,
   onClose,
   onSaveDebrief,
+  onDeleteImport,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [completedRpe, setCompletedRpe] = useState<number>(
     workout.completedRpe ?? (workout.rpe ? parseInt(workout.rpe, 10) : 5)
   );
@@ -58,9 +58,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [avgHeartRate, setAvgHeartRate] = useState<number | null>(null);
   const [maxHeartRate, setMaxHeartRate] = useState<number | null>(null);
 
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [syncSuccess, setSyncSuccess] = useState<boolean>(false);
-  const [importedFileName, setImportedFileName] = useState<string>("");
+  // Activité importée (persistante)
+  const [importedActivityName, setImportedActivityName] = useState<string>(
+    workout.importedActivityName || ""
+  );
+  const [isActivityImported, setIsActivityImported] = useState<boolean>(
+    Boolean(workout.importedActivityName || workout.completedKm)
+  );
 
   // Synchronisation directe Garmin Connect
   const [hasGarmin, setHasGarmin] = useState<boolean>(false);
@@ -124,90 +128,27 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     if (act.avgHr) setAvgHeartRate(act.avgHr);
     if (act.maxHr) setMaxHeartRate(act.maxHr);
 
-    setImportedFileName(`${act.title} (${act.date})`);
-    setSyncSuccess(true);
+    const label = `${act.title} (${act.date})`;
+    setImportedActivityName(label);
+    setIsActivityImported(true);
     setShowActivityPicker(false);
   };
 
-  // Traitement fichier GPS
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Suppression / Réinitialisation de l'activité importée
+  const handleRemoveImport = () => {
+    if (confirm("Voulez-vous supprimer l'importation de cette activité et réinitialiser les métriques ?")) {
+      setCompletedKm(defaultKm);
+      setCompletedTimeMinutes(Math.round(defaultKm * 5.5));
+      setCompletedElevationGain(0);
+      setAvgHeartRate(null);
+      setMaxHeartRate(null);
+      setImportedActivityName("");
+      setIsActivityImported(false);
 
-    setIsSyncing(true);
-    setImportedFileName(file.name);
-    const fileName = file.name.toLowerCase();
-
-    if (fileName.endsWith(".fit")) {
-      parseFitFile(file);
-    } else if (fileName.endsWith(".tcx") || fileName.endsWith(".gpx")) {
-      parseXmlFile(file);
-    } else {
-      alert("Format non supporté. Veuillez importer un fichier .FIT, .TCX ou .GPX");
-      setIsSyncing(false);
+      if (onDeleteImport) {
+        onDeleteImport(workout.id);
+      }
     }
-  };
-
-  const parseFitFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const buffer = e.target?.result as ArrayBuffer;
-      const fitParser = new FitParser({ force: true, speedUnit: "km/h" });
-
-      fitParser.parse(buffer, (error: any, data: any) => {
-        setIsSyncing(false);
-
-        if (error || !data?.sessions?.length) {
-          alert("Impossible de lire ce fichier .FIT.");
-          return;
-        }
-
-        const session = data.sessions[0];
-        const totalDistKm = session.total_distance
-          ? parseFloat((session.total_distance / 1000).toFixed(2))
-          : completedKm;
-        const totalDurationMin = session.total_elapsed_time
-          ? Math.round(session.total_elapsed_time / 60)
-          : completedTimeMinutes;
-        const totalElevation = session.total_ascent
-          ? Math.round(session.total_ascent)
-          : completedElevationGain;
-
-        setCompletedKm(totalDistKm);
-        setCompletedTimeMinutes(totalDurationMin);
-        setCompletedElevationGain(totalElevation);
-
-        if (session.avg_heart_rate) setAvgHeartRate(session.avg_heart_rate);
-        if (session.max_heart_rate) setMaxHeartRate(session.max_heart_rate);
-
-        setSyncSuccess(true);
-      });
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const parseXmlFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(content, "text/xml");
-
-      let distKm = completedKm;
-      let durationMin = completedTimeMinutes;
-
-      const distElem = xmlDoc.getElementsByTagName("DistanceMeters")[0];
-      const timeElem = xmlDoc.getElementsByTagName("TotalTimeSeconds")[0];
-
-      if (distElem) distKm = parseFloat((parseFloat(distElem.textContent || "0") / 1000).toFixed(2));
-      if (timeElem) durationMin = Math.round(parseFloat(timeElem.textContent || "0") / 60);
-
-      setCompletedKm(distKm);
-      setCompletedTimeMinutes(durationMin);
-      setIsSyncing(false);
-      setSyncSuccess(true);
-    };
-    reader.readAsText(file);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -221,6 +162,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       completedKm,
       completedTimeMinutes,
       completedElevationGain,
+      importedActivityName,
     });
 
     onClose();
@@ -251,30 +193,72 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SECTION IMPORTATION */}
+        {/* SECTION SYNCHRONISATION GARMIN */}
         <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-stone-200">
-              ⌚ Synchronisation Activité Réelle
+              ⌚ Synchronisation Activité Garmin
             </span>
-            {syncSuccess && (
+            {isActivityImported && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
-                ✓ Données synchronisées
+                ✓ Réalisée
               </span>
             )}
           </div>
 
-          {/* BOUTON GARMIN DIRECT */}
-          {hasGarmin && (
-            <button
-              type="button"
-              onClick={handleFetchGarminActivities}
-              disabled={garminLoading}
-              style={{ backgroundColor: "#4D80B3" }}
-              className="w-full py-2.5 px-3 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md hover:opacity-90 disabled:opacity-50"
-            >
-              <span>{garminLoading ? "⏳ Récupération..." : "⌚ Importer depuis Garmin Connect"}</span>
-            </button>
+          {/* AFFICHAGE DE L'ACTIVITÉ SI DÉJÀ IMPORTÉE / RÉALISÉE */}
+          {isActivityImported && importedActivityName ? (
+            <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
+              <div className="space-y-0.5 overflow-hidden">
+                <span className="text-[9px] font-bold uppercase text-[#4D80B3] block">
+                  Activité synchronisée
+                </span>
+                <p className="text-xs font-bold text-stone-200 truncate">
+                  {importedActivityName}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleFetchGarminActivities}
+                  disabled={garminLoading}
+                  className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                  title="Réimporter une autre sortie"
+                >
+                  {garminLoading ? "⏳" : "🔄 Changer"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveImport}
+                  className="text-[10px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20 border border-[#ef4444]/30 bg-[#ef4444]/10 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                  title="Supprimer cette activité importée"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* BOUTON D'IMPORT DIRECT GARMIN (SI PAS ENCORE D'ACTIVITÉ LIÉE) */
+            <>
+              {hasGarmin ? (
+                <button
+                  type="button"
+                  onClick={handleFetchGarminActivities}
+                  disabled={garminLoading}
+                  style={{ backgroundColor: "#4D80B3" }}
+                  className="w-full py-2.5 px-3 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md hover:opacity-90 disabled:opacity-50"
+                >
+                  <span>{garminLoading ? "⏳ Récupération..." : "⌚ Importer depuis Garmin Connect"}</span>
+                </button>
+              ) : (
+                <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
+                  <p className="text-[11px] text-stone-400">
+                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour importer automatiquement vos courses Garmin.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {garminError && (
@@ -283,12 +267,21 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </p>
           )}
 
-          {/* SÉLECTEUR D'ACTIVITÉ GARMIN */}
+          {/* SÉLECTEUR D'ACTIVITÉ GARMIN (SI PLUSIEURS SORTIES DISPONIBLES) */}
           {showActivityPicker && (
             <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
-              <span className="text-[9px] font-bold text-stone-400 uppercase block">
-                Sélectionnez votre sortie récente :
-              </span>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-bold text-stone-400 uppercase">
+                  Sélectionnez votre sortie :
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowActivityPicker(false)}
+                  className="text-stone-400 hover:text-stone-200 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </div>
               <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                 {garminActivities.map((act) => (
                   <div
@@ -310,36 +303,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </div>
             </div>
           )}
-
-          {/* SÉPARATEUR OU FICHIER MANUEL */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-stone-800"></div>
-            <span className="flex-shrink mx-2 text-[9px] uppercase font-bold text-stone-500">ou par fichier GPS</span>
-            <div className="flex-grow border-t border-stone-800"></div>
-          </div>
-
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".fit,.tcx,.gpx"
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSyncing}
-            className="w-full py-2 px-3 bg-stone-900 hover:bg-stone-850 border border-stone-800 text-stone-300 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isSyncing ? (
-              <span>⏳ Analyse du fichier...</span>
-            ) : syncSuccess && importedFileName ? (
-              <span className="truncate">📂 {importedFileName} (Changer)</span>
-            ) : (
-              <span>📁 Importer un fichier .FIT, .TCX ou .GPX</span>
-            )}
-          </button>
 
           {/* RÉCAPITULATIF DES MÉTRIQUES RÉELLES */}
           <div className="grid grid-cols-3 gap-2 pt-1 text-center">
