@@ -1,5 +1,6 @@
 // @ts-nocheck
-// api/sync-garmin.ts
+// app/api/sync-garmin/route.ts
+import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
 
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
@@ -77,7 +78,6 @@ const extractPaceRangeInMetersPerSecond = (
   let fastSec: number | null = null;
   let slowSec: number | null = null;
 
-  // 1. Détection des champs explicites paceMin et paceMax
   const explicitMin = step.paceMin || step.targetPaceMin || step.minPace;
   const explicitMax = step.paceMax || step.targetPaceMax || step.maxPace;
 
@@ -96,7 +96,6 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // 2. Détection dans les chaînes de texte concaténées
   if (!fastSec || !slowSec) {
     const textToScan = [
       step.pace,
@@ -132,8 +131,8 @@ const extractPaceRangeInMetersPerSecond = (
 
   if (fastSec && slowSec && fastSec > 0 && slowSec > 0) {
     return {
-      slowSpeedMs: 1000 / slowSec, // vitesse minimale en m/s (allure lente)
-      fastSpeedMs: 1000 / fastSec, // vitesse maximale en m/s (allure rapide)
+      slowSpeedMs: 1000 / slowSec,
+      fastSpeedMs: 1000 / fastSec,
     };
   }
 
@@ -153,30 +152,24 @@ const getGarminStepType = (type: string) => {
   }
 };
 
-export default async function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
-
-  const { email, password, workout, testOnly } = req.body || {};
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Identifiants Garmin manquants." });
-  }
-
+export async function POST(request: Request) {
   try {
+    const body = await request.json();
+    const { email, password, workout, testOnly } = body || {};
+
+    if (!email || !password) {
+      return NextResponse.json({ error: "Identifiants Garmin manquants." }, { status: 400 });
+    }
+
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
     if (testOnly || workout?.title === "Test Connexion") {
-      return res.status(200).json({ success: true, message: "Authentification réussie !" });
+      return NextResponse.json({ success: true, message: "Authentification réussie !" });
     }
 
     if (!workout) {
-      return res.status(400).json({ error: "Aucune séance fournie." });
+      return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
     const workoutTitle = (workout.title || "Séance Volaris").substring(0, 45);
@@ -212,7 +205,6 @@ export default async function handler(req: any, res: any) {
           displayOrder: 6,
           displayable: true,
         };
-        // Garmin attend des nombres flottants pour targetValueOne (min speed) et targetValueTwo (max speed)
         targetValueOne = paceRange.slowSpeedMs;
         targetValueTwo = paceRange.fastSpeedMs;
       }
@@ -310,15 +302,16 @@ export default async function handler(req: any, res: any) {
       result = res.data;
     }
 
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       workoutId: result?.workoutId || result?.id || "OK",
-      message: `Séance « ${workoutTitle} » synchronisée avec cibles d'allure !`,
+      message: `Séance « ${workoutTitle} » synchronisée avec succès !`,
     });
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
-    return res.status(400).json({
-      error: error?.message || "Erreur de synchronisation.",
-    });
+    return NextResponse.json(
+      { error: error?.message || "Erreur de synchronisation Garmin." },
+      { status: 400 }
+    );
   }
 }

@@ -1,5 +1,6 @@
 // @ts-nocheck
-// api/sync-coros.ts
+// app/api/sync-coros/route.ts
+import { NextResponse } from "next/server";
 import crypto from "crypto";
 
 const md5Hash = (str: string) => {
@@ -9,25 +10,21 @@ const md5Hash = (str: string) => {
 const parseDurationOrDist = (val: string): { mode: number; value: number } => {
   const clean = (val || "").toLowerCase().trim();
 
-  // Distance en km -> mètres (COROS mode 2 = Distance en mètres)
   if (clean.includes("km") || (clean.endsWith("k") && !clean.includes("min"))) {
     const km = parseFloat(clean.replace(",", ".")) || 0;
     return { mode: 2, value: Math.round(km * 1000) };
   }
 
-  // Distance en m -> mètres
   if (clean.includes("m") && !clean.includes("min")) {
     const m = parseFloat(clean.replace(",", ".")) || 0;
     return { mode: 2, value: Math.round(m) };
   }
 
-  // Temps en minutes -> secondes (COROS mode 1 = Temps en secondes)
   if (clean.includes("min") || clean.includes("'")) {
     const mins = parseFloat(clean.replace("'", ".")) || 0;
     return { mode: 1, value: Math.round(mins * 60) };
   }
 
-  // Temps en secondes
   if (clean.includes("s") && !clean.includes("min")) {
     const sec = parseFloat(clean) || 0;
     return { mode: 1, value: Math.round(sec) };
@@ -55,32 +52,25 @@ const parsePaceToSeconds = (str: string): number | null => {
 const getCorosStepType = (type: string) => {
   switch (type) {
     case "echauffement":
-      return 1; // Warm up
+      return 1;
     case "recup":
-      return 3; // Rest / Recovery
+      return 3;
     case "retour_calme":
-      return 4; // Cool down
+      return 4;
     default:
-      return 2; // Training / Interval
+      return 2;
   }
 };
 
-export default async function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Méthode non autorisée" });
-
-  const { email, password, workout, testOnly } = req.body || {};
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Identifiants COROS manquants." });
-  }
-
+export async function POST(request: Request) {
   try {
-    // 1. Authentification COROS
+    const body = await request.json();
+    const { email, password, workout, testOnly } = body || {};
+
+    if (!email || !password) {
+      return NextResponse.json({ error: "Identifiants COROS manquants." }, { status: 400 });
+    }
+
     const pwdMd5 = md5Hash(password);
     const loginRes = await fetch("https://open.coros.com/v2/coros/account/login", {
       method: "POST",
@@ -100,14 +90,13 @@ export default async function handler(req: any, res: any) {
     }
 
     if (testOnly || workout?.title === "Test Connexion") {
-      return res.status(200).json({ success: true, message: "Authentification COROS réussie !" });
+      return NextResponse.json({ success: true, message: "Authentification COROS réussie !" });
     }
 
     if (!workout) {
-      return res.status(400).json({ error: "Aucune séance fournie." });
+      return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    // 2. Construction des blocs pour COROS
     const workoutStepList: any[] = [];
 
     const buildCorosStep = (step: any) => {
@@ -115,19 +104,19 @@ export default async function handler(req: any, res: any) {
       const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
       const slowSec = parsePaceToSeconds(step.paceMax);
 
-      let targetType = 0; // Aucun
+      let targetType = 0;
       let targetMin = 0;
       let targetMax = 0;
 
       if (fastSec) {
-        targetType = 1; // Allure (Pace en s/km)
+        targetType = 1;
         targetMin = fastSec;
         targetMax = slowSec || fastSec + 10;
       }
 
       return {
         stepType: getCorosStepType(step.type),
-        mode: parsed.mode, // 1: Temps (sec), 2: Distance (m)
+        mode: parsed.mode,
         targetValue: parsed.value,
         intensityType: targetType,
         intensityMin: targetMin,
@@ -142,7 +131,7 @@ export default async function handler(req: any, res: any) {
           const reps = parseInt(step.reps || "1", 10) || 1;
           const subSteps = step.nestedSteps.map(buildCorosStep);
           workoutStepList.push({
-            stepType: 5, // Repeat group COROS
+            stepType: 5,
             repeatCount: reps,
             subStepList: subSteps,
           });
@@ -161,33 +150,31 @@ export default async function handler(req: any, res: any) {
       );
     }
 
-    // 3. Envoi du workout vers le cloud COROS
     const payload = {
       name: (workout.title || "Séance Volaris").substring(0, 30),
-      sportType: 1, // Course à pied
+      sportType: 1,
       workoutStepList: workoutStepList,
       description: workout.description || "Synchronisé depuis Volaris Running",
     };
 
-    const syncRes = await fetch("https://open.coros.com/v2/coros/workout", {
+    await fetch("https://open.coros.com/v2/coros/workout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "accessToken": token,
+        accessToken: token,
       },
       body: JSON.stringify(payload),
     });
 
-    const syncData = await syncRes.json();
-
-    return res.status(200).json({
+    return NextResponse.json({
       success: true,
       message: `Séance synchronisée sur COROS avec succès !`,
     });
   } catch (error: any) {
     console.error("COROS Sync Error:", error);
-    return res.status(400).json({
-      error: error?.message || "Erreur lors de la synchronisation COROS.",
-    });
+    return NextResponse.json(
+      { error: error?.message || "Erreur lors de la synchronisation COROS." },
+      { status: 400 }
+    );
   }
 }
