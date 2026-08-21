@@ -1,6 +1,6 @@
 // src/components/workout/WorkoutDetail.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Workout, Plan, WorkoutStep } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import {
@@ -26,16 +26,37 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const targetRpe = workout.rpe ? parseInt(workout.rpe, 10) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
 
+  // Détection des comptes liés
+  const [hasGarmin, setHasGarmin] = useState(false);
+  const [hasCoros, setHasCoros] = useState(false);
+
   // États pour la synchronisation
   const [showGarminModal, setShowGarminModal] = useState(false);
-  const [garminEmail, setGarminEmail] = useState(
-    () => localStorage.getItem("volaris_garmin_email") || ""
-  );
-  const [garminPassword, setGarminPassword] = useState(
-    () => localStorage.getItem("volaris_garmin_pwd") || ""
-  );
+  const [garminEmail, setGarminEmail] = useState("");
+  const [garminPassword, setGarminPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const gEmail = localStorage.getItem("volaris_garmin_email");
+    const gPwd = localStorage.getItem("volaris_garmin_pwd");
+    const cEmail = localStorage.getItem("volaris_coros_email");
+    const cPwd = localStorage.getItem("volaris_coros_pwd");
+
+    if (gEmail && gPwd) {
+      setHasGarmin(true);
+      setGarminEmail(gEmail);
+      setGarminPassword(gPwd);
+    } else {
+      setHasGarmin(false);
+    }
+
+    if (cEmail && cPwd) {
+      setHasCoros(true);
+    } else {
+      setHasCoros(false);
+    }
+  }, []);
 
   // Synchronisation Garmin (#4D80B3)
   const performGarminSync = async (emailToUse: string, pwdToUse: string) => {
@@ -96,7 +117,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     const pwd = localStorage.getItem("volaris_coros_pwd");
 
     if (!email || !pwd) {
-      alert("Veuillez renseigner vos identifiants COROS dans votre profil.");
       return;
     }
 
@@ -281,29 +301,58 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* BOUTONS D'ENVOI DIRECT (GARMIN: #4D80B3 / COROS: #B34D4D) */}
+        {/* SECTION SYNCHRONISATION CONDITIONNELLE */}
         <div className="space-y-1.5">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handleDirectOrModalSync}
-              disabled={loading}
-              style={{ backgroundColor: "#4D80B3" }}
-              className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+          {!hasGarmin && !hasCoros ? (
+            /* AUCUN COMPTE LIÉ : MESSAGE INFORMATIF */
+            <div className="bg-stone-950/80 border border-stone-800/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-inner">
+              <div className="w-8 h-8 rounded-xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] shrink-0 text-sm">
+                ⌚
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-stone-200">
+                  Synchronisation avec votre montre
+                </h4>
+                <p className="text-[10.5px] text-stone-400 leading-relaxed">
+                  Pour synchroniser cette séance sur votre montre, rendez-vous dans l'onglet{" "}
+                  <strong className="text-[#CF9A61]">Profil</strong> afin de connecter votre compte{" "}
+                  <span className="text-[#4D80B3] font-semibold">Garmin Connect</span> ou{" "}
+                  <span className="text-[#B34D4D] font-semibold">COROS</span>.
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* BOUTON(S) CONDITIONNEL(S) */
+            <div
+              className={`grid gap-2 ${
+                hasGarmin && hasCoros ? "grid-cols-2" : "grid-cols-1"
+              }`}
             >
-              <span>⌚ Garmin</span>
-            </button>
+              {hasGarmin && (
+                <button
+                  type="button"
+                  onClick={handleDirectOrModalSync}
+                  disabled={loading}
+                  style={{ backgroundColor: "#4D80B3" }}
+                  className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+                >
+                  <span>⌚ Synchroniser Garmin</span>
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={handleCorosSync}
-              disabled={loading}
-              style={{ backgroundColor: "#B34D4D" }}
-              className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
-            >
-              <span>⌚ COROS</span>
-            </button>
-          </div>
+              {hasCoros && (
+                <button
+                  type="button"
+                  onClick={handleCorosSync}
+                  disabled={loading}
+                  style={{ backgroundColor: "#B34D4D" }}
+                  className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+                >
+                  <span>⌚ Synchroniser COROS</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {syncStatus && (
             <p className="text-[11px] text-center font-bold text-[#CF9A61] animate-fadeIn">
