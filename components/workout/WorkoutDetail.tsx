@@ -37,7 +37,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
-  // Synchronisation Garmin
+  // Synchronisation Garmin (#4D80B3)
   const performGarminSync = async (emailToUse: string, pwdToUse: string) => {
     setLoading(true);
     setSyncStatus(null);
@@ -90,7 +90,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     performGarminSync(garminEmail, garminPassword);
   };
 
-  // Synchronisation COROS
+  // Synchronisation COROS (#B34D4D)
   const handleCorosSync = async () => {
     const email = localStorage.getItem("volaris_coros_email");
     const pwd = localStorage.getItem("volaris_coros_pwd");
@@ -281,14 +281,15 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* BOUTONS D'ENVOI VERS LES MONTRES CONNECTÉES (GARMIN & COROS) */}
+        {/* BOUTONS D'ENVOI DIRECT (GARMIN: #4D80B3 / COROS: #B34D4D) */}
         <div className="space-y-1.5">
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleDirectOrModalSync}
               disabled={loading}
-              className="py-3 bg-[#CF9A61] hover:bg-[#b8854f] disabled:opacity-60 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+              style={{ backgroundColor: "#4D80B3" }}
+              className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
             >
               <span>⌚ Garmin</span>
             </button>
@@ -297,7 +298,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               type="button"
               onClick={handleCorosSync}
               disabled={loading}
-              className="py-3 bg-[#CDCF61] hover:bg-[#b5b84c] disabled:opacity-60 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+              style={{ backgroundColor: "#B34D4D" }}
+              className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
             >
               <span>⌚ COROS</span>
             </button>
@@ -362,7 +364,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         </div>
       </div>
 
-      {/* MODAL DE CONNEXION GARMIN (SI NON PRÉ-ENREGISTRÉ) */}
+      {/* MODAL DE CONNEXION GARMIN */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
           <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">
@@ -395,7 +397,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   value={garminEmail}
                   onChange={(e) => setGarminEmail(e.target.value)}
                   placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#CF9A61]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
                 />
               </div>
 
@@ -409,14 +411,15 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#CF9A61]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-[#CF9A61] hover:bg-[#b8854f] disabled:opacity-50 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+                style={{ backgroundColor: "#4D80B3" }}
+                className="w-full py-3 hover:opacity-90 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
               >
                 {loading ? "Synchronisation..." : "Envoyer sur Garmin"}
               </button>
