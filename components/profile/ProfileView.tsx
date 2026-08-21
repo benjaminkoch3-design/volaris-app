@@ -115,7 +115,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showAddShoeForm, setShowAddShoeForm] = useState(false);
   const [showShoeCloset, setShowShoeCloset] = useState(false);
 
-  // État local temporaire pour l'édition fluide
+  // État local temporaire pour l'édition
   const [editName, setEditName] = useState(athleteName);
   const [editHeight, setEditHeight] = useState(height);
   const [editWeight, setEditWeight] = useState(weight);
@@ -125,7 +125,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcMax, setEditFcMax] = useState(fcMax);
   const [editRecords, setEditRecords] = useState({ ...records });
 
-  // Gestion de la connexion directe Garmin Connect
+  // 1. GESTION GARMIN CONNECT
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -133,13 +133,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminStatusMsg, setGarminStatusMsg] = useState<string | null>(null);
 
+  // 2. GESTION COROS APP
+  const [showCorosModal, setShowCorosModal] = useState(false);
+  const [corosEmail, setCorosEmail] = useState("");
+  const [corosPassword, setCorosPassword] = useState("");
+  const [isCorosLinked, setIsCorosLinked] = useState(false);
+  const [corosLoading, setCorosLoading] = useState(false);
+  const [corosStatusMsg, setCorosStatusMsg] = useState<string | null>(null);
+
+  // 3. GESTION STRAVA
+  const [isStravaLinked, setIsStravaLinked] = useState(false);
+
   useEffect(() => {
-    const savedEmail = localStorage.getItem("volaris_garmin_email");
-    const savedPwd = localStorage.getItem("volaris_garmin_pwd");
-    if (savedEmail && savedPwd) {
-      setGarminEmail(savedEmail);
+    // Garmin
+    const savedGarminEmail = localStorage.getItem("volaris_garmin_email");
+    const savedGarminPwd = localStorage.getItem("volaris_garmin_pwd");
+    if (savedGarminEmail && savedGarminPwd) {
+      setGarminEmail(savedGarminEmail);
       setIsGarminLinked(true);
     }
+
+    // COROS
+    const savedCorosEmail = localStorage.getItem("volaris_coros_email");
+    const savedCorosPwd = localStorage.getItem("volaris_coros_pwd");
+    if (savedCorosEmail && savedCorosPwd) {
+      setCorosEmail(savedCorosEmail);
+      setIsCorosLinked(true);
+    }
+
+    // Strava
+    const savedStrava = localStorage.getItem("volaris_strava_connected") === "true";
+    setIsStravaLinked(savedStrava);
   }, []);
 
   const handleGarminLogin = async (e: React.FormEvent) => {
@@ -154,19 +178,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         body: JSON.stringify({
           email: garminEmail,
           password: garminPassword,
-          workout: { title: "Test Connexion", km: "1" },
+          testOnly: true,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Identifiants invalides.");
+      if (!res.ok) throw new Error(data.error || "Identifiants Garmin invalides.");
 
       localStorage.setItem("volaris_garmin_email", garminEmail);
       localStorage.setItem("volaris_garmin_pwd", garminPassword);
       setIsGarminLinked(true);
-      if (!connectedDevices.garmin) {
-        toggleDeviceConnection("garmin");
-      }
+      if (!connectedDevices.garmin) toggleDeviceConnection("garmin");
+
       setGarminStatusMsg("✅ Compte Garmin lié avec succès !");
       setTimeout(() => {
         setShowGarminModal(false);
@@ -185,12 +208,61 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setGarminEmail("");
     setGarminPassword("");
     setIsGarminLinked(false);
-    if (connectedDevices.garmin) {
-      toggleDeviceConnection("garmin");
+    if (connectedDevices.garmin) toggleDeviceConnection("garmin");
+  };
+
+  const handleCorosLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCorosLoading(true);
+    setCorosStatusMsg(null);
+
+    try {
+      const res = await fetch("/api/sync-coros", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: corosEmail,
+          password: corosPassword,
+          testOnly: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Identifiants COROS invalides.");
+
+      localStorage.setItem("volaris_coros_email", corosEmail);
+      localStorage.setItem("volaris_coros_pwd", corosPassword);
+      setIsCorosLinked(true);
+      if (!connectedDevices.coros) toggleDeviceConnection("coros");
+
+      setCorosStatusMsg("✅ Compte COROS lié avec succès !");
+      setTimeout(() => {
+        setShowCorosModal(false);
+        setCorosStatusMsg(null);
+      }, 1500);
+    } catch (err: any) {
+      setCorosStatusMsg(`❌ ${err.message}`);
+    } finally {
+      setCorosLoading(false);
     }
   };
 
-  // Synchro lors de l'ouverture du formulaire d'édition
+  const handleCorosDisconnect = () => {
+    localStorage.removeItem("volaris_coros_email");
+    localStorage.removeItem("volaris_coros_pwd");
+    setCorosEmail("");
+    setCorosPassword("");
+    setIsCorosLinked(false);
+    if (connectedDevices.coros) toggleDeviceConnection("coros");
+  };
+
+  const handleToggleStrava = () => {
+    const nextState = !isStravaLinked;
+    setIsStravaLinked(nextState);
+    localStorage.setItem("volaris_strava_connected", String(nextState));
+    toggleDeviceConnection("strava");
+  };
+
   const handleOpenEdit = () => {
     setEditName(athleteName);
     setEditHeight(height);
@@ -203,7 +275,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setIsEditingProfile(true);
   };
 
-  // Enregistrement global et synchronisation BDD
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -242,7 +313,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [openPalmares, setOpenPalmares] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
   const [openShoesSection, setOpenShoesSection] = useState(false);
-  const [openDevicesSection, setOpenDevicesSection] = useState(false);
+  const [openDevicesSection, setOpenDevicesSection] = useState(true);
 
   // Formulaire nouvelle chaussure
   const [newShoe, setNewShoe] = useState({
@@ -252,16 +323,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     maxKm: "800",
   });
 
-  // Calculs physiologiques & profil
   const athletePerf = getBestAthletePerformance(records);
   const runnerProfile = calculateRunnerProfile(records);
   const vmaNum = parseFloat(vma) || 0;
 
-  // Séparation Chaussures
   const activeShoes = shoes.filter((s) => s.isActive);
   const closetShoes = shoes.filter((s) => !s.isActive);
 
-  // UTMB Index max
   const bestUtmbIndex = races.reduce((max, race) => {
     const utmb =
       typeof race.utmbIndex === "number"
@@ -274,7 +342,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return max;
   }, 0);
 
-  // % VMA de chaque record
   const recordVmaPcts: { key: string; label: string; pct: number }[] = [];
   if (vmaNum > 0) {
     Object.entries(RECORD_DISTANCES_METERS).forEach(([key, info]) => {
@@ -309,7 +376,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-2xl mx-auto font-sans">
-      {/* MODALE CONNEXION GARMIN CONNECT */}
+      {/* 1. MODALE GARMIN CONNECT */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
@@ -377,6 +444,80 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 className="w-full py-3 bg-[#CF9A61] hover:bg-[#b88652] disabled:opacity-50 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
               >
                 {garminLoading ? "Vérification..." : "Valider la connexion"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODALE COROS APP */}
+      {showCorosModal && (
+        <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-stone-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⌚</span>
+                <h4 className="text-xs font-black uppercase text-stone-100">
+                  Lier mon compte COROS
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCorosModal(false);
+                  setCorosStatusMsg(null);
+                }}
+                className="text-stone-400 hover:text-stone-200 text-xs font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-stone-400 leading-relaxed">
+              Connectez votre compte COROS pour synchroniser automatiquement vos programmes et vos séances structurées.
+            </p>
+
+            <form onSubmit={handleCorosLogin} className="space-y-3">
+              <div>
+                <label className="text-[9px] font-bold uppercase text-stone-400 block mb-1">
+                  Email COROS
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={corosEmail}
+                  onChange={(e) => setCorosEmail(e.target.value)}
+                  placeholder="nom@exemple.com"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#CDCF61]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold uppercase text-stone-400 block mb-1">
+                  Mot de passe COROS
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={corosPassword}
+                  onChange={(e) => setCorosPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#CDCF61]"
+                />
+              </div>
+
+              {corosStatusMsg && (
+                <div className="text-[10px] text-center font-bold text-[#CDCF61] py-1">
+                  {corosStatusMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={corosLoading}
+                className="w-full py-3 bg-[#CDCF61] hover:bg-[#b8bb52] disabled:opacity-50 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
+              >
+                {corosLoading ? "Vérification..." : "Valider la connexion"}
               </button>
             </form>
           </div>
@@ -1590,7 +1731,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          {/* 7. ACCORDÉON MONTRES CONNECTÉES */}
+          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS (GARMIN, COROS, STRAVA) */}
           <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
             <button
               type="button"
@@ -1606,78 +1747,111 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
 
             {openDevicesSection && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                <div className="space-y-2.5">
-                  {[
-                    {
-                      key: "garmin",
-                      name: "Garmin Connect",
-                      color: "from-blue-600 to-blue-800",
-                    },
-                    {
-                      key: "coros",
-                      name: "Coros Training",
-                      color: "from-orange-500 to-red-600",
-                    },
-                    {
-                      key: "strava",
-                      name: "Strava Sync",
-                      color: "from-orange-600 to-amber-600",
-                    },
-                  ].map((device) => {
-                    const isGarmin = device.key === "garmin";
-                    const isConnected = isGarmin
-                      ? isGarminLinked
-                      : connectedDevices[device.key];
-
-                    return (
-                      <div
-                        key={device.key}
-                        className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-9 h-9 rounded-xl bg-gradient-to-br ${device.color} flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100`}
-                          >
-                            {device.name.substring(0, 1)}
-                          </div>
-                          <div>
-                            <div className="font-bold text-xs text-stone-100">
-                              {device.name}
-                            </div>
-                            {isGarmin && isGarminLinked && (
-                              <div className="text-[10px] text-stone-400 font-mono">
-                                {garminEmail}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={isReadOnly}
-                          onClick={() => {
-                            if (isGarmin) {
-                              if (isGarminLinked) {
-                                handleGarminDisconnect();
-                              } else {
-                                setShowGarminModal(true);
-                              }
-                            } else {
-                              toggleDeviceConnection(device.key);
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition ${
-                            isConnected
-                              ? "bg-stone-900 hover:bg-[#B34D4D]/20 hover:text-[#B34D4D] border border-stone-800 text-stone-400"
-                              : "bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 border border-[#CF9A61]/50 shadow-md"
-                          } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
-                        >
-                          {isConnected ? "Déconnecter" : "Connecter"}
-                        </button>
+              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
+                {/* GARMIN CONNECT */}
+                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
+                      G
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-stone-100">
+                        Garmin Connect
                       </div>
-                    );
-                  })}
+                      {isGarminLinked && garminEmail && (
+                        <div className="text-[10px] text-stone-400 font-mono">
+                          {garminEmail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => {
+                      if (isGarminLinked) {
+                        handleGarminDisconnect();
+                      } else {
+                        setShowGarminModal(true);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition ${
+                      isGarminLinked
+                        ? "bg-stone-900 hover:bg-[#B34D4D]/20 hover:text-[#B34D4D] border border-stone-800 text-stone-400"
+                        : "bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 border border-[#CF9A61]/50 shadow-md"
+                    } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                  >
+                    {isGarminLinked ? "Déconnecter" : "Connecter"}
+                  </button>
+                </div>
+
+                {/* COROS APP */}
+                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
+                      C
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-stone-100">
+                        COROS Training
+                      </div>
+                      {isCorosLinked && corosEmail && (
+                        <div className="text-[10px] text-stone-400 font-mono">
+                          {corosEmail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => {
+                      if (isCorosLinked) {
+                        handleCorosDisconnect();
+                      } else {
+                        setShowCorosModal(true);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition ${
+                      isCorosLinked
+                        ? "bg-stone-900 hover:bg-[#B34D4D]/20 hover:text-[#B34D4D] border border-stone-800 text-stone-400"
+                        : "bg-[#CDCF61] hover:bg-[#b8bb52] text-stone-950 border border-[#CDCF61]/50 shadow-md"
+                    } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                  >
+                    {isCorosLinked ? "Déconnecter" : "Connecter"}
+                  </button>
+                </div>
+
+                {/* STRAVA */}
+                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-600 to-amber-600 flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
+                      S
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-stone-100">
+                        Strava Sync
+                      </div>
+                      <div className="text-[10px] text-stone-400">
+                        {isStravaLinked ? "Synchronisation active" : "Historique et traces GPS"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={handleToggleStrava}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition ${
+                      isStravaLinked
+                        ? "bg-stone-900 hover:bg-[#B34D4D]/20 hover:text-[#B34D4D] border border-stone-800 text-stone-400"
+                        : "bg-[#fc4c02] hover:bg-[#e34402] text-white border border-[#fc4c02]/50 shadow-md"
+                    } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                  >
+                    {isStravaLinked ? "Déconnecter" : "Connecter"}
+                  </button>
                 </div>
               </div>
             )}

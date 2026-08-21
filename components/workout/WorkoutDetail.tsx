@@ -26,7 +26,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const targetRpe = workout.rpe ? parseInt(workout.rpe, 10) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
 
-  // Synchronisation Garmin
+  // États pour la synchronisation
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState(
     () => localStorage.getItem("volaris_garmin_email") || ""
@@ -37,6 +37,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
+  // Synchronisation Garmin
   const performGarminSync = async (emailToUse: string, pwdToUse: string) => {
     setLoading(true);
     setSyncStatus(null);
@@ -58,7 +59,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Erreur de synchronisation");
+        throw new Error(data.error || "Erreur de synchronisation Garmin");
       }
 
       setSyncStatus("✅ Séance envoyée sur Garmin Connect !");
@@ -89,6 +90,38 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     performGarminSync(garminEmail, garminPassword);
   };
 
+  // Synchronisation COROS
+  const handleCorosSync = async () => {
+    const email = localStorage.getItem("volaris_coros_email");
+    const pwd = localStorage.getItem("volaris_coros_pwd");
+
+    if (!email || !pwd) {
+      alert("Veuillez renseigner vos identifiants COROS dans votre profil.");
+      return;
+    }
+
+    setLoading(true);
+    setSyncStatus(null);
+
+    try {
+      const res = await fetch("/api/sync-coros", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pwd, workout }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erreur de synchronisation COROS");
+      }
+      setSyncStatus("✅ Séance synchronisée sur COROS !");
+      setTimeout(() => setSyncStatus(null), 2500);
+    } catch (err: any) {
+      setSyncStatus(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderPaceBadge = (step: WorkoutStep) => {
     if (step.paceMin && step.paceMax) {
       return (
@@ -104,8 +137,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
 
     if (step.paceMin || step.paceMax || step.targetPace) {
-      const paceText =
-        step.targetPace || step.paceMin || step.paceMax;
+      const paceText = step.targetPace || step.paceMin || step.paceMax;
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
@@ -249,20 +281,28 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* BOUTON D'ENVOI VERS GARMIN */}
+        {/* BOUTONS D'ENVOI VERS LES MONTRES CONNECTÉES (GARMIN & COROS) */}
         <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={handleDirectOrModalSync}
-            disabled={loading}
-            className="w-full py-3 bg-[#CF9A61] hover:bg-[#b8854f] disabled:opacity-60 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-2 shadow-lg"
-          >
-            <span>
-              {loading
-                ? "⏳ Envoi vers Garmin Connect..."
-                : "⌚ Synchroniser avec Garmin Connect"}
-            </span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleDirectOrModalSync}
+              disabled={loading}
+              className="py-3 bg-[#CF9A61] hover:bg-[#b8854f] disabled:opacity-60 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+            >
+              <span>⌚ Garmin</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCorosSync}
+              disabled={loading}
+              className="py-3 bg-[#CDCF61] hover:bg-[#b5b84c] disabled:opacity-60 text-stone-950 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+            >
+              <span>⌚ COROS</span>
+            </button>
+          </div>
+
           {syncStatus && (
             <p className="text-[11px] text-center font-bold text-[#CF9A61] animate-fadeIn">
               {syncStatus}
@@ -322,7 +362,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         </div>
       </div>
 
-      {/* MODAL DE CONNEXION ET ENVOI GARMIN */}
+      {/* MODAL DE CONNEXION GARMIN (SI NON PRÉ-ENREGISTRÉ) */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
           <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">
@@ -373,20 +413,12 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                 />
               </div>
 
-              {syncStatus && (
-                <div className="text-[11px] font-semibold text-center py-1 text-[#CF9A61]">
-                  {syncStatus}
-                </div>
-              )}
-
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full py-3 bg-[#CF9A61] hover:bg-[#b8854f] disabled:opacity-50 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
               >
-                {loading
-                  ? "Synchronisation en cours..."
-                  : "Envoyer sur ma montre"}
+                {loading ? "Synchronisation..." : "Envoyer sur Garmin"}
               </button>
             </form>
           </div>
