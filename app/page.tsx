@@ -125,32 +125,45 @@ export default function Home() {
 
   // Détection si l'utilisateur possède les deux profils dans Supabase (Athlète ET Coach)
   useEffect(() => {
-    if (!session?.user?.email) {
-      setHasBothAccounts(false);
-      return;
-    }
-
-    const checkBothProfiles = async () => {
-      const currentEmail = session.user.email;
-      const baseEmail = currentEmail.replace("+coach@", "@");
-      const coachEmail = currentEmail.includes("+coach@")
-        ? currentEmail
-        : currentEmail.replace("@", "+coach@");
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .in("email", [baseEmail, coachEmail]);
-
-      if (!error && data) {
-        const hasAthlete = data.some((p: any) => p.role === "athlete");
-        const hasCoach = data.some((p: any) => p.role === "coach");
-        setHasBothAccounts(hasAthlete && hasCoach);
+      if (!session?.user?.email) {
+        setHasBothAccounts(false);
+        return;
       }
-    };
 
-    checkBothProfiles();
-  }, [session]);
+      const checkBothProfiles = async () => {
+        const currentEmail = session.user.email;
+
+        // 1. Appel RPC sécurisé (contourne le blocage RLS)
+        const { data: hasBothRpc, error: rpcError } = await supabase.rpc(
+          "check_has_both_accounts",
+          { user_email: currentEmail }
+        );
+
+        if (!rpcError && typeof hasBothRpc === "boolean") {
+          setHasBothAccounts(hasBothRpc);
+          return;
+        }
+
+        // 2. Repli classique
+        const baseEmail = currentEmail.replace("+coach@", "@");
+        const coachEmail = currentEmail.includes("+coach@")
+          ? currentEmail
+          : currentEmail.replace("@", "+coach@");
+
+        const { data } = await supabase
+          .from("profiles")
+          .select("role")
+          .in("email", [baseEmail, coachEmail]);
+
+        if (data) {
+          const hasAthlete = data.some((p: any) => p.role === "athlete");
+          const hasCoach = data.some((p: any) => p.role === "coach");
+          setHasBothAccounts(hasAthlete && hasCoach);
+        }
+      };
+
+      checkBothProfiles();
+    }, [session, userRole]);
 
   // Bascule instantanée entre le compte Athlète et le compte Coach
   const handleSwitchRole = async () => {
