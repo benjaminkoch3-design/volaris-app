@@ -76,7 +76,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
     <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
       <div className="flex justify-between items-center">
         <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
-          📈 Profil d'allure de la séance
+          Profil d'allure de la séance
         </span>
         <span className="text-[9px] font-semibold text-stone-400">
           Total : {Math.round(totalTimeSec / 60)} min
@@ -112,7 +112,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
                     <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
                       <div>{point.label}</div>
-                      <div className="text-[#CF9A61]">{point.paceFormatted} min/km</div>
+                      <div className="text-[#CF9A61]">{point.paceFormatted}</div>
                     </div>
                   </div>
                 </div>
@@ -186,7 +186,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
 
   useEffect(() => {
-    onUpdateWorkout(workout.id, "km", metrics.totalKm.toString());
+    onUpdateWorkout(workout.id, "km", metrics.totalKm ? metrics.totalKm.toString() : "");
   }, [JSON.stringify(workout.steps)]);
 
   const filteredLibraryWorkouts = libraryWorkouts.filter(
@@ -224,6 +224,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       if (str.endsWith("h")) return { val: str.replace("h", "").trim(), unit: "h" };
       return { val: str.replace(/[a-z]/g, "").trim(), unit: "min" };
     }
+  };
+
+  // Nettoie la saisie de l'allure pour ne garder que le format mm:ss (ex: "4:30")
+  const cleanPaceInput = (val: string) => {
+    return val.replace(/min\/km/gi, "").replace(/\/km/gi, "").trim();
   };
 
   const renderStepsList = (steps: WorkoutStep[], parentPath: string[] = []) => {
@@ -345,12 +350,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                     onChange={(e) => {
                       const newCond = e.target.value;
                       onUpdateStep(workout.id, currentPath, "endCondition", newCond);
-                      onUpdateStep(
-                        workout.id,
-                        currentPath,
-                        "durationOrDist",
-                        newCond === "distance" ? "1000m" : "10 min"
-                      );
+                      onUpdateStep(workout.id, currentPath, "durationOrDist", "");
                     }}
                     className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none cursor-pointer"
                   >
@@ -370,6 +370,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                       value={parsed.val}
                       onChange={(e) => {
                         const newVal = e.target.value;
+                        if (!newVal) {
+                          onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                          return;
+                        }
                         const formatted =
                           step.endCondition === "distance"
                             ? parsed.unit === "km"
@@ -388,6 +392,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                       value={parsed.unit}
                       onChange={(e) => {
                         const newUnit = e.target.value;
+                        if (!parsed.val) {
+                          onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                          return;
+                        }
                         const formatted =
                           step.endCondition === "distance"
                             ? newUnit === "km"
@@ -420,11 +428,31 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* ALLURES : MAX (RAPIDE) À GAUCHE — MIN (LENTE) À DROITE */}
+              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) */}
               <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
                 <div>
-                  <label className="block text-[8px] uppercase font-bold text-[#4DB380] mb-0.5">
-                    ⚡ Allure Max (Rapide)
+                  <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
+                    Allure Lente (Min)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 4:30"
+                    value={step.paceMax || ""}
+                    onChange={(e) =>
+                      onUpdateStep(
+                        workout.id,
+                        currentPath,
+                        "paceMax",
+                        cleanPaceInput(e.target.value)
+                      )
+                    }
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[8px] uppercase font-bold text-[#CDCF61] mb-0.5">
+                    Allure Rapide (Max)
                   </label>
                   <input
                     type="text"
@@ -435,27 +463,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         workout.id,
                         currentPath,
                         "paceMin",
-                        e.target.value
-                      )
-                    }
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[8px] uppercase font-bold text-amber-400 mb-0.5">
-                    🐢 Allure Min (Lente)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 4:25"
-                    value={step.paceMax || ""}
-                    onChange={(e) =>
-                      onUpdateStep(
-                        workout.id,
-                        currentPath,
-                        "paceMax",
-                        e.target.value
+                        cleanPaceInput(e.target.value)
                       )
                     }
                     className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"

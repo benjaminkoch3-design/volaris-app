@@ -67,7 +67,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
     <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
       <div className="flex justify-between items-center">
         <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
-          📈 Profil d'allure de la séance
+          Profil d'allure de la séance
         </span>
         <span className="text-[9px] font-semibold text-stone-400">
           Total : {Math.round(totalTimeSec / 60)} min
@@ -103,7 +103,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
                     <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
                       <div>{point.label}</div>
-                      <div className="text-[#CF9A61]">{point.paceFormatted} min/km</div>
+                      <div className="text-[#CF9A61]">{point.paceFormatted}</div>
                     </div>
                   </div>
                 </div>
@@ -275,25 +275,26 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
   };
 
+  // Rendu de l'allure au format : Allure Lente - Allure Rapide (sans "min/km")
   const renderPaceBadge = (step: WorkoutStep) => {
-    const fastPace = step.paceMin;
     const slowPace = step.paceMax;
+    const fastPace = step.paceMin;
 
-    if (fastPace && slowPace) {
+    if (slowPace && fastPace) {
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
             Allure Cible
           </span>
           <span className="font-black text-[#CF9A61] font-mono text-[11px]">
-            {fastPace} - {slowPace} /km
+            {slowPace} - {fastPace}
           </span>
         </div>
       );
     }
 
-    if (fastPace || slowPace || step.targetPace) {
-      const paceText = step.targetPace || fastPace || slowPace;
+    if (slowPace || fastPace || step.targetPace) {
+      const paceText = step.targetPace || slowPace || fastPace;
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
