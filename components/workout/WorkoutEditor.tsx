@@ -295,7 +295,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   <input
                     type="number"
                     min="1"
-                    value={step.reps || ""}
+                    value={step.reps ?? ""}
                     placeholder="Ex: 5"
                     onChange={(e) =>
                       onUpdateStep(
@@ -306,7 +306,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                       )
                     }
                     style={{ color: themeColor }}
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600"
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 text-stone-100"
                   />
                 </div>
                 <div className="flex items-end">
@@ -382,7 +382,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             : `${newVal} min`;
                         onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
                       }}
-                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
+                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
                     />
                     <select
                       value={parsed.unit}
@@ -424,7 +424,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) */}
+              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) SANS PRÉ-REMPLISSAGE */}
               <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
                 <div>
                   <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
@@ -433,7 +433,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   <input
                     type="text"
                     placeholder="Ex: 4:30"
-                    value={step.paceMax || ""}
+                    value={step.paceMax ?? ""}
                     onChange={(e) =>
                       onUpdateStep(
                         workout.id,
@@ -442,7 +442,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         cleanPaceInput(e.target.value)
                       )
                     }
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
                   />
                 </div>
 
@@ -453,7 +453,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   <input
                     type="text"
                     placeholder="Ex: 4:15"
-                    value={step.paceMin || step.goalValue || ""}
+                    value={step.paceMin ?? ""}
                     onChange={(e) =>
                       onUpdateStep(
                         workout.id,
@@ -462,7 +462,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         cleanPaceInput(e.target.value)
                       )
                     }
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
                   />
                 </div>
               </div>
@@ -642,12 +642,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
             </label>
             <input
               type="text"
-              value={workout.title || ""}
+              value={workout.title ?? ""}
               onChange={(e) =>
                 onUpdateWorkout(workout.id, "title", e.target.value)
               }
               placeholder="Ex: Fractionné court 10x400m"
-              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] placeholder:text-stone-600"
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] placeholder:text-stone-600 font-bold"
             />
           </div>
 
