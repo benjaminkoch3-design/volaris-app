@@ -72,11 +72,18 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
+  const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
   // Liaison Coach / Athlète
   const [assignedCoachId, setAssignedCoachId] = useState<string | null>(null);
   const [assignedCoachName, setAssignedCoachName] = useState<string>("Coach");
   const [coachCode, setCoachCode] = useState<string>("");
+
+  // Redirection directe vers l'onglet "Plan en cours" des Statistiques
+  const navigateToPlanStats = () => {
+    setStatsSubTab("plan");
+    setActiveTab("stats");
+  };
 
   // Écoute de l'état d'authentification Supabase
   useEffect(() => {
@@ -1892,7 +1899,7 @@ export default function Home() {
                   setIsCreatingPlan(true);
                   setPlanCreationStep(1);
                 }}
-                onNavigateToVolumeChart={() => setActiveTab("stats")}
+                onNavigateToVolumeChart={navigateToPlanStats}
               />
             )}
 
@@ -1903,7 +1910,7 @@ export default function Home() {
                 {activePlan && !isCreatingPlan && (
                   <div className="flex justify-between items-center flex-wrap gap-2">
                     <button
-                      onClick={() => setActiveTab("stats")}
+                      onClick={navigateToPlanStats}
                       className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
                     >
                       <span>📊 Évolution Volume & Charge</span>
@@ -1984,7 +1991,7 @@ export default function Home() {
                         toggleWorkout(id);
                       }
                     }}
-                    onNavigateToVolumeChart={() => setActiveTab("stats")}
+                    onNavigateToVolumeChart={navigateToPlanStats}
                   />
                 )}
               </div>
@@ -2021,6 +2028,7 @@ export default function Home() {
                 newPlanForm={newPlanForm}
                 draftWeekTypes={draftWeekTypes}
                 goal={goal}
+                initialSubTab={statsSubTab}
                 onBackToDashboard={() => setActiveTab("accueil")}
                 isReadOnly={isCoachInspecting}
               />

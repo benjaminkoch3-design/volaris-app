@@ -1,6 +1,6 @@
 // src/components/stats/AnnualStats.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CompletedRun, Plan, Workout } from "../../types";
 import { MONTHS_LIST } from "../../constants";
 import {
@@ -21,11 +21,12 @@ interface AnnualStatsProps {
   newPlanForm?: any;
   draftWeekTypes?: any;
   goal?: string;
+  initialSubTab?: "plan" | "annual";
   onBackToDashboard?: () => void;
   isReadOnly?: boolean;
 }
 
-// Dégradé Arc-en-ciel avec des couleurs claires et pales pour chaque mois (0 = Janvier, 11 = Décembre)
+// Dégradé Arc-en-ciel pastel pour chaque mois (0 = Janvier, 11 = Décembre)
 const RAINBOW_PASTEL_COLORS: Record<number, string> = {
   0: "#C084FC",  // Janvier - Violet clair
   1: "#A78BFA",  // Février - Indigo pastel
@@ -63,10 +64,18 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
   newPlanForm = {},
   draftWeekTypes = {},
   goal = "",
+  initialSubTab = "annual",
   onBackToDashboard,
   isReadOnly = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<"plan" | "annual">("annual");
+  const [activeTab, setActiveTab] = useState<"plan" | "annual">(initialSubTab);
+
+  // Synchronisation dynamique si le sous-onglet demandé change depuis le dashboard
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   const [selectedStatsYear, setSelectedStatsYear] = useState<number>(2026);
   const [showAddRunForm, setShowAddRunForm] = useState<boolean>(false);
@@ -153,9 +162,9 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               : "text-stone-400 hover:text-stone-200"
           }`}
         >
-          📋 Plan en Cours
+          Plan en cours
         </button>
-        
+
         <button
           type="button"
           onClick={() => setActiveTab("annual")}
@@ -165,7 +174,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               : "text-stone-400 hover:text-stone-200"
           }`}
         >
-          📅 Bilan Annuel
+          Bilan annuel
         </button>
       </div>
 
@@ -210,7 +219,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         <div className="space-y-6 animate-fadeIn">
           <div className="flex justify-between items-center flex-wrap gap-2">
             <h3 className="text-lg font-black uppercase text-stone-100">
-              📊 Statistiques Annuelles {selectedStatsYear}
+              Statistiques annuelles {selectedStatsYear}
             </h3>
 
             <div className="flex items-center gap-2">
@@ -221,7 +230,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-2 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-sm"
                   title="Télécharger le bilan au format Excel conforme"
                 >
-                  <span>📥 Exporter Excel</span>
+                  <span>Exporter Excel</span>
                 </button>
               )}
 
@@ -245,7 +254,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                       : "text-[#B34D4D] bg-[#B34D4D]/10 border-[#B34D4D]/30 hover:bg-[#B34D4D]/20"
                   }`}
                 >
-                  {showAddRunForm ? "✕ Fermer" : "➕ Entrer une sortie"}
+                  {showAddRunForm ? "Fermer" : "Entrer une sortie"}
                 </button>
               )}
             </div>
@@ -398,7 +407,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               <div className="bg-[#B34D4D]/10 border-2 border-[#B34D4D]/50 rounded-3xl p-4 space-y-3 shadow-xl overflow-x-auto custom-scrollbar">
                 <div className="text-center pb-1 border-b border-[#B34D4D]/30">
                   <span className="text-[10px] font-black uppercase tracking-wider text-[#B34D4D]">
-                    📊 Résumé Global Année {selectedStatsYear}
+                    Résumé global année {selectedStatsYear}
                   </span>
                 </div>
 
@@ -415,7 +424,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   <tbody className="divide-y divide-stone-800 bg-stone-950/80 font-bold text-stone-100">
                     <tr className="bg-[#B34D4D]/20 text-[#B34D4D] font-black">
                       <td className="py-2 px-2 border border-stone-800 uppercase bg-[#B34D4D]/30 text-[#B34D4D]">
-                        TOTAL
+                        Total
                       </td>
                       <td className="py-2 px-2 border border-stone-800 text-[#B34D4D]">
                         {totalKm.toFixed(2)}
@@ -478,11 +487,11 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             );
           })()}
 
-          {/* 1. ENCADRÉ : DÉTAIL MENSUEL */}
+          {/* 1. DÉTAIL MENSUEL */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-800 pb-2">
               <h4 className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-1.5">
-                <span>🗓️</span> Détail mensuel
+                Détail mensuel
               </h4>
 
               <button
@@ -638,7 +647,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                                 style={{ backgroundColor: `${currentMonthColor}30` }}
                                 className="py-2 px-1.5 border border-stone-800 uppercase text-[10px]"
                               >
-                                TOTAL
+                                Total
                               </td>
                               <td className="py-2 px-1.5 border border-stone-800">
                                 {totalMonthKm.toFixed(2)}
@@ -663,12 +672,12 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             )}
           </div>
 
-          {/* 2. ENCADRÉ : ÉVOLUTION DU VOLUME */}
+          {/* 2. ÉVOLUTION DU VOLUME */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-800 pb-2">
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-1.5">
-                  <span>📈</span> Évolution du volume
+                  Évolution du volume
                 </h4>
                 <span className="text-[10px] font-medium text-stone-400 block -mt-0.5">
                   (km par semaine)

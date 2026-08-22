@@ -375,18 +375,16 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
                   {!isReadOnly && (
                     <div className="space-y-2 pt-1">
-                      {/* BOUTON SYNCHRONISER CONNECTÉ AUX VRAIES ROUTES API */}
                       <button
                         type="button"
                         onClick={(e) => handleSyncButtonClick(e, todayWorkout)}
                         disabled={syncLoadingId === todayWorkout.id}
-                        style={{ backgroundColor: "#4D80B3" }}
-                        className="w-full py-2 px-3 hover:opacity-90 disabled:opacity-60 text-white font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                        className="w-full py-2 px-3 bg-stone-900 hover:bg-stone-850 border border-stone-800 text-stone-300 hover:text-white font-bold text-[11px] rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 whitespace-nowrap"
                       >
-                        <span>{syncLoadingId === todayWorkout.id ? "⏳" : "⌚"}</span>
-                        <span>
+                        <span className="shrink-0">{syncLoadingId === todayWorkout.id ? "⏳" : "⌚"}</span>
+                        <span className="truncate">
                           {syncLoadingId === todayWorkout.id
-                            ? "Synchronisation en cours..."
+                            ? "Synchronisation..."
                             : "Synchroniser la séance sur la montre"}
                         </span>
                       </button>
@@ -400,7 +398,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                             : "bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 shadow-md"
                         }`}
                       >
-                        <span>
+                        <span className="whitespace-nowrap truncate">
                           {isDone ? "✓ Voir le débriefing" : "Terminer & Débriefing"}
                         </span>
                       </button>
