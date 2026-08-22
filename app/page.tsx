@@ -79,6 +79,9 @@ export default function Home() {
   const [assignedCoachName, setAssignedCoachName] = useState<string>("Coach");
   const [coachCode, setCoachCode] = useState<string>("");
 
+  // Présence des deux comptes (Athlète & Coach)
+  const [hasBothAccounts, setHasBothAccounts] = useState<boolean>(false);
+
   // Redirection directe vers l'onglet "Plan en cours" des Statistiques
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
@@ -119,6 +122,75 @@ export default function Home() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Détection si l'utilisateur possède les 2 profils (Athlète & Coach)
+  useEffect(() => {
+    if (!session?.user?.email) {
+      setHasBothAccounts(false);
+      return;
+    }
+
+    const checkBothProfiles = async () => {
+      const currentEmail = session.user.email;
+      const baseEmail = currentEmail.replace("+coach@", "@");
+      const coachEmail = currentEmail.includes("+coach@")
+        ? currentEmail
+        : currentEmail.replace("@", "+coach@");
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .in("email", [baseEmail, coachEmail]);
+
+      if (!error && data) {
+        const hasAthlete = data.some((p: any) => p.role === "athlete");
+        const hasCoach = data.some((p: any) => p.role === "coach");
+        setHasBothAccounts(hasAthlete && hasCoach);
+      }
+    };
+
+    checkBothProfiles();
+  }, [session]);
+
+  // Bascule instantanée entre le compte Athlète et le compte Coach
+  const handleSwitchRole = async () => {
+    if (!session?.user?.email) return;
+
+    const currentEmail = session.user.email;
+    const isCurrentlyCoach = userRole === "coach";
+    const targetEmail = isCurrentlyCoach
+      ? currentEmail.replace("+coach@", "@")
+      : currentEmail.replace("@", "+coach@");
+
+    const cachedPwd = localStorage.getItem("volaris_user_pwd") || password;
+
+    if (!cachedPwd) {
+      alert("Veuillez vous reconnecter une fois pour activer la bascule automatique.");
+      await handleLogout();
+      return;
+    }
+
+    setLoadingAuth(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: targetEmail,
+      password: cachedPwd,
+    });
+
+    if (error) {
+      alert(`Impossible de basculer : ${error.message}`);
+      setLoadingAuth(false);
+      return;
+    }
+
+    if (data.session) {
+      const newRole: UserRole = isCurrentlyCoach ? "athlete" : "coach";
+      setUserRole(newRole);
+      setActiveTab(newRole === "coach" ? "athletes" : "accueil");
+      setInspectingAthleteId(null);
+    }
+    setLoadingAuth(false);
+  };
 
   // Affichage de la bibliothèque personnelle pour l'athlète
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
@@ -819,6 +891,11 @@ export default function Home() {
     const formattedEmail = userRole === "coach"
       ? email.replace("@", "+coach@")
       : email;
+
+    // Enregistrement du mot de passe en cache local pour faciliter la bascule de compte
+    if (typeof window !== "undefined") {
+      localStorage.setItem("volaris_user_pwd", password);
+    }
 
     try {
       if (authMode === "signup") {
@@ -1783,6 +1860,8 @@ export default function Home() {
       <Header
         userRole={userRole}
         athleteName={session?.user?.user_metadata?.full_name || athleteName}
+        hasBothAccounts={hasBothAccounts}
+        onToggleRole={handleSwitchRole}
         onLogout={handleLogout}
       />
 

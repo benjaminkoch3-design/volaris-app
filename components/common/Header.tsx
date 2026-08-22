@@ -6,6 +6,7 @@ import { UserRole } from "../../types";
 interface HeaderProps {
   userRole: UserRole;
   athleteName: string;
+  hasBothAccounts?: boolean;
   onToggleRole?: () => void;
   onLogout: () => void;
   onNavigateToVolumeChart?: () => void;
@@ -14,6 +15,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   userRole,
   athleteName,
+  hasBothAccounts = false,
   onToggleRole,
   onLogout,
   onNavigateToVolumeChart,
@@ -58,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* À DROITE : BOUTON ÉVOLUTION EN BLANC + BASCULE + LOGO */}
+        {/* À DROITE : BOUTON ÉVOLUTION + BASCULE (CONDITIONNELLE) + LOGO */}
         <div className="flex items-center gap-2">
           {onNavigateToVolumeChart && (
             <button
@@ -68,19 +70,23 @@ export const Header: React.FC<HeaderProps> = ({
             >
               📊 ÉVOLUTION VOLUME & CHARGE
             </button>
-          )}  
+          )}
 
-          <button
-            onClick={onToggleRole}
-            className={`text-[9.5px] font-black px-2.5 py-1 rounded-full transition cursor-pointer shadow-md border border-stone-800 text-stone-950 ${
-              userRole === "coach"
-                ? "bg-[#CDCF61] hover:bg-[#b8bb52]"
-                : "bg-[#CF9A61] hover:bg-[#b88652]"
-            }`}
-            title="Basculer de mode sur le même compte"
-          >
-            {userRole === "coach" ? "🔄 Mode Athlète" : "🔄 Mode Coach"}
-          </button>
+          {/* VISIBLE UNIQUEMENT SI LES DEUX COMPTES EXISTENT */}
+          {hasBothAccounts && onToggleRole && (
+            <button
+              type="button"
+              onClick={onToggleRole}
+              className={`text-[9.5px] font-black px-2.5 py-1 rounded-full transition cursor-pointer shadow-md border border-stone-800 text-stone-950 ${
+                userRole === "coach"
+                  ? "bg-[#CDCF61] hover:bg-[#b8bb52]"
+                  : "bg-[#CF9A61] hover:bg-[#b88652]"
+              }`}
+              title="Basculer de mode sur le même compte"
+            >
+              {userRole === "coach" ? "🔄 Mode Athlète" : "🔄 Mode Coach"}
+            </button>
+          )}
 
           <img
             src="/new_logo.png"
