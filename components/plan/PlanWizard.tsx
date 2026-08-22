@@ -2,13 +2,14 @@
 
 import React from "react";
 import { Workout, WeekType } from "../../types";
-import { DAYS_LIST, WEEK_TYPES_CONFIG } from "../../constants";
+import { WEEK_TYPES_CONFIG } from "../../constants";
 import {
   calculateWeeks,
   safeFormatDateFr,
   getWeekTypeLabel,
   getWeekDateRange,
   getExactDayDate,
+  getExactDayName,
   calculateWeeklyPlannedKm,
   getWorkoutTypeConfig,
 } from "../../utils/calculations";
@@ -42,7 +43,6 @@ interface PlanWizardProps {
   onCancel: () => void;
 }
 
-// Helper pour calculer la couleur du RPE basée sur le gradient d'effort
 const getRpeGradientColor = (rpeStr?: string) => {
   if (!rpeStr) return "#CF9A61";
   const rpe = parseInt(rpeStr, 10);
@@ -427,7 +427,6 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                           Semaine {wNum}
                         </span>
 
-                        {/* PHASE DE SEMAINE COLORÉE AVEC LA CONFIGURATION EXACTE */}
                         {wTypeObj && (
                           <span
                             className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${weekTypeBadgeClass}`}
@@ -495,14 +494,19 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
 
                   {isOpen && (
                     <div className="p-4 pt-2 space-y-4 border-t border-stone-800/60 bg-stone-900/40">
-                      {DAYS_LIST.map((dayName, dIdx) => {
-                        const dayWorkouts = weekWorkouts.filter(
-                          (w) => w.dayIndex === dIdx
+                      {Array.from({ length: 7 }, (_, dIdx) => {
+                        const dayName = getExactDayName(
+                          newPlanForm.startDate,
+                          wNum,
+                          dIdx
                         );
                         const exactDate = getExactDayDate(
                           newPlanForm.startDate,
                           wNum,
                           dIdx
+                        );
+                        const dayWorkouts = weekWorkouts.filter(
+                          (w) => w.dayIndex === dIdx
                         );
 
                         return (
@@ -512,7 +516,6 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                           >
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
-                                {/* JOURS DE LA SEMAINE EN BLANC PUR */}
                                 <span className="font-black text-xs text-stone-100 uppercase tracking-wide">
                                   {dayName}
                                 </span>
@@ -608,14 +611,12 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                                         {workout.title}
                                       </h5>
                                       <div className="flex items-center gap-1.5 shrink-0">
-                                        {/* KM EN BLANC PUR */}
                                         {workout.km && (
                                           <span className="text-[9px] font-extrabold bg-stone-900 text-stone-100 px-2 py-0.5 rounded border border-stone-800">
                                             {workout.km} km
                                           </span>
                                         )}
 
-                                        {/* RPE AVEC LA COULEUR DU GRADIENT D'EFFORT */}
                                         {workout.rpe && (
                                           <span
                                             style={{

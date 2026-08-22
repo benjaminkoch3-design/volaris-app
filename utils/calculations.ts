@@ -59,7 +59,7 @@ export const DAYS_LIST_FR = [
   "Samedi",
 ];
 
-// Ordre d'affichage des jours de la semaine
+// Ordre d'affichage standard de référence
 export const DAYS_ORDER_FR = [
   "Lundi",
   "Mardi",
@@ -79,7 +79,35 @@ export const getDayOrderIndex = (dayName: string): number => {
 };
 
 /**
- * Renvoie le nom du jour exact pour une date ISO donnée (ex: "2026-08-24" -> "Lundi")
+ * Renvoie l'objet Date exact pour une séance du plan
+ */
+export const getDateObjectForWorkout = (
+  startDateStr: string,
+  weekNumber: number,
+  dayIndex: number
+): Date => {
+  if (!startDateStr) return new Date();
+  const [y, m, d] = startDateStr.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const totalDaysOffset = (weekNumber - 1) * 7 + (dayIndex || 0);
+  dateObj.setDate(dateObj.getDate() + totalDaysOffset);
+  return dateObj;
+};
+
+/**
+ * Renvoie le nom exact du jour (ex: "Samedi") en fonction de la date de départ
+ */
+export const getExactDayName = (
+  startDateStr: string,
+  weekNumber: number,
+  dayIndex: number
+): string => {
+  const dateObj = getDateObjectForWorkout(startDateStr, weekNumber, dayIndex);
+  return DAYS_LIST_FR[dateObj.getDay()] || "Lundi";
+};
+
+/**
+ * Renvoie le nom du jour pour une chaîne YYYY-MM-DD
  */
 export const getDayNameFromDate = (dateStr: string): string => {
   if (!dateStr) return "Lundi";
@@ -90,15 +118,14 @@ export const getDayNameFromDate = (dateStr: string): string => {
 };
 
 /**
- * Calcule la date exacte d'un jour d'entraînement dans le plan
+ * Renvoie la date exacte au format ISO YYYY-MM-DD
  */
-export const getDateForWorkout = (startDateStr: string, weekNumber: number, dayOffset: number): string => {
-  if (!startDateStr) return "";
-  const [y, m, d] = startDateStr.split("-").map(Number);
-  const dateObj = new Date(y, m - 1, d);
-  const totalDaysOffset = (weekNumber - 1) * 7 + dayOffset;
-  dateObj.setDate(dateObj.getDate() + totalDaysOffset);
-
+export const getDateForWorkout = (
+  startDateStr: string,
+  weekNumber: number,
+  dayOffset: number
+): string => {
+  const dateObj = getDateObjectForWorkout(startDateStr, weekNumber, dayOffset);
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, "0");
   const day = String(dateObj.getDate()).padStart(2, "0");
@@ -106,46 +133,28 @@ export const getDateForWorkout = (startDateStr: string, weekNumber: number, dayO
 };
 
 /**
- * Trie les séances par semaine puis par ordre séquentiel de jour
+ * Renvoie la date affichée (ex: "22/08/26")
  */
-export const sortWorkoutsByDay = (workouts: Workout[]): Workout[] => {
-  return [...workouts].sort((a, b) => {
-    if (a.weekNumber !== b.weekNumber) {
-      return a.weekNumber - b.weekNumber;
-    }
-    const orderA = a.dayIndex !== undefined && a.dayIndex >= 0 ? a.dayIndex : getDayOrderIndex(a.dayName);
-    const orderB = b.dayIndex !== undefined && b.dayIndex >= 0 ? b.dayIndex : getDayOrderIndex(b.dayName);
-    return orderA - orderB;
-  });
+export const getExactDayDate = (
+  startDateStr: string,
+  weekNumber: number,
+  dayIndex: number
+): string => {
+  const dateObj = getDateObjectForWorkout(startDateStr, weekNumber, dayIndex);
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const yearShort = String(dateObj.getFullYear()).substring(2);
+  return `${day}/${month}/${yearShort}`;
 };
 
-export const safeFormatDateFr = (dateStr: string) => {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  const yearShort = parts[0].length === 4 ? parts[0].substring(2) : parts[0];
-  return `${parts[2]}/${parts[1]}/${yearShort}`;
-};
+/**
+ * Renvoie la plage de dates d'une semaine (ex: "Du 22/08/26 au 28/08/26")
+ */
+export const getWeekDateRange = (startDateStr: string, weekNum: number): string => {
+  if (!startDateStr) return "";
+  const start = getDateObjectForWorkout(startDateStr, weekNum, 0);
+  const end = getDateObjectForWorkout(startDateStr, weekNum, 6);
 
-export const calculateWeeks = (startStr: string, eventStr: string) => {
-  if (!startStr || !eventStr) return 4;
-  const start = new Date(startStr);
-  const event = new Date(eventStr);
-  if (isNaN(start.getTime()) || isNaN(event.getTime())) return 4;
-  const diffDays = Math.ceil((event.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  const weeks = Math.ceil(diffDays / 7);
-  return weeks > 0 ? weeks : 1;
-};
-
-export const getWeekDateRange = (startStr: string, weekNum: number) => {
-  if (!startStr) return "";
-  const [y, m, d] = startStr.split("-").map(Number);
-  const start = new Date(y, m - 1, d);
-  if (isNaN(start.getTime())) return "";
-  start.setDate(start.getDate() + (weekNum - 1) * 7);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  
   const formatDate = (date: Date) => {
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -156,20 +165,39 @@ export const getWeekDateRange = (startStr: string, weekNum: number) => {
   return `Du ${formatDate(start)} au ${formatDate(end)}`;
 };
 
-export const getExactDayDate = (startStr: string, weekNum: number, dayIndex: number) => {
-  if (!startStr) return "";
-  const [y, m, d] = startStr.split("-").map(Number);
-  const start = new Date(y, m - 1, d);
-  if (isNaN(start.getTime())) return "";
-  start.setDate(start.getDate() + (weekNum - 1) * 7 + dayIndex);
-  
-  const day = String(start.getDate()).padStart(2, "0");
-  const month = String(start.getMonth() + 1).padStart(2, "0");
-  const yearShort = String(start.getFullYear()).substring(2);
-  return `${day}/${month}/${yearShort}`;
+/**
+ * Trie les séances dans l'ordre chronologique de chaque semaine (jour 0 -> jour 6)
+ */
+export const sortWorkoutsByDay = (workouts: Workout[]): Workout[] => {
+  return [...workouts].sort((a, b) => {
+    if (a.weekNumber !== b.weekNumber) {
+      return a.weekNumber - b.weekNumber;
+    }
+    return (a.dayIndex ?? 0) - (b.dayIndex ?? 0);
+  });
 };
 
-export const getCurrentWeekNumber = (startDateStr: string, totalWeeksStr: string) => {
+export const safeFormatDateFr = (dateStr: string): string => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const yearShort = parts[0].length === 4 ? parts[0].substring(2) : parts[0];
+  return `${parts[2]}/${parts[1]}/${yearShort}`;
+};
+
+export const calculateWeeks = (startStr: string, eventStr: string): number => {
+  if (!startStr || !eventStr) return 4;
+  const [y1, m1, d1] = startStr.split("-").map(Number);
+  const [y2, m2, d2] = eventStr.split("-").map(Number);
+  const start = new Date(y1, m1 - 1, d1);
+  const event = new Date(y2, m2 - 1, d2);
+  if (isNaN(start.getTime()) || isNaN(event.getTime())) return 4;
+  const diffDays = Math.ceil((event.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const weeks = Math.ceil(diffDays / 7);
+  return weeks > 0 ? weeks : 1;
+};
+
+export const getCurrentWeekNumber = (startDateStr: string, totalWeeksStr: string): number => {
   if (!startDateStr) return 1;
   const [y, m, d] = startDateStr.split("-").map(Number);
   const start = new Date(y, m - 1, d);
@@ -182,7 +210,7 @@ export const getCurrentWeekNumber = (startDateStr: string, totalWeeksStr: string
   return weekNum > maxWeeks ? maxWeeks : weekNum;
 };
 
-export const getDaysUntilEvent = (eventDateStr: string) => {
+export const getDaysUntilEvent = (eventDateStr: string): number | null => {
   if (!eventDateStr) return null;
   const [y, m, d] = eventDateStr.split("-").map(Number);
   const event = new Date(y, m - 1, d);
@@ -261,7 +289,6 @@ export function parsePaceToSeconds(paceStr?: string): number {
 
   const clean = paceStr.toString().toLowerCase().replace("min/km", "").replace("/km", "").trim();
 
-  // Cas fourchette (ex: "4:15 - 4:25" ou "4'15 à 4'25")
   const rangeMatch = clean.match(/(\d{1,2})[':](\d{2})\s*(?:-|à|to|\/)\s*(\d{1,2})[':](\d{2})/);
   if (rangeMatch) {
     const s1 = parseInt(rangeMatch[1], 10) * 60 + parseInt(rangeMatch[2], 10);
@@ -269,7 +296,6 @@ export function parsePaceToSeconds(paceStr?: string): number {
     return Math.round((s1 + s2) / 2);
   }
 
-  // Format mm:ss ou m'ss
   const singleMatch = clean.match(/(\d{1,2})[':](\d{2})/);
   if (singleMatch) {
     const mins = parseInt(singleMatch[1], 10) || 0;
