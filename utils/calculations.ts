@@ -48,7 +48,18 @@ export const getStepTypeLabel = (type: string) => {
 // DATE & CALENDAR CALCULATIONS
 // ==========================================
 
-// Ordre strict des jours de la semaine (Lundi -> Dimanche)
+// Liste standard des jours de la semaine (0 = Dimanche en JS)
+export const DAYS_LIST_FR = [
+  "Dimanche",
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+];
+
+// Ordre d'affichage des jours de la semaine
 export const DAYS_ORDER_FR = [
   "Lundi",
   "Mardi",
@@ -68,7 +79,34 @@ export const getDayOrderIndex = (dayName: string): number => {
 };
 
 /**
- * Trie les séances par semaine puis par ordre strict du jour (Lundi -> Dimanche)
+ * Renvoie le nom du jour exact pour une date ISO donnée (ex: "2026-08-24" -> "Lundi")
+ */
+export const getDayNameFromDate = (dateStr: string): string => {
+  if (!dateStr) return "Lundi";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayIndex = dateObj.getDay();
+  return DAYS_LIST_FR[dayIndex] || "Lundi";
+};
+
+/**
+ * Calcule la date exacte d'un jour d'entraînement dans le plan
+ */
+export const getDateForWorkout = (startDateStr: string, weekNumber: number, dayOffset: number): string => {
+  if (!startDateStr) return "";
+  const [y, m, d] = startDateStr.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const totalDaysOffset = (weekNumber - 1) * 7 + dayOffset;
+  dateObj.setDate(dateObj.getDate() + totalDaysOffset);
+
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Trie les séances par semaine puis par ordre séquentiel de jour
  */
 export const sortWorkoutsByDay = (workouts: Workout[]): Workout[] => {
   return [...workouts].sort((a, b) => {
@@ -101,27 +139,40 @@ export const calculateWeeks = (startStr: string, eventStr: string) => {
 
 export const getWeekDateRange = (startStr: string, weekNum: number) => {
   if (!startStr) return "";
-  const start = new Date(startStr);
+  const [y, m, d] = startStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
   if (isNaN(start.getTime())) return "";
   start.setDate(start.getDate() + (weekNum - 1) * 7);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
-  const startFormatted = safeFormatDateFr(start.toISOString().split("T")[0]);
-  const endFormatted = safeFormatDateFr(end.toISOString().split("T")[0]);
-  return `Du ${startFormatted} au ${endFormatted}`;
+  
+  const formatDate = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const yearShort = String(date.getFullYear()).substring(2);
+    return `${day}/${month}/${yearShort}`;
+  };
+
+  return `Du ${formatDate(start)} au ${formatDate(end)}`;
 };
 
 export const getExactDayDate = (startStr: string, weekNum: number, dayIndex: number) => {
   if (!startStr) return "";
-  const start = new Date(startStr);
+  const [y, m, d] = startStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
   if (isNaN(start.getTime())) return "";
   start.setDate(start.getDate() + (weekNum - 1) * 7 + dayIndex);
-  return safeFormatDateFr(start.toISOString().split("T")[0]);
+  
+  const day = String(start.getDate()).padStart(2, "0");
+  const month = String(start.getMonth() + 1).padStart(2, "0");
+  const yearShort = String(start.getFullYear()).substring(2);
+  return `${day}/${month}/${yearShort}`;
 };
 
 export const getCurrentWeekNumber = (startDateStr: string, totalWeeksStr: string) => {
   if (!startDateStr) return 1;
-  const start = new Date(startDateStr);
+  const [y, m, d] = startDateStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
   const now = new Date();
   if (isNaN(start.getTime())) return 1;
   const diffDays = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -133,7 +184,8 @@ export const getCurrentWeekNumber = (startDateStr: string, totalWeeksStr: string
 
 export const getDaysUntilEvent = (eventDateStr: string) => {
   if (!eventDateStr) return null;
-  const event = new Date(eventDateStr);
+  const [y, m, d] = eventDateStr.split("-").map(Number);
+  const event = new Date(y, m - 1, d);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   event.setHours(0, 0, 0, 0);
@@ -243,7 +295,6 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
-  // Valeurs par défaut selon la nature du bloc
   switch (step.type) {
     case "echauffement":
       return 340; // 5:40/km
