@@ -205,7 +205,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const handleSaveAndClose = () => {
     if (!workout.steps || workout.steps.length === 0) {
       setErrorMsg(
-        "⚠️ Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
+        "Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
       );
       return;
     }
@@ -213,9 +213,23 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     onClose();
   };
 
+  const parseStepDurationOrDist = (raw?: string, endCondition?: string) => {
+    if (!raw) return { val: "", unit: endCondition === "distance" ? "m" : "min" };
+    const str = raw.trim().toLowerCase();
+    if (endCondition === "distance") {
+      if (str.endsWith("km")) return { val: str.replace("km", "").trim(), unit: "km" };
+      return { val: str.replace("m", "").trim(), unit: "m" };
+    } else {
+      if (str.endsWith("s") || str.endsWith("sec")) return { val: str.replace(/[a-z]/g, "").trim(), unit: "s" };
+      if (str.endsWith("h")) return { val: str.replace("h", "").trim(), unit: "h" };
+      return { val: str.replace(/[a-z]/g, "").trim(), unit: "min" };
+    }
+  };
+
   const renderStepsList = (steps: WorkoutStep[], parentPath: string[] = []) => {
     return steps.map((step, idx) => {
       const currentPath = [...parentPath, idx.toString()];
+      const parsed = parseStepDurationOrDist(step.durationOrDist, step.endCondition);
 
       return (
         <div
@@ -320,90 +334,133 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                  Condition
-                </label>
-                <select
-                  value={step.endCondition || "distance"}
-                  onChange={(e) =>
-                    onUpdateStep(
-                      workout.id,
-                      currentPath,
-                      "endCondition",
-                      e.target.value
-                    )
-                  }
-                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none cursor-pointer"
-                >
-                  <option value="distance">Distance</option>
-                  <option value="temps">Temps</option>
-                </select>
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
+                    Condition
+                  </label>
+                  <select
+                    value={step.endCondition || "distance"}
+                    onChange={(e) => {
+                      const newCond = e.target.value;
+                      onUpdateStep(workout.id, currentPath, "endCondition", newCond);
+                      onUpdateStep(
+                        workout.id,
+                        currentPath,
+                        "durationOrDist",
+                        newCond === "distance" ? "1000m" : "10 min"
+                      );
+                    }}
+                    className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none cursor-pointer"
+                  >
+                    <option value="distance">Distance</option>
+                    <option value="temps">Temps</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
+                    Valeur & Unité
+                  </label>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      placeholder={step.endCondition === "temps" ? "Ex: 10" : "Ex: 1000"}
+                      value={parsed.val}
+                      onChange={(e) => {
+                        const newVal = e.target.value;
+                        const formatted =
+                          step.endCondition === "distance"
+                            ? parsed.unit === "km"
+                              ? `${newVal}km`
+                              : `${newVal}m`
+                            : parsed.unit === "s"
+                            ? `${newVal}s`
+                            : parsed.unit === "h"
+                            ? `${newVal}h`
+                            : `${newVal} min`;
+                        onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
+                      }}
+                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none"
+                    />
+                    <select
+                      value={parsed.unit}
+                      onChange={(e) => {
+                        const newUnit = e.target.value;
+                        const formatted =
+                          step.endCondition === "distance"
+                            ? newUnit === "km"
+                              ? `${parsed.val}km`
+                              : `${parsed.val}m`
+                            : newUnit === "s"
+                            ? `${parsed.val}s`
+                            : newUnit === "h"
+                            ? `${parsed.val}h`
+                            : `${parsed.val} min`;
+                        onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
+                      }}
+                      style={{ color: themeColor }}
+                      className="w-20 bg-stone-900 border border-stone-800 text-[10px] font-bold rounded-lg p-1 focus:outline-none cursor-pointer"
+                    >
+                      {step.endCondition === "distance" ? (
+                        <>
+                          <option value="m">m</option>
+                          <option value="km">km</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="min">min</option>
+                          <option value="s">sec</option>
+                          <option value="h">h</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                  Valeur
-                </label>
-                <input
-                  type="text"
-                  placeholder={
-                    step.endCondition === "temps"
-                      ? "Ex: 10min"
-                      : "Ex: 1000m ou 5km"
-                  }
-                  value={step.durationOrDist || ""}
-                  onChange={(e) =>
-                    onUpdateStep(
-                      workout.id,
-                      currentPath,
-                      "durationOrDist",
-                      e.target.value
-                    )
-                  }
-                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none"
-                />
-              </div>
+              {/* ALLURES : MAX (RAPIDE) À GAUCHE — MIN (LENTE) À DROITE */}
+              <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
+                <div>
+                  <label className="block text-[8px] uppercase font-bold text-[#4DB380] mb-0.5">
+                    ⚡ Allure Max (Rapide)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 4:15"
+                    value={step.paceMin || step.goalValue || ""}
+                    onChange={(e) =>
+                      onUpdateStep(
+                        workout.id,
+                        currentPath,
+                        "paceMin",
+                        e.target.value
+                      )
+                    }
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                  Allure Min (Rapide)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: 4:15"
-                  value={step.paceMin || step.goalValue || ""}
-                  onChange={(e) =>
-                    onUpdateStep(
-                      workout.id,
-                      currentPath,
-                      "paceMin",
-                      e.target.value
-                    )
-                  }
-                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                  Allure Max (Lente)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: 4:25"
-                  value={step.paceMax || ""}
-                  onChange={(e) =>
-                    onUpdateStep(
-                      workout.id,
-                      currentPath,
-                      "paceMax",
-                      e.target.value
-                    )
-                  }
-                  className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
-                />
+                <div>
+                  <label className="block text-[8px] uppercase font-bold text-amber-400 mb-0.5">
+                    🐢 Allure Min (Lente)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 4:25"
+                    value={step.paceMax || ""}
+                    onChange={(e) =>
+                      onUpdateStep(
+                        workout.id,
+                        currentPath,
+                        "paceMax",
+                        e.target.value
+                      )
+                    }
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -419,7 +476,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
         
-        {/* HEADER DE L'ÉDITEUR AVEC COULEURS ADAPTÉES */}
+        {/* HEADER DE L'ÉDITEUR */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3 gap-2">
           <div>
             <span
@@ -455,7 +512,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* MODALE DE SÉLECTION / IMPORTATION DE MODÈLE */}
+        {/* MODALE D'IMPORTATION DE MODÈLE */}
         {showImportModal && (
           <div className="fixed inset-0 bg-stone-950/95 z-50 flex items-center justify-center p-4">
             <div

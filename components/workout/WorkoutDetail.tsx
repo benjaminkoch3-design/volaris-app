@@ -17,21 +17,19 @@ interface WorkoutDetailProps {
   onToggleWorkout?: (id: string) => void;
 }
 
-// Fonction utilitaire pour calculer la couleur exacte du gradient RPE
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
   if (rpe <= 3) {
-    return { text: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" }; // Vert (Facile)
+    return { text: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" };
   }
   if (rpe <= 5) {
-    return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" }; // Jaune / Ambre (Modéré)
+    return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" };
   }
   if (rpe <= 7) {
-    return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" }; // Orange (Soutenu)
+    return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" };
   }
-  return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" }; // Rouge (Maximal)
+  return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" };
 };
 
-// COMPOSANT DU PROFIL D'ALLURE CHRONOLOGIQUE
 export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
   const profile = generatePaceProfile(steps);
 
@@ -166,11 +164,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
 
-  // Détection des comptes liés
   const [hasGarmin, setHasGarmin] = useState(false);
   const [hasCoros, setHasCoros] = useState(false);
-
-  // États pour la synchronisation
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -198,7 +193,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
   }, []);
 
-  // Synchronisation Garmin (#4D80B3)
   const performGarminSync = async (emailToUse: string, pwdToUse: string) => {
     setLoading(true);
     setSyncStatus(null);
@@ -251,7 +245,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     performGarminSync(garminEmail, garminPassword);
   };
 
-  // Synchronisation COROS (#B34D4D)
   const handleCorosSync = async () => {
     const email = localStorage.getItem("volaris_coros_email");
     const pwd = localStorage.getItem("volaris_coros_pwd");
@@ -282,36 +275,25 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
   };
 
-  // Rendu de l'allure au format : Allure Max (Lente) - Allure Min (Rapide)
   const renderPaceBadge = (step: WorkoutStep) => {
-    if (step.paceMax && step.paceMin) {
+    const fastPace = step.paceMin;
+    const slowPace = step.paceMax;
+
+    if (fastPace && slowPace) {
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
             Allure Cible
           </span>
           <span className="font-black text-[#CF9A61] font-mono text-[11px]">
-            {step.paceMax} - {step.paceMin} /km
+            {fastPace} - {slowPace} /km
           </span>
         </div>
       );
     }
 
-    if (step.paceMin && step.paceMax) {
-      return (
-        <div className="text-right">
-          <span className="text-[9px] text-stone-500 uppercase block font-bold">
-            Allure Cible
-          </span>
-          <span className="font-black text-[#CF9A61] font-mono text-[11px]">
-            {step.paceMax} - {step.paceMin} /km
-          </span>
-        </div>
-      );
-    }
-
-    if (step.paceMax || step.paceMin || step.targetPace) {
-      const paceText = step.targetPace || step.paceMax || step.paceMin;
+    if (fastPace || slowPace || step.targetPace) {
+      const paceText = step.targetPace || fastPace || slowPace;
       return (
         <div className="text-right">
           <span className="text-[9px] text-stone-500 uppercase block font-bold">
@@ -419,7 +401,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         </div>
 
-        {/* MÉTRIQUES CIBLES AVEC COULEURS DU GRADIENT POUR LE RPE ET LA CHARGE */}
+        {/* MÉTRIQUES CIBLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
             <span className="block text-[8px] font-bold text-stone-400 uppercase">
@@ -482,10 +464,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* SECTION SYNCHRONISATION CONDITIONNELLE */}
+        {/* SECTION SYNCHRONISATION */}
         <div className="space-y-1.5">
           {!hasGarmin && !hasCoros ? (
-            /* AUCUN COMPTE LIÉ */
             <div className="bg-stone-950/80 border border-stone-800/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-inner">
               <div className="w-8 h-8 rounded-xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] shrink-0 text-sm">
                 ⌚
@@ -503,7 +484,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               </div>
             </div>
           ) : (
-            /* BOUTON(S) CONDITIONNEL(S) */
             <div
               className={`grid gap-2 ${
                 hasGarmin && hasCoros ? "grid-cols-2" : "grid-cols-1"
