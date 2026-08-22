@@ -123,7 +123,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Détection si l'utilisateur possède les 2 profils (Athlète & Coach)
+  // Détection si l'utilisateur possède les deux profils dans Supabase (Athlète ET Coach)
   useEffect(() => {
     if (!session?.user?.email) {
       setHasBothAccounts(false);
@@ -613,7 +613,7 @@ export default function Home() {
             return {
               id: w.id,
               weekNumber: w.week_number,
-              dayIndex: w.day_index,
+              dayIndex: w.dayIndex ?? w.day_index,
               dayName: w.day_name,
               sessionName: w.session_name,
               isRest: Boolean(w.is_rest),
@@ -892,7 +892,6 @@ export default function Home() {
       ? email.replace("@", "+coach@")
       : email;
 
-    // Enregistrement du mot de passe en cache local pour faciliter la bascule de compte
     if (typeof window !== "undefined") {
       localStorage.setItem("volaris_user_pwd", password);
     }
