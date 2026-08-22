@@ -1,6 +1,6 @@
 // src/components/workout/WorkoutEditor.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import { calculateStepMetrics, generatePaceProfile, getWorkoutTypeConfig } from "../../utils/calculations";
@@ -185,10 +185,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
 
-  useEffect(() => {
-    onUpdateWorkout(workout.id, "km", metrics.totalKm ? metrics.totalKm.toString() : "");
-  }, [JSON.stringify(workout.steps)]);
-
   const filteredLibraryWorkouts = libraryWorkouts.filter(
     (w) => !selectedCatId || w.categoryId === selectedCatId
   );
@@ -226,7 +222,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     }
   };
 
-  // Nettoie la saisie de l'allure pour ne garder que le format mm:ss (ex: "4:30")
   const cleanPaceInput = (val: string) => {
     return val.replace(/min\/km/gi, "").replace(/\/km/gi, "").trim();
   };
@@ -300,7 +295,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   <input
                     type="number"
                     min="1"
-                    value={step.reps || 1}
+                    value={step.reps || ""}
+                    placeholder="Ex: 5"
                     onChange={(e) =>
                       onUpdateStep(
                         workout.id,
@@ -310,7 +306,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                       )
                     }
                     style={{ color: themeColor }}
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none"
+                    className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600"
                   />
                 </div>
                 <div className="flex items-end">
@@ -386,7 +382,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             : `${newVal} min`;
                         onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
                       }}
-                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none"
+                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
                     />
                     <select
                       value={parsed.unit}
@@ -623,7 +619,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               Distance Calculée
             </span>
             <span style={{ color: themeColor }} className="text-base font-black">
-              {metrics.totalKm} km
+              {metrics.totalKm || 0} km
             </span>
           </div>
           <div>
@@ -631,7 +627,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               Durée Estimée
             </span>
             <span style={{ color: themeColor }} className="text-base font-black">
-              {metrics.totalMinutes} min
+              {metrics.totalMinutes || 0} min
             </span>
           </div>
         </div>
@@ -646,12 +642,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
             </label>
             <input
               type="text"
-              value={workout.title}
+              value={workout.title || ""}
               onChange={(e) =>
                 onUpdateWorkout(workout.id, "title", e.target.value)
               }
               placeholder="Ex: Fractionné court 10x400m"
-              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] placeholder:text-stone-600"
             />
           </div>
 
@@ -739,7 +735,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 onUpdateWorkout(workout.id, "description", e.target.value)
               }
               placeholder="Ex: Séance de soutien VMA visant à maintenir la régularité du rythme."
-              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] custom-scrollbar resize-none"
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] placeholder:text-stone-600 custom-scrollbar resize-none"
             />
           </div>
 
@@ -754,7 +750,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 onUpdateWorkout(workout.id, "remark", e.target.value)
               }
               placeholder="Ex: 2 min de récupération marchée entre les séries."
-              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] placeholder:text-stone-600"
             />
           </div>
         </div>
