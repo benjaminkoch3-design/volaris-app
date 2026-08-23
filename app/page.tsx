@@ -56,6 +56,8 @@ import { ActivePlanView } from "../components/plan/ActivePlanView";
 import { AnnualStats } from "../components/stats/AnnualStats";
 import { ManagedAthletes } from "../components/coach/ManagedAthletes";
 import { WorkoutLibraryView } from "../components/coach/WorkoutLibraryView";
+import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
+import { CoachCalendarView } from "../components/coach/CoachCalendarView";
 
 // Messagerie
 import { ChatView } from "../components/chat/ChatView";
@@ -84,6 +86,13 @@ export default function Home() {
   // Présence des deux comptes (Athlète & Coach)
   const [hasBothAccounts, setHasBothAccounts] = useState<boolean>(false);
 
+  // Données globales pour le coach (Agenda & Séances du jour)
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [allCoachAthletesPlans, setAllCoachAthletesPlans] = useState<Plan[]>([]);
+  const [allCoachAthletesWorkouts, setAllCoachAthletesWorkouts] = useState<Workout[]>([]);
+
   // Redirection directe vers l'onglet "Plan en cours" des Statistiques
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
@@ -98,7 +107,7 @@ export default function Home() {
         const roleFromMeta = session.user?.user_metadata?.role as UserRole;
         if (roleFromMeta) {
           setUserRole(roleFromMeta);
-          setActiveTab(roleFromMeta === "coach" ? "athletes" : "accueil");
+          setActiveTab(roleFromMeta === "coach" ? "today" : "accueil");
         }
         setScreen("app");
       }
@@ -113,7 +122,7 @@ export default function Home() {
         const roleFromMeta = session.user?.user_metadata?.role as UserRole;
         if (roleFromMeta) {
           setUserRole(roleFromMeta);
-          setActiveTab(roleFromMeta === "coach" ? "athletes" : "accueil");
+          setActiveTab(roleFromMeta === "coach" ? "today" : "accueil");
         }
         setScreen("app");
       } else {
@@ -135,7 +144,6 @@ export default function Home() {
     const checkBothProfiles = async () => {
       const currentEmail = session.user.email;
 
-      // 1. Appel RPC sécurisé
       const { data: hasBothRpc, error: rpcError } = await supabase.rpc(
         "check_has_both_accounts",
         { user_email: currentEmail }
@@ -146,7 +154,6 @@ export default function Home() {
         return;
       }
 
-      // 2. Repli classique
       const baseEmail = currentEmail.replace("+coach@", "@");
       const coachEmail = currentEmail.includes("+coach@")
         ? currentEmail
@@ -201,7 +208,7 @@ export default function Home() {
     if (data.session) {
       const newRole: UserRole = isCurrentlyCoach ? "athlete" : "coach";
       setUserRole(newRole);
-      setActiveTab(newRole === "coach" ? "athletes" : "accueil");
+      setActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
     }
     setLoadingAuth(false);
@@ -418,7 +425,7 @@ export default function Home() {
     await supabase.auth.updateUser({ data: { full_name: newName } });
   };
 
-  // HANDLER : L'athlète retire son coach (Le plan reste actif et devient modifiable)
+  // HANDLER : L'athlète retire son coach
   const handleDisconnectCoachByAthlete = async () => {
     if (!session?.user || userRole !== "athlete") return;
 
@@ -460,7 +467,7 @@ export default function Home() {
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
 
-  // CHARGEMENT DE LA LISTE DES ATHLÈTES POUR LE COACH
+  // CHARGEMENT DE LA LISTE DES ATHLÈTES ET DES SÉANCES GLOBALES POUR LE COACH
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -501,21 +508,65 @@ export default function Home() {
         const { data: activePlansData } = await supabase
           .from("plans")
           .select("*")
-          .in("user_id", athleteIds)
-          .eq("is_active", true)
-          .eq("is_archived", false);
+          .in("user_id", athleteIds);
 
-        // 3. Récupération des séances pour calculer le volume hebdomadaire
+        // 3. Récupération de toutes les séances des athlètes
         const { data: workoutsData } = await supabase
           .from("workouts")
           .select("*")
           .in("user_id", athleteIds);
 
+        if (activePlansData) {
+          setAllCoachAthletesPlans(
+            activePlansData.map((p: any) => ({
+              id: p.id,
+              userId: p.user_id,
+              name: p.name,
+              targetDistance: p.target_distance,
+              targetTime: p.target_time,
+              raceCategory: p.race_category,
+              elevationGain: p.elevation_gain,
+              startDate: p.start_date,
+              eventDate: p.event_date,
+              durationWeeks: p.duration_weeks,
+              weekTypes: p.week_types || {},
+              isActive: p.is_active,
+              isArchived: p.is_archived,
+              workouts: [],
+            } as any))
+          );
+        }
+
+        if (workoutsData) {
+          setAllCoachAthletesWorkouts(
+            workoutsData.map((w: any) => ({
+              id: w.id,
+              planId: w.plan_id,
+              userId: w.user_id,
+              weekNumber: w.week_number,
+              dayIndex: w.day_index,
+              dayName: w.day_name,
+              sessionName: w.session_name,
+              isRest: Boolean(w.is_rest),
+              type: w.type,
+              title: w.title,
+              description: w.description || "",
+              km: w.km || "",
+              rpe: w.rpe || "",
+              remark: w.remark || "",
+              steps: Array.isArray(w.steps) ? w.steps : [],
+              completed: Boolean(w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name),
+              completedRpe: w.completed_rpe,
+              completedKm: w.completed_km,
+            } as any))
+          );
+        }
+
         const customMap = myProfile?.custom_athlete_names || {};
 
         setManagedAthletes(
           athletesData.map((a: any) => {
-            const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id);
+            const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id && p.is_active && !p.is_archived);
             const athleteWorkouts = workoutsData?.filter((w: any) => w.user_id === a.id) || [];
 
             let upcomingRace = "Aucune";
@@ -738,6 +789,8 @@ export default function Home() {
             }
             return {
               id: w.id,
+              planId: w.plan_id,
+              userId: w.user_id,
               weekNumber: w.week_number,
               dayIndex: w.dayIndex ?? w.day_index,
               dayName: w.day_name,
@@ -779,7 +832,7 @@ export default function Home() {
             durationWeeks: activePlanDb.duration_weeks,
             weekTypes: activePlanDb.week_types || {},
             workouts: planWorkouts,
-          });
+          } as any);
 
           setGoal(activePlanDb.target_distance);
         } else {
@@ -802,7 +855,7 @@ export default function Home() {
               workouts: formatWorkoutsList(
                 (workoutsData || []).filter((w: any) => w.plan_id === p.id)
               ),
-            }))
+            } as any))
           );
         }
 
@@ -815,6 +868,55 @@ export default function Home() {
 
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting]);
+
+  // Récupération des séances d'une date spécifique pour tous les athlètes du coach
+  const getCoachDailySessionsForDate = (dateStr: string): AthleteDailySession[] => {
+    const sessions: AthleteDailySession[] = [];
+
+    managedAthletes.forEach((athlete) => {
+      const activePlanForAthlete = allCoachAthletesPlans.find((p: any) => {
+        const planUserId = p.userId || p.user_id;
+        const isPlanActive = p.isActive !== undefined ? p.isActive : p.is_active !== false;
+        const isPlanArchived = p.isArchived !== undefined ? p.isArchived : p.is_archived === true;
+        return planUserId === athlete.id && isPlanActive && !isPlanArchived;
+      });
+
+      if (!activePlanForAthlete) return;
+
+      const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
+        const wUserId = w.userId || w.user_id;
+        const wPlanId = w.planId || w.plan_id;
+        return wUserId === athlete.id && wPlanId === activePlanForAthlete.id;
+      });
+
+      athleteWorkouts.forEach((w: any) => {
+        const planStart = activePlanForAthlete.startDate || (activePlanForAthlete as any).start_date;
+        if (!planStart) return;
+
+        const [sY, sM, sD] = planStart.split("-").map(Number);
+        const wDate = new Date(sY, sM - 1, sD);
+        const wNum = w.weekNumber !== undefined ? w.weekNumber : (w.week_number || 1);
+        const dIdx = w.dayIndex !== undefined ? w.dayIndex : (w.day_index || 0);
+
+        wDate.setDate(wDate.getDate() + ((wNum - 1) * 7 + dIdx));
+
+        const y = wDate.getFullYear();
+        const m = String(wDate.getMonth() + 1).padStart(2, "0");
+        const d = String(wDate.getDate()).padStart(2, "0");
+        const matchDate = `${y}-${m}-${d}`;
+
+        if (matchDate === dateStr) {
+          sessions.push({
+            athlete,
+            plan: activePlanForAthlete,
+            workout: w,
+          });
+        }
+      });
+    });
+
+    return sessions;
+  };
 
   // SAUVEGARDE UNIFIÉE DU PROFIL
   const saveProfileToSupabase = async (updatedFields: {
@@ -1037,7 +1139,7 @@ export default function Home() {
         if (error) throw error;
 
         if (userRole === "coach") {
-          setActiveTab("athletes");
+          setActiveTab("today");
           setScreen("app");
         } else {
           setProfileStep(1);
@@ -1050,7 +1152,7 @@ export default function Home() {
         });
         if (error) throw error;
 
-        setActiveTab(userRole === "coach" ? "athletes" : "accueil");
+        setActiveTab(userRole === "coach" ? "today" : "accueil");
         setScreen("app");
       }
     } catch (err: any) {
@@ -1617,7 +1719,7 @@ export default function Home() {
       durationWeeks: calculatedWeeks.toString(),
       weekTypes: draftWeekTypes,
       workouts: draftWorkouts,
-    };
+    } as any;
 
     const currentWeekNum = getCurrentWeekNumber(
       newPlanForm.startDate,
@@ -2009,7 +2111,34 @@ export default function Home() {
       )}
 
       <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-5">
-        {/* MODE COACH : LISTE DES ATHLÈTES */}
+        {/* MODE COACH 1 : SÉANCES DU JOUR (OU DATE SÉLECTIONNÉE) */}
+        {userRole === "coach" && !inspectingAthleteId && activeTab === "today" && (
+          <CoachDailyWorkoutsView
+            selectedDateStr={selectedCalendarDate}
+            dailySessions={getCoachDailySessionsForDate(selectedCalendarDate)}
+            completedWorkouts={completedWorkouts}
+            onSelectWorkoutDetail={(workout, plan) => {
+              setSelectedWorkoutDetail(workout);
+              if (plan) setActivePlan(plan);
+            }}
+            onBackToCalendar={() => setActiveTab("calendar")}
+          />
+        )}
+
+        {/* MODE COACH 2 : AGENDA MENSUEL */}
+        {userRole === "coach" && !inspectingAthleteId && activeTab === "calendar" && (
+          <CoachCalendarView
+            managedAthletes={managedAthletes}
+            allPlans={allCoachAthletesPlans}
+            allWorkouts={allCoachAthletesWorkouts}
+            onSelectDate={(dateStr) => {
+              setSelectedCalendarDate(dateStr);
+              setActiveTab("today");
+            }}
+          />
+        )}
+
+        {/* MODE COACH 3 : LISTE DES ATHLÈTES */}
         {userRole === "coach" && !inspectingAthleteId && activeTab === "athletes" && (
           <div className="space-y-4">
             {coachCode && (
@@ -2047,7 +2176,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* MODE COACH : BIBLIOTHÈQUE DE SÉANCES */}
+        {/* MODE COACH 4 : BIBLIOTHÈQUE DE SÉANCES */}
         {userRole === "coach" && !inspectingAthleteId && activeTab === "library" && (
           <WorkoutLibraryView
             libraryWorkouts={libraryWorkouts}

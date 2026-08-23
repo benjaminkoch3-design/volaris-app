@@ -10,6 +10,8 @@ export type ActiveTab =
   | "stats"
   | "profil"
   | "athletes"
+  | "today"
+  | "calendar"
   | "library";
 
 interface BottomNavProps {
@@ -30,12 +32,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   if (screen !== "app") return null;
 
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
+  const isCoach = userRole === "coach" && !inspectingAthleteId;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-stone-950/95 backdrop-blur-md border-t border-stone-800/80 z-40 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 bg-stone-950/95 backdrop-blur-md border-t border-stone-800/80 z-40 pb-safe font-sans">
       <div className="max-w-md mx-auto flex justify-around items-center h-16 px-1">
         
-        {/* MODE COACH EN CONSULTATION ATHLÈTE */}
+        {/* 1. MODE COACH EN CONSULTATION ATHLÈTE */}
         {isCoachInspecting ? (
           <>
             <button
@@ -90,8 +93,76 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <span className="text-[9px] uppercase font-bold tracking-wider">Profil</span>
             </button>
           </>
-        ) : userRole === "athlete" ? (
-          /* MODE ATHLÈTE STANDARD (5 ONGLETS) */
+        ) : isCoach ? (
+          /* 2. MODE COACH GLOBAL (5 ONGLETS : AUJOURD'HUI, AGENDA, ATHLÈTES, MESSAGES, MODÈLES) */
+          <>
+            <button
+              type="button"
+              onClick={() => onSelectTab("today")}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
+                activeTab === "today"
+                  ? "text-[#CDCF61] font-extrabold scale-105"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <span className="text-base mb-0.5">⚡</span>
+              <span className="text-[9px] uppercase font-black tracking-wider">Aujourd'hui</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab("calendar")}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
+                activeTab === "calendar"
+                  ? "text-[#CDCF61] font-extrabold scale-105"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <span className="text-base mb-0.5">📅</span>
+              <span className="text-[9px] uppercase font-black tracking-wider">Agenda</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab("athletes")}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
+                activeTab === "athletes"
+                  ? "text-[#CDCF61] font-extrabold scale-105"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <span className="text-base mb-0.5">🏃‍♂️</span>
+              <span className="text-[9px] uppercase font-black tracking-wider">Athlètes</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab("messages")}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
+                activeTab === "messages"
+                  ? "text-[#CDCF61] font-extrabold scale-105"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <span className="text-base mb-0.5">💬</span>
+              <span className="text-[9px] uppercase font-black tracking-wider">Message</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab("library")}
+              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
+                activeTab === "library"
+                  ? "text-[#CDCF61] font-extrabold scale-105"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              <span className="text-base mb-0.5">📚</span>
+              <span className="text-[9px] uppercase font-black tracking-wider">Modèles</span>
+            </button>
+          </>
+        ) : (
+          /* 3. MODE ATHLÈTE STANDARD (5 ONGLETS) */
           <>
             <button
               type="button"
@@ -129,7 +200,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               }`}
             >
               <span className="text-base mb-0.5">💬</span>
-              <span className="text-[9px] uppercase font-bold tracking-wider">Message</span>
+              <span className="text-[9px] uppercase font-bold tracking-wider">Coach</span>
             </button>
 
             <button
@@ -154,56 +225,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   : "text-stone-400 hover:text-stone-200"
               }`}
             >
-              <span className="text-base mb-0.5">⚙️</span>
+              <span className="text-base mb-0.5">👤</span>
               <span className="text-[9px] uppercase font-bold tracking-wider">Profil</span>
-            </button>
-          </>
-        ) : (
-          /* MODE COACH GLOBAL (3 ONGLETS) */
-          <>
-            <button
-              type="button"
-              onClick={() => onSelectTab("athletes")}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
-                activeTab === "athletes"
-                  ? "text-[#CDCF61] font-extrabold scale-105"
-                  : "text-stone-400 hover:text-stone-200"
-              }`}
-            >
-              <span className="text-base mb-0.5">🏃‍♂️</span>
-              <span className="text-[9px] uppercase font-black tracking-wider">
-                Mes Athlètes
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSelectTab("messages")}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
-                activeTab === "messages"
-                  ? "text-[#CDCF61] font-extrabold scale-105"
-                  : "text-stone-400 hover:text-stone-200"
-              }`}
-            >
-              <span className="text-base mb-0.5">💬</span>
-              <span className="text-[9px] uppercase font-black tracking-wider">
-                Message
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSelectTab("library")}
-              className={`flex-1 flex flex-col items-center justify-center py-1 transition cursor-pointer ${
-                activeTab === "library"
-                  ? "text-[#CDCF61] font-extrabold scale-105"
-                  : "text-stone-400 hover:text-stone-200"
-              }`}
-            >
-              <span className="text-base mb-0.5">📚</span>
-              <span className="text-[9px] uppercase font-black tracking-wider">
-                Bibliothèque
-              </span>
             </button>
           </>
         )}
