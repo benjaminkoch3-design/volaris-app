@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Workout, Shoe } from "../../types";
+import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 
 interface WorkoutDebriefViewProps {
   workout: Workout;
@@ -76,7 +77,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [garminActivities, setGarminActivities] = useState<any[]>([]);
   const [showActivityPicker, setShowActivityPicker] = useState<boolean>(false);
 
-  const isAlreadyDebriefed = Boolean(workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined);
+  const isAlreadyDebriefed = Boolean(
+    workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -140,7 +143,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setAvgHeartRate(hr);
     setMaxHeartRate(maxHr);
 
-    const label = `${act.title || "Course"} (${act.date || ""})`;
+    const label = `${act.title || "Course Garmin"} (${act.date || ""})`;
     setImportedActivityName(label);
     setIsActivityImported(true);
     setShowActivityPicker(false);
@@ -175,6 +178,17 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     onClose();
   };
 
+  const renderActivityBrandLogo = (nameStr: string) => {
+    const lower = nameStr.toLowerCase();
+    if (lower.includes("strava")) {
+      return <StravaLogo className="w-4 h-4 shrink-0" />;
+    }
+    if (lower.includes("coros")) {
+      return <CorosLogo className="w-4 h-4 shrink-0" />;
+    }
+    return <GarminLogo className="w-4 h-4 shrink-0" />;
+  };
+
   const rpeColor = getRpeColor(completedRpe);
 
   return (
@@ -200,11 +214,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SECTION SYNCHRONISATION GARMIN */}
+        {/* SECTION SYNCHRONISATION MONTRES & APPAREILS */}
         <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold text-stone-200">
-              ⌚ Synchronisation Activité Garmin
+            <span className="text-xs font-extrabold text-stone-200 flex items-center gap-1.5">
+              <GarminLogo className="w-4 h-4" />
+              <span>Synchronisation Activité</span>
             </span>
             {isActivityImported && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
@@ -215,13 +230,18 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
           {isActivityImported && importedActivityName ? (
             <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
-              <div className="space-y-0.5 overflow-hidden">
-                <span className="text-[9px] font-bold uppercase text-[#4D80B3] block">
-                  Activité liée
-                </span>
-                <p className="text-xs font-bold text-stone-200 truncate">
-                  {importedActivityName}
-                </p>
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="w-8 h-8 rounded-lg bg-stone-950 border border-stone-800 flex items-center justify-center shrink-0">
+                  {renderActivityBrandLogo(importedActivityName)}
+                </div>
+                <div className="space-y-0.5 overflow-hidden">
+                  <span className="text-[9px] font-bold uppercase text-stone-400 block">
+                    Activité liée
+                  </span>
+                  <p className="text-xs font-bold text-stone-200 truncate">
+                    {importedActivityName}
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
@@ -242,15 +262,15 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   type="button"
                   onClick={handleFetchGarminActivities}
                   disabled={garminLoading}
-                  style={{ backgroundColor: "#4D80B3" }}
-                  className="w-full py-2.5 px-3 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md hover:opacity-90 disabled:opacity-50"
+                  className="w-full py-2.5 px-3 bg-[#007CC3] hover:bg-[#006bb3] text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
                 >
-                  <span>{garminLoading ? "⏳ Récupération..." : "⌚ Importer depuis Garmin Connect"}</span>
+                  <GarminLogo className="w-4 h-4" />
+                  <span>{garminLoading ? "Récupération..." : "Importer depuis Garmin Connect"}</span>
                 </button>
               ) : (
                 <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
                   <p className="text-[11px] text-stone-400">
-                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour importer automatiquement vos données Garmin.
+                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour importer automatiquement vos données Garmin, COROS ou Strava.
                   </p>
                 </div>
               )}
@@ -284,13 +304,16 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     onClick={() => applyGarminActivity(act)}
                     className="p-2 bg-stone-950 hover:bg-stone-800 border border-stone-800 rounded-lg flex items-center justify-between cursor-pointer transition text-xs"
                   >
-                    <div>
-                      <div className="font-bold text-stone-200">{act.title}</div>
-                      <div className="text-[9px] text-stone-400">
-                        {act.date} • {act.distanceKm} km • {act.durationMinutes} min
+                    <div className="flex items-center gap-2">
+                      <GarminLogo className="w-4 h-4 shrink-0" />
+                      <div>
+                        <div className="font-bold text-stone-200">{act.title}</div>
+                        <div className="text-[9px] text-stone-400">
+                          {act.date} • {act.distanceKm} km • {act.durationMinutes} min
+                        </div>
                       </div>
                     </div>
-                    <span className="text-[#4D80B3] font-mono text-xs font-black">
+                    <span className="text-[#007CC3] font-mono text-xs font-black">
                       {act.avgPace} /km ➔
                     </span>
                   </div>
@@ -404,7 +427,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               rows={3}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Ex: Bonnes sensations, un peu lourd sur les 2 dernières répétitions..."
+              placeholder="Ex : Bonnes sensations, un peu lourd sur les 2 dernières répétitions..."
               className="w-full bg-stone-950 border border-stone-800 rounded-2xl p-3 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] custom-scrollbar resize-none"
             />
           </div>

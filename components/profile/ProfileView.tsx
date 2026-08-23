@@ -3,6 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Race, Plan, Shoe } from "../../types";
 import {
+  GarminLogo,
+  CorosLogo,
+  StravaLogo,
+  AppleHealthLogo,
+  PolarLogo,
+} from "../common/BrandLogos";
+import {
   formatPaceFromSpeed,
   calculateThresholds,
   safeFormatDateFr,
@@ -125,7 +132,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcMax, setEditFcMax] = useState(fcMax);
   const [editRecords, setEditRecords] = useState({ ...records });
 
-  // 1. GARMIN (#4D80B3)
+  // 1. GARMIN
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -133,7 +140,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminStatusMsg, setGarminStatusMsg] = useState<string | null>(null);
 
-  // 2. COROS (#B34D4D)
+  // 2. COROS
   const [showCorosModal, setShowCorosModal] = useState(false);
   const [corosEmail, setCorosEmail] = useState("");
   const [corosPassword, setCorosPassword] = useState("");
@@ -141,7 +148,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [corosLoading, setCorosLoading] = useState(false);
   const [corosStatusMsg, setCorosStatusMsg] = useState<string | null>(null);
 
-  // 3. STRAVA (#fc4c02)
+  // 3. STRAVA
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [stravaEmail, setStravaEmail] = useState("");
   const [isStravaLinked, setIsStravaLinked] = useState(false);
@@ -408,13 +415,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-2xl mx-auto font-sans">
-      {/* 1. MODALE GARMIN CONNECT (#4D80B3) */}
+      {/* 1. MODALE GARMIN CONNECT */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">⌚</span>
+              <div className="flex items-center gap-2.5">
+                <GarminLogo className="w-5 h-5" />
                 <h4 className="text-xs font-black uppercase text-stone-100">
                   Lier mon compte Garmin
                 </h4>
@@ -446,7 +453,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={garminEmail}
                   onChange={(e) => setGarminEmail(e.target.value)}
                   placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
                 />
               </div>
 
@@ -460,12 +467,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
                 />
               </div>
 
               {garminStatusMsg && (
-                <div className="text-[10px] text-center font-bold text-[#4D80B3] py-1">
+                <div className="text-[10px] text-center font-bold text-[#007CC3] py-1">
                   {garminStatusMsg}
                 </div>
               )}
@@ -473,22 +480,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 type="submit"
                 disabled={garminLoading}
-                className="w-full py-3 bg-[#4D80B3] hover:bg-[#3d6894] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
+                className="w-full py-3 bg-[#007CC3] hover:bg-[#006bb3] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg flex items-center justify-center gap-2"
               >
-                {garminLoading ? "Vérification..." : "Valider la connexion"}
+                <GarminLogo className="w-4 h-4" />
+                <span>{garminLoading ? "Vérification..." : "Valider la connexion"}</span>
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* 2. MODALE COROS APP (#B34D4D) */}
+      {/* 2. MODALE COROS APP */}
       {showCorosModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">⌚</span>
+              <div className="flex items-center gap-2.5">
+                <CorosLogo className="w-5 h-5" />
                 <h4 className="text-xs font-black uppercase text-stone-100">
                   Lier mon compte COROS
                 </h4>
@@ -520,7 +528,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={corosEmail}
                   onChange={(e) => setCorosEmail(e.target.value)}
                   placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#B34D4D]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#F8283B]"
                 />
               </div>
 
@@ -534,12 +542,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={corosPassword}
                   onChange={(e) => setCorosPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#B34D4D]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#F8283B]"
                 />
               </div>
 
               {corosStatusMsg && (
-                <div className="text-[10px] text-center font-bold text-[#B34D4D] py-1">
+                <div className="text-[10px] text-center font-bold text-[#F8283B] py-1">
                   {corosStatusMsg}
                 </div>
               )}
@@ -547,22 +555,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 type="submit"
                 disabled={corosLoading}
-                className="w-full py-3 bg-[#B34D4D] hover:bg-[#963e3e] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
+                className="w-full py-3 bg-[#F8283B] hover:bg-[#d61e30] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg flex items-center justify-center gap-2"
               >
-                {corosLoading ? "Vérification..." : "Valider la connexion"}
+                <CorosLogo className="w-4 h-4" />
+                <span>{corosLoading ? "Vérification..." : "Valider la connexion"}</span>
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* 3. MODALE STRAVA (#fc4c02) */}
+      {/* 3. MODALE STRAVA */}
       {showStravaModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🏃</span>
+              <div className="flex items-center gap-2.5">
+                <StravaLogo className="w-5 h-5" />
                 <h4 className="text-xs font-black uppercase text-stone-100">
                   Lier mon compte Strava
                 </h4>
@@ -594,12 +603,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   value={stravaEmail}
                   onChange={(e) => setStravaEmail(e.target.value)}
                   placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#fc4c02]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#FC5200]"
                 />
               </div>
 
               {stravaStatusMsg && (
-                <div className="text-[10px] text-center font-bold text-[#fc4c02] py-1">
+                <div className="text-[10px] text-center font-bold text-[#FC5200] py-1">
                   {stravaStatusMsg}
                 </div>
               )}
@@ -607,9 +616,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 type="submit"
                 disabled={stravaLoading}
-                className="w-full py-3 bg-[#fc4c02] hover:bg-[#e34402] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
+                className="w-full py-3 bg-[#FC5200] hover:bg-[#e04900] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg flex items-center justify-center gap-2"
               >
-                {stravaLoading ? "Synchronisation..." : "Valider la liaison Strava"}
+                <StravaLogo className="w-4 h-4" />
+                <span>{stravaLoading ? "Synchronisation..." : "Valider la liaison Strava"}</span>
               </button>
             </form>
           </div>
@@ -1098,7 +1108,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       max: Math.round(restNum + 0.6 * rfc),
                       intensity: "Très facile",
                       usage: "Échauffement, récupération",
-                      badge: "bg-[#4D80B3]/20 text-[#4D80B3] border-[#4D80B3]/40",
+                      badge: "bg-[#007CC3]/20 text-[#007CC3] border-[#007CC3]/40",
                     },
                     {
                       zone: "Z2",
@@ -1137,7 +1147,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       max: Math.round(restNum + 1.0 * rfc),
                       intensity: "Très intense",
                       usage: "VO₂max, intervalles courts",
-                      badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40",
+                      badge: "bg-[#F8283B]/20 text-[#F8283B] border-[#F8283B]/40",
                     },
                   ];
 
@@ -1435,7 +1445,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                           <input
                             type="text"
                             required
-                            placeholder="Nom de la course (Ex: Maxi-Race Trail)"
+                            placeholder="Nom de la course (Ex: Semi de Paris, UTMB)"
                             value={newRace.name}
                             onChange={(e) =>
                               setNewRace({ ...newRace, name: e.target.value })
@@ -1468,7 +1478,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             <input
                               type="text"
                               required
-                              placeholder="Distance (Ex: 25 km, 10 km)"
+                              placeholder="Distance (Ex: 21.1 km, 10 km)"
                               value={newRace.distance}
                               onChange={(e) =>
                                 setNewRace({
@@ -1481,7 +1491,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             <input
                               type="text"
                               required
-                              placeholder="Chrono (Ex: 2:45:00)"
+                              placeholder="Chrono (Ex: 1:32:00)"
                               value={newRace.time}
                               onChange={(e) =>
                                 setNewRace({ ...newRace, time: e.target.value })
@@ -1823,7 +1833,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS */}
+          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS AVEC LOGOS */}
           <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
             <button
               type="button"
@@ -1840,21 +1850,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {openDevicesSection && (
               <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                {/* GARMIN CONNECT (#4D80B3) */}
+                {/* GARMIN CONNECT */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4D80B3] to-[#2e5780] flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
-                      G
+                    <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
+                      <GarminLogo className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="font-bold text-xs text-stone-100">
                         Garmin Connect
                       </div>
-                      {isGarminLinked && garminEmail && (
-                        <div className="text-[10px] text-stone-400 font-mono">
-                          {garminEmail}
-                        </div>
-                      )}
+                      <div className="text-[10px] text-stone-400 font-medium">
+                        {isGarminLinked && garminEmail
+                          ? garminEmail
+                          : "Forerunner, Fenix, Enduro"}
+                      </div>
                     </div>
                   </div>
 
@@ -1868,32 +1878,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         setShowGarminModal(true);
                       }
                     }}
-                    style={{
-                      backgroundColor: isGarminLinked ? "#1c1917" : "#4D80B3",
-                      borderColor: isGarminLinked ? "#292524" : "#4D80B3",
-                      color: isGarminLinked ? "#a8a29e" : "#ffffff",
-                    }}
-                    className="px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:opacity-90"
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                      isGarminLinked
+                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                        : "bg-[#007CC3] hover:bg-[#006bb3] border-[#007CC3] text-white"
+                    }`}
                   >
                     {isGarminLinked ? "Déconnecter" : "Connecter"}
                   </button>
                 </div>
 
-                {/* COROS APP (#B34D4D) */}
+                {/* COROS APP */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#B34D4D] to-[#7d2f2f] flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
-                      C
+                    <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
+                      <CorosLogo className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="font-bold text-xs text-stone-100">
-                        COROS Training
+                        COROS Training Hub
                       </div>
-                      {isCorosLinked && corosEmail && (
-                        <div className="text-[10px] text-stone-400 font-mono">
-                          {corosEmail}
-                        </div>
-                      )}
+                      <div className="text-[10px] text-stone-400 font-medium">
+                        {isCorosLinked && corosEmail
+                          ? corosEmail
+                          : "Pace, Apex, Vertix"}
+                      </div>
                     </div>
                   </div>
 
@@ -1907,28 +1916,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         setShowCorosModal(true);
                       }
                     }}
-                    style={{
-                      backgroundColor: isCorosLinked ? "#1c1917" : "#B34D4D",
-                      borderColor: isCorosLinked ? "#292524" : "#B34D4D",
-                      color: isCorosLinked ? "#a8a29e" : "#ffffff",
-                    }}
-                    className="px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:opacity-90"
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                      isCorosLinked
+                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                        : "bg-[#F8283B] hover:bg-[#d61e30] border-[#F8283B] text-white"
+                    }`}
                   >
                     {isCorosLinked ? "Déconnecter" : "Connecter"}
                   </button>
                 </div>
 
-                {/* STRAVA (#fc4c02) */}
+                {/* STRAVA */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#fc4c02] to-[#b33500] flex items-center justify-center text-sm shadow-md shrink-0 font-black text-stone-100">
-                      S
+                    <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
+                      <StravaLogo className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="font-bold text-xs text-stone-100">
                         Strava Sync
                       </div>
-                      <div className="text-[10px] text-stone-400">
+                      <div className="text-[10px] text-stone-400 font-medium">
                         {isStravaLinked
                           ? stravaEmail || "Synchronisation active"
                           : "Historique et traces GPS"}
@@ -1946,13 +1954,73 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         setShowStravaModal(true);
                       }
                     }}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition ${
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                       isStravaLinked
-                        ? "bg-stone-900 hover:bg-[#B34D4D]/20 hover:text-[#B34D4D] border border-stone-800 text-stone-400"
-                        : "bg-[#fc4c02] hover:bg-[#e34402] text-white border border-[#fc4c02]/50 shadow-md"
-                    } disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer`}
+                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                        : "bg-[#FC5200] hover:bg-[#e04900] border-[#FC5200] text-white"
+                    }`}
                   >
                     {isStravaLinked ? "Déconnecter" : "Connecter"}
+                  </button>
+                </div>
+
+                {/* APPLE HEALTH */}
+                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-stone-900 border border-stone-800 flex items-center justify-center shadow-md shrink-0">
+                      <AppleHealthLogo className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-stone-100">
+                        Apple Santé
+                      </div>
+                      <div className="text-[10px] text-stone-400 font-medium">
+                        Apple Watch & Exercices
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => toggleDeviceConnection("apple")}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                      connectedDevices.apple
+                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
+                        : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200"
+                    }`}
+                  >
+                    {connectedDevices.apple ? "Connecté ✓" : "Lier"}
+                  </button>
+                </div>
+
+                {/* POLAR */}
+                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#E1000F]/10 border border-[#E1000F]/30 flex items-center justify-center shadow-md shrink-0">
+                      <PolarLogo className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-stone-100">
+                        Polar Flow
+                      </div>
+                      <div className="text-[10px] text-stone-400 font-medium">
+                        Pacer, Vantage, Grit X
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => toggleDeviceConnection("polar")}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                      connectedDevices.polar
+                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
+                        : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200"
+                    }`}
+                  >
+                    {connectedDevices.polar ? "Connecté ✓" : "Lier"}
                   </button>
                 </div>
               </div>
