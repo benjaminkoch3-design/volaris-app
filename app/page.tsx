@@ -27,6 +27,7 @@ import {
   getCurrentWeekNumber,
   safeFormatDateFr,
   DAYS_LIST_FR,
+  calculateWeeklyPlannedKm,
 } from "../utils/calculations";
 
 // Composants Communs
@@ -125,45 +126,45 @@ export default function Home() {
 
   // Détection si l'utilisateur possède les deux profils dans Supabase (Athlète ET Coach)
   useEffect(() => {
-      if (!session?.user?.email) {
-        setHasBothAccounts(false);
+    if (!session?.user?.email) {
+      setHasBothAccounts(false);
+      return;
+    }
+
+    const checkBothProfiles = async () => {
+      const currentEmail = session.user.email;
+
+      // 1. Appel RPC sécurisé
+      const { data: hasBothRpc, error: rpcError } = await supabase.rpc(
+        "check_has_both_accounts",
+        { user_email: currentEmail }
+      );
+
+      if (!rpcError && typeof hasBothRpc === "boolean") {
+        setHasBothAccounts(hasBothRpc);
         return;
       }
 
-      const checkBothProfiles = async () => {
-        const currentEmail = session.user.email;
+      // 2. Repli classique
+      const baseEmail = currentEmail.replace("+coach@", "@");
+      const coachEmail = currentEmail.includes("+coach@")
+        ? currentEmail
+        : currentEmail.replace("@", "+coach@");
 
-        // 1. Appel RPC sécurisé (contourne le blocage RLS)
-        const { data: hasBothRpc, error: rpcError } = await supabase.rpc(
-          "check_has_both_accounts",
-          { user_email: currentEmail }
-        );
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .in("email", [baseEmail, coachEmail]);
 
-        if (!rpcError && typeof hasBothRpc === "boolean") {
-          setHasBothAccounts(hasBothRpc);
-          return;
-        }
+      if (data) {
+        const hasAthlete = data.some((p: any) => p.role === "athlete");
+        const hasCoach = data.some((p: any) => p.role === "coach");
+        setHasBothAccounts(hasAthlete && hasCoach);
+      }
+    };
 
-        // 2. Repli classique
-        const baseEmail = currentEmail.replace("+coach@", "@");
-        const coachEmail = currentEmail.includes("+coach@")
-          ? currentEmail
-          : currentEmail.replace("@", "+coach@");
-
-        const { data } = await supabase
-          .from("profiles")
-          .select("role")
-          .in("email", [baseEmail, coachEmail]);
-
-        if (data) {
-          const hasAthlete = data.some((p: any) => p.role === "athlete");
-          const hasCoach = data.some((p: any) => p.role === "coach");
-          setHasBothAccounts(hasAthlete && hasCoach);
-        }
-      };
-
-      checkBothProfiles();
-    }, [session, userRole]);
+    checkBothProfiles();
+  }, [session, userRole]);
 
   // Bascule instantanée entre le compte Athlète et le compte Coach
   const handleSwitchRole = async () => {
@@ -428,33 +429,80 @@ export default function Home() {
         await supabase.from("profiles").update({ coach_code: generatedCode }).eq("id", session.user.id);
       }
 
+      // 1. Profils des athlètes
       const { data: athletesData } = await supabase
         .from("profiles")
         .select("*")
         .eq("coach_id", session.user.id)
         .eq("role", "athlete");
 
-      if (athletesData) {
+      if (athletesData && athletesData.length > 0) {
+        const athleteIds = athletesData.map((a: any) => a.id);
+
+        // 2. Récupération des plans actifs pour chaque athlète
+        const { data: activePlansData } = await supabase
+          .from("plans")
+          .select("*")
+          .in("user_id", athleteIds)
+          .eq("is_active", true)
+          .eq("is_archived", false);
+
+        // 3. Récupération des séances pour calculer le volume hebdomadaire
+        const { data: workoutsData } = await supabase
+          .from("workouts")
+          .select("*")
+          .in("user_id", athleteIds);
+
         setManagedAthletes(
-          athletesData.map((a: any) => ({
-            id: a.id,
-            name: a.full_name || a.email || "Athlète Sans Nom",
-            email: a.email || "",
-            vma: a.vma ? `${a.vma} km/h` : "N/A",
-            activePlanName: "Plan en cours",
-            weeklyVolume: "0 km",
-            upcomingRace: "Aucune",
-            weeksToRace: 0,
-            targetGoal: "En cours de définition",
-            hasUnreadMessage: false,
-            joinedDate: a.created_at ? a.created_at.split("T")[0] : "",
-            height: a.height ? `${a.height} cm` : "N/A",
-            weight: a.weight ? `${a.weight} kg` : "N/A",
-            fcRest: a.fc_rest ? `${a.fc_rest} bpm` : "N/A",
-            fcMax: a.fc_max ? `${a.fc_max} bpm` : "N/A",
-            records: a.records || {},
-          }))
+          athletesData.map((a: any) => {
+            const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id);
+            const athleteWorkouts = workoutsData?.filter((w: any) => w.user_id === a.id) || [];
+
+            let upcomingRace = "Aucune";
+            let targetGoal = "En cours de définition";
+            let targetDate = "-";
+            let targetTime = "-";
+            let weeklyVolume = "0 km";
+
+            if (activePlanForAthlete) {
+              const formattedDate = safeFormatDateFr(activePlanForAthlete.event_date);
+              upcomingRace = `${activePlanForAthlete.target_distance || "Course"} (${formattedDate})`;
+              targetGoal = activePlanForAthlete.target_distance || "Course";
+              targetDate = formattedDate;
+              targetTime = activePlanForAthlete.target_time || "-";
+
+              const currWNum = getCurrentWeekNumber(
+                activePlanForAthlete.start_date,
+                activePlanForAthlete.duration_weeks || "12"
+              );
+              const plannedKm = calculateWeeklyPlannedKm(athleteWorkouts, currWNum);
+              weeklyVolume = `${plannedKm.toFixed(1)} km`;
+            }
+
+            return {
+              id: a.id,
+              name: a.full_name || a.email || "Athlète Sans Nom",
+              email: a.email || "",
+              vma: a.vma ? `${a.vma} km/h` : "N/A",
+              activePlanName: activePlanForAthlete?.name || "Plan en cours",
+              weeklyVolume,
+              upcomingRace,
+              weeksToRace: 0,
+              targetGoal,
+              targetDate,
+              targetTime,
+              hasUnreadMessage: false,
+              joinedDate: a.created_at ? a.created_at.split("T")[0] : "",
+              height: a.height ? `${a.height} cm` : "N/A",
+              weight: a.weight ? `${a.weight} kg` : "N/A",
+              fcRest: a.fc_rest ? `${a.fc_rest} bpm` : "N/A",
+              fcMax: a.fc_max ? `${a.fc_max} bpm` : "N/A",
+              records: a.records || {},
+            };
+          })
         );
+      } else {
+        setManagedAthletes([]);
       }
     };
 
@@ -2007,12 +2055,15 @@ export default function Home() {
                       <span>📊 Évolution Volume & Charge</span>
                     </button>
 
-                    <button
-                      onClick={() => setShowDeletePlanModal(true)}
-                      className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
-                    >
-                      ➕ Nouveau plan
-                    </button>
+                    {/* BOUTON NOUVEAU PLAN MASQUÉ SI ATHLÈTE COACHÉ */}
+                    {!(userRole === "athlete" && assignedCoachId) && (
+                      <button
+                        onClick={() => setShowDeletePlanModal(true)}
+                        className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
+                      >
+                        ➕ Nouveau plan
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2028,19 +2079,23 @@ export default function Home() {
                       <p className="text-xs text-stone-400 mt-1 leading-relaxed">
                         {userRole === "coach"
                           ? "Créez le programme personnalisé de votre athlète étape par étape."
+                          : assignedCoachId
+                          ? "Votre entraîneur n'a pas encore créé votre plan d'entraînement actif."
                           : "Créez votre programme personnalisé étape par étape pour atteindre votre objectif."}
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setIsCreatingPlan(true);
-                        setPlanCreationStep(1);
-                      }}
-                      className="w-full py-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
-                    >
-                      ➕ Créer un nouveau plan
-                    </button>
+                    {!(userRole === "athlete" && assignedCoachId) && (
+                      <button
+                        onClick={() => {
+                          setIsCreatingPlan(true);
+                          setPlanCreationStep(1);
+                        }}
+                        className="w-full py-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
+                      >
+                        ➕ Créer un nouveau plan
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2083,6 +2138,7 @@ export default function Home() {
                       }
                     }}
                     onNavigateToVolumeChart={navigateToPlanStats}
+                    isReadOnly={Boolean(assignedCoachId && userRole === "athlete")}
                   />
                 )}
               </div>

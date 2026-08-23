@@ -24,6 +24,7 @@ interface ActivePlanViewProps {
   onSelectWorkoutDetail: (workout: Workout) => void;
   onToggleWorkout: (id: string) => void;
   onNavigateToVolumeChart?: () => void;
+  isReadOnly?: boolean;
 }
 
 const getRpeGradientColor = (rpeStr?: string) => {
@@ -50,6 +51,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
   onEditActivePlan,
   onSelectWorkoutDetail,
   onToggleWorkout,
+  isReadOnly = false,
 }) => {
   const durationWeeksStr = String(activePlan.durationWeeks || "4");
   const totalWeeksNum =
@@ -81,7 +83,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
           </p>
         </div>
 
-        {/* PHASE D'ENTRAÎNEMENT & BOUTON MODIFIER */}
+        {/* PHASE D'ENTRAÎNEMENT & BOUTON MODIFIER (MASQUÉ SI COACH) */}
         <div className="flex justify-between items-center pt-2 border-t border-stone-950/10 flex-wrap gap-2">
           {(() => {
             const curWeekType = activePlan.weekTypes?.[currentWeekNum];
@@ -95,13 +97,19 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
             );
           })()}
 
-          <button
-            type="button"
-            onClick={onEditActivePlan}
-            className="text-[10px] font-black text-stone-950 bg-white/30 hover:bg-white/40 border border-white/40 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
-          >
-            Modifier
-          </button>
+          {!isReadOnly ? (
+            <button
+              type="button"
+              onClick={onEditActivePlan}
+              className="text-[10px] font-black text-stone-950 bg-white/30 hover:bg-white/40 border border-white/40 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
+            >
+              Modifier
+            </button>
+          ) : (
+            <span className="text-[10px] font-black uppercase bg-stone-950/20 text-stone-950 px-2.5 py-1 rounded-xl flex items-center gap-1">
+              <span>🔒</span> Géré par votre coach
+            </span>
+          )}
         </div>
       </div>
 

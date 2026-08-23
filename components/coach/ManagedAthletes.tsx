@@ -48,62 +48,101 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
             </p>
           </div>
         ) : (
-          managedAthletes.map((athlete) => (
-            <div
-              key={athlete.id}
-              onClick={() => onSelectAthlete(athlete.id)}
-              className="bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/40 p-4 rounded-3xl space-y-3 shadow-xl cursor-pointer transition-all hover:scale-[1.01]"
-            >
-              {/* EN-TÊTE DE LA CARTE ATHLÈTE */}
-              <div className="flex justify-between items-center border-b border-stone-800/80 pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-sm">
-                    {athlete.name.charAt(0)}
+          managedAthletes.map((item) => {
+            // Cast 'any' pour éviter tout conflit de typage TypeScript sur les champs optionnels
+            const athlete = item as any;
+
+            const planName: string = typeof athlete.activePlanName === "string" 
+              ? athlete.activePlanName 
+              : athlete.activePlan?.name || "";
+
+            const raceString: string = typeof athlete.upcomingRace === "string" 
+              ? athlete.upcomingRace 
+              : "";
+
+            const hasPlan = Boolean(planName && planName !== "Aucun");
+
+            // Extraction Distance
+            let displayDistance = "Aucun plan";
+            if (athlete.targetGoal && athlete.targetGoal !== "En cours de définition") {
+              displayDistance = String(athlete.targetGoal);
+            } else if (hasPlan && raceString) {
+              displayDistance = raceString;
+            }
+
+            // Extraction Date
+            let displayDate = "-";
+            if (athlete.targetDate) {
+              displayDate = String(athlete.targetDate);
+            } else if (raceString.includes("(") && raceString.includes(")")) {
+              displayDate = raceString.split("(")[1]?.replace(")", "") || "-";
+            }
+
+            // Extraction Chrono
+            let displayTime = "-";
+            if (athlete.targetTime) {
+              displayTime = String(athlete.targetTime);
+            }
+
+            const initialLetter = athlete.name ? String(athlete.name).charAt(0).toUpperCase() : "A";
+
+            return (
+              <div
+                key={athlete.id}
+                onClick={() => onSelectAthlete(athlete.id)}
+                className="bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/40 p-4 rounded-3xl space-y-3 shadow-xl cursor-pointer transition-all hover:scale-[1.01]"
+              >
+                {/* EN-TÊTE DE LA CARTE ATHLÈTE */}
+                <div className="flex justify-between items-center border-b border-stone-800/80 pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-sm">
+                      {initialLetter}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase text-stone-100">
+                        {athlete.name || "Athlète Sans Nom"}
+                      </h3>
+                      <span className="text-[10px] text-stone-400 font-medium block">
+                        {athlete.email}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-extrabold text-[#CDCF61] bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
+                    Voir l'espace ➔
+                  </span>
+                </div>
+
+                {/* DÉTAILS OBJECTIF DU PLAN ACTIF */}
+                <div className="grid grid-cols-3 gap-2 bg-stone-950 p-2.5 rounded-2xl border border-stone-800 text-center text-xs">
+                  <div>
+                    <span className="block text-[8px] font-bold text-stone-400 uppercase">
+                      Distance
+                    </span>
+                    <span className="font-black text-stone-100 truncate block">
+                      {displayDistance}
+                    </span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-black uppercase text-stone-100">
-                      {athlete.name}
-                    </h3>
-                    <span className="text-[10px] text-stone-400 font-medium block">
-                      {athlete.email}
+                    <span className="block text-[8px] font-bold text-stone-400 uppercase">
+                      Date
+                    </span>
+                    <span className="font-bold text-stone-100 truncate block">
+                      {displayDate}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[8px] font-bold text-stone-400 uppercase">
+                      Chrono Visé
+                    </span>
+                    <span className="font-black text-stone-100 truncate block">
+                      {displayTime}
                     </span>
                   </div>
                 </div>
-
-                <span className="text-[10px] font-extrabold text-[#CDCF61] bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
-                  Voir l'espace ➔
-                </span>
               </div>
-
-              {/* DÉTAILS OBJECTIF CIBLE : DISTANCE, DATE ET CHRONO EN BLANC PUR (text-stone-100) */}
-              <div className="grid grid-cols-3 gap-2 bg-stone-950 p-2.5 rounded-2xl border border-stone-800 text-center text-xs">
-                <div>
-                  <span className="block text-[8px] font-bold text-stone-400 uppercase">
-                    Distance
-                  </span>
-                  <span className="font-black text-stone-100">
-                    {athlete.targetGoal || "10 km"}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[8px] font-bold text-stone-400 uppercase">
-                    Date
-                  </span>
-                  <span className="font-bold text-stone-100">
-                    {athlete.targetDate || "24/11/2026"}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[8px] font-bold text-stone-400 uppercase">
-                    Chrono Visé
-                  </span>
-                  <span className="font-black text-stone-100">
-                    {athlete.targetTime || "42:00"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
