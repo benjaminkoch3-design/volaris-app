@@ -75,10 +75,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
-  // Liaison Coach / Athlète
+  // Liaison Coach / Athlète & Noms personnalisés
   const [assignedCoachId, setAssignedCoachId] = useState<string | null>(null);
   const [assignedCoachName, setAssignedCoachName] = useState<string>("Coach");
   const [coachCode, setCoachCode] = useState<string>("");
+  const [customAthleteNamesMap, setCustomAthleteNamesMap] = useState<Record<string, string>>({});
 
   // Présence des deux comptes (Athlète & Coach)
   const [hasBothAccounts, setHasBothAccounts] = useState<boolean>(false);
@@ -226,30 +227,20 @@ export default function Home() {
   const [draggedStepPath, setDraggedStepPath] = useState<string[] | null>(null);
 
   // Utilisateur
-  const [athleteName, setAthleteName] = useState("Benjamin");
+  const [athleteName, setAthleteName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   // Métriques
-  const [height, setHeight] = useState("178");
-  const [weight, setWeight] = useState("70");
-  const [vma, setVma] = useState("14.5");
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [vma, setVma] = useState("");
   const [unknownVma, setUnknownVma] = useState(false);
-  const [fcRest, setFcRest] = useState("55");
-  const [fcMax, setFcMax] = useState("185");
+  const [fcRest, setFcRest] = useState("");
+  const [fcMax, setFcMax] = useState("");
 
   // Records, Palmarès & Chaussures
-  const [records, setRecords] = useState<Record<string, string>>({
-    r400: "1:05",
-    r800: "2:20",
-    r1500: "4:50",
-    r3000: "10:30",
-    r5k: "19:15",
-    r10k: "41:30",
-    rSemi: "1:32:00",
-    rMarathon: "3:25:00",
-  });
-
+  const [records, setRecords] = useState<Record<string, string>>({});
   const [races, setRaces] = useState<Race[]>([]);
   const [shoes, setShoes] = useState<Shoe[]>([]);
 
@@ -368,7 +359,7 @@ export default function Home() {
     const targetId = targetAthleteId || inspectingAthleteId || session.user.id;
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const senderName = userRole === "coach" ? (session?.user?.user_metadata?.full_name || "Coach") : athleteName;
+    const senderName = userRole === "coach" ? (session?.user?.user_metadata?.full_name || athleteName || "Coach") : (athleteName || "Athlète");
 
     const newMsg: ChatMessage = {
       id: msgId,
@@ -398,6 +389,35 @@ export default function Home() {
     }
   };
 
+  // HANDLER : L'athlète renomme son coach
+  const handleRenameCoachByAthlete = async (customName: string) => {
+    if (!session?.user || userRole !== "athlete") return;
+    setAssignedCoachName(customName);
+    await supabase.from("profiles").update({ custom_coach_name: customName }).eq("id", session.user.id);
+  };
+
+  // HANDLER : Le coach renomme son athlète
+  const handleRenameAthleteByCoach = async (athleteId: string, customName: string) => {
+    if (!session?.user || userRole !== "coach") return;
+
+    const updatedMap = { ...customAthleteNamesMap, [athleteId]: customName };
+    setCustomAthleteNamesMap(updatedMap);
+
+    setManagedAthletes((prev) =>
+      prev.map((a) => (a.id === athleteId ? { ...a, name: customName } : a))
+    );
+
+    await supabase.from("profiles").update({ custom_athlete_names: updatedMap }).eq("id", session.user.id);
+  };
+
+  // HANDLER : Le coach modifie son propre nom
+  const handleUpdateCoachOwnName = async (newName: string) => {
+    if (!session?.user || userRole !== "coach") return;
+    setAthleteName(newName);
+    await supabase.from("profiles").update({ full_name: newName }).eq("id", session.user.id);
+    await supabase.auth.updateUser({ data: { full_name: newName } });
+  };
+
   // Historique des sorties (Stats)
   const [completedRuns, setCompletedRuns] = useState<CompletedRun[]>([]);
 
@@ -417,9 +437,17 @@ export default function Home() {
     const fetchAthletes = async () => {
       const { data: myProfile } = await supabase
         .from("profiles")
-        .select("coach_code")
+        .select("coach_code, full_name, custom_athlete_names")
         .eq("id", session.user.id)
         .maybeSingle();
+
+      if (myProfile?.full_name) {
+        setAthleteName(myProfile.full_name);
+      }
+
+      if (myProfile?.custom_athlete_names && typeof myProfile.custom_athlete_names === "object") {
+        setCustomAthleteNamesMap(myProfile.custom_athlete_names);
+      }
 
       if (myProfile?.coach_code) {
         setCoachCode(myProfile.coach_code);
@@ -429,7 +457,7 @@ export default function Home() {
         await supabase.from("profiles").update({ coach_code: generatedCode }).eq("id", session.user.id);
       }
 
-      // 1. Profils des athlètes
+      // 1. Profils des athlètes coachés
       const { data: athletesData } = await supabase
         .from("profiles")
         .select("*")
@@ -452,6 +480,8 @@ export default function Home() {
           .from("workouts")
           .select("*")
           .in("user_id", athleteIds);
+
+        const customMap = myProfile?.custom_athlete_names || {};
 
         setManagedAthletes(
           athletesData.map((a: any) => {
@@ -479,9 +509,11 @@ export default function Home() {
               weeklyVolume = `${plannedKm.toFixed(1)} km`;
             }
 
+            const displayName = customMap[a.id] || a.full_name || a.email || "Athlète";
+
             return {
               id: a.id,
-              name: a.full_name || a.email || "Athlète Sans Nom",
+              name: displayName,
               email: a.email || "",
               vma: a.vma ? `${a.vma} km/h` : "N/A",
               activePlanName: activePlanForAthlete?.name || "Plan en cours",
@@ -529,7 +561,7 @@ export default function Home() {
           if (profile.full_name) setAthleteName(profile.full_name);
           if (profile.coach_id) {
             setAssignedCoachId(profile.coach_id);
-            setAssignedCoachName((profile as any).coach?.full_name || "Votre Entraîneur");
+            setAssignedCoachName(profile.custom_coach_name || (profile as any).coach?.full_name || "Votre Entraîneur");
           } else {
             setAssignedCoachId(null);
           }
@@ -562,7 +594,7 @@ export default function Home() {
         })));
       }
 
-      // 3. Messages
+      // 3. Messages (Filtre strict par athlète)
       const { data: msgsData } = await supabase
         .from("messages")
         .select("*")
@@ -578,6 +610,8 @@ export default function Home() {
           text: m.text,
           timestamp: m.timestamp,
         })));
+      } else {
+        setMessages([]);
       }
 
       // 4. Palmarès
@@ -1919,7 +1953,7 @@ export default function Home() {
     <main className="min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans pb-20">
       <Header
         userRole={userRole}
-        athleteName={session?.user?.user_metadata?.full_name || athleteName}
+        athleteName={session?.user?.user_metadata?.full_name || athleteName || (userRole === "coach" ? "Coach" : "Athlète")}
         hasBothAccounts={hasBothAccounts}
         onToggleRole={handleSwitchRole}
         onLogout={handleLogout}
@@ -1967,6 +2001,9 @@ export default function Home() {
 
             <ManagedAthletes
               managedAthletes={managedAthletes}
+              coachName={athleteName || "Coach"}
+              onUpdateCoachName={handleUpdateCoachOwnName}
+              onRenameAthlete={handleRenameAthleteByCoach}
               onSelectAthlete={(id) => {
                 setInspectingAthleteId(id);
                 setActiveTab("plan");
@@ -2156,10 +2193,11 @@ export default function Home() {
               ) : (
                 <ChatView
                   userRole={userRole}
-                  currentAthleteName={userRole === "coach" ? (selectedAthlete?.name || "") : athleteName}
+                  currentAthleteName={userRole === "coach" ? (selectedAthlete?.name || "") : assignedCoachName}
                   athleteId={userRole === "coach" ? (selectedAthlete?.id || "") : session?.user?.id}
                   messages={messages}
                   onSendMessage={(text) => handleSendMessage(text, userRole === "coach" ? selectedAthlete?.id : session?.user?.id)}
+                  onRenameContact={userRole === "athlete" ? handleRenameCoachByAthlete : undefined}
                 />
               )
             )}

@@ -9,52 +9,9 @@ interface ChatViewProps {
   athleteId: string;
   messages: ChatMessage[];
   onSendMessage: (text: string, targetAthleteId: string) => void;
-  // Liste des athlètes pour la vue coach
   managedAthletes?: AthleteProfile[];
+  onRenameContact?: (newName: string) => void;
 }
-
-// Données de secours d'athlètes si non transmises
-const DEFAULT_ATHLETES: AthleteProfile[] = [
-  {
-    id: "ath1",
-    name: "Benjamin",
-    email: "benjamin@running.com",
-    vma: "14.5",
-    targetGoal: "10 km",
-    targetDate: "24/11/2026",
-    targetTime: "41:30",
-    weeklyKm: 42.5,
-    adherenceRate: 92,
-    lastActive: "Aujourd'hui",
-    status: "En forme",
-  },
-  {
-    id: "ath2",
-    name: "Sarah L.",
-    email: "sarah@running.com",
-    vma: "16.0",
-    targetGoal: "Semi-Marathon",
-    targetDate: "15/10/2026",
-    targetTime: "1:35:00",
-    weeklyKm: 58.0,
-    adherenceRate: 88,
-    lastActive: "Hier",
-    status: "En forme",
-  },
-  {
-    id: "ath3",
-    name: "Thomas B.",
-    email: "thomas@running.com",
-    vma: "13.2",
-    targetGoal: "Marathon",
-    targetDate: "05/04/2027",
-    targetTime: "3:30:00",
-    weeklyKm: 65.0,
-    adherenceRate: 75,
-    lastActive: "Il y a 2 jours",
-    status: "Attention fatigue",
-  },
-];
 
 export const ChatView: React.FC<ChatViewProps> = ({
   userRole,
@@ -62,23 +19,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
   athleteId,
   messages,
   onSendMessage,
-  managedAthletes = DEFAULT_ATHLETES,
+  managedAthletes = [],
+  onRenameContact,
 }) => {
   const [inputText, setInputText] = useState("");
-  // Pour le coach : ID de l'athlète dont la discussion est sélectionnée (null = liste SMS)
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(
     userRole === "coach" ? null : athleteId
   );
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [customNameInput, setCustomNameInput] = useState(currentAthleteName);
 
   const isCoach = userRole === "coach";
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
 
-  // Retrouver l'athlète actuellement sélectionné dans le fil de discussion
   const activeConversationAthlete = managedAthletes.find(
     (a) => a.id === (isCoach ? selectedAthleteId : athleteId)
   );
 
-  // Filtrer les messages pour la conversation active
   const targetId = isCoach ? selectedAthleteId || "" : athleteId;
   const conversationMessages = messages.filter(
     (m) => m.athleteId === targetId
@@ -91,9 +48,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setInputText("");
   };
 
+  const handleSaveName = () => {
+    if (customNameInput.trim() && onRenameContact) {
+      onRenameContact(customNameInput.trim());
+    }
+    setIsEditingName(false);
+  };
+
+  const displayedContactName = isCoach
+    ? activeConversationAthlete?.name || "Athlète"
+    : currentAthleteName || "Mon Entraîneur";
+
   return (
     <div className="space-y-4 animate-fadeIn font-sans max-w-2xl mx-auto pb-6">
-      {/* VUE 1 : LISTE DES CONVERSATIONS SMS (MODE COACH SANS ATHLÈTE SÉLECTIONNÉ) */}
+      {/* VUE 1 : LISTE DES CONVERSATIONS (MODE COACH) */}
       {isCoach && !selectedAthleteId ? (
         <div className="space-y-4">
           <div className="flex justify-between items-center border-b border-stone-800 pb-3">
@@ -108,57 +76,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
 
           <div className="space-y-2">
-            {managedAthletes.map((athlete) => {
-              // Récupérer le dernier message échangé avec cet athlète
-              const athleteMsgs = messages.filter(
-                (m) => m.athleteId === athlete.id
-              );
-              const lastMsg = athleteMsgs[athleteMsgs.length - 1];
+            {managedAthletes.length === 0 ? (
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-stone-950 border border-stone-800 flex items-center justify-center mx-auto text-xl text-[#CDCF61]">
+                  💬
+                </div>
+                <p className="text-xs text-stone-400 font-bold">Aucun athlète associé pour le moment.</p>
+                <p className="text-[11px] text-stone-500 max-w-xs mx-auto">
+                  Partagez votre Code Coach pour que vos athlètes puissent rejoindre votre fil de discussion.
+                </p>
+              </div>
+            ) : (
+              managedAthletes.map((athlete) => {
+                const athleteMsgs = messages.filter((m) => m.athleteId === athlete.id);
+                const lastMsg = athleteMsgs[athleteMsgs.length - 1];
 
-              return (
-                <div
-                  key={athlete.id}
-                  onClick={() => setSelectedAthleteId(athlete.id)}
-                  className="bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/50 p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition shadow-lg group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {/* AVATAR DE L'ATHLÈTE */}
-                    <div className="w-11 h-11 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-base shrink-0">
-                      {athlete.name.charAt(0)}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex justify-between items-center gap-2">
-                        <h4 className="text-xs font-black uppercase text-stone-100 group-hover:text-[#CDCF61] transition truncate">
-                          {athlete.name}
-                        </h4>
-                        {lastMsg && (
-                          <span className="text-[9px] font-bold text-stone-500 shrink-0">
-                            {lastMsg.timestamp}
-                          </span>
-                        )}
+                return (
+                  <div
+                    key={athlete.id}
+                    onClick={() => setSelectedAthleteId(athlete.id)}
+                    className="bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/50 p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition shadow-lg group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-11 h-11 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-base shrink-0">
+                        {athlete.name ? athlete.name.charAt(0).toUpperCase() : "A"}
                       </div>
 
-                      <p className="text-[11px] text-stone-400 truncate mt-0.5">
-                        {lastMsg
-                          ? `${lastMsg.senderRole === "coach" ? "Vous : " : ""}${lastMsg.text}`
-                          : "Aucun message pour le moment. Cliquez pour discuter."}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-center gap-2">
+                          <h4 className="text-xs font-black uppercase text-stone-100 group-hover:text-[#CDCF61] transition truncate">
+                            {athlete.name}
+                          </h4>
+                          {lastMsg && (
+                            <span className="text-[9px] font-bold text-stone-500 shrink-0">
+                              {lastMsg.timestamp}
+                            </span>
+                          )}
+                        </div>
 
-                  <span className="text-stone-500 group-hover:text-[#CDCF61] text-xs ml-3 transition shrink-0">
-                    ➔
-                  </span>
-                </div>
-              );
-            })}
+                        <p className="text-[11px] text-stone-400 truncate mt-0.5">
+                          {lastMsg
+                            ? `${lastMsg.senderRole === "coach" ? "Vous : " : ""}${lastMsg.text}`
+                            : "Aucun message pour le moment. Cliquez pour discuter."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="text-stone-500 group-hover:text-[#CDCF61] text-xs ml-3 transition shrink-0">
+                      ➔
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       ) : (
-        /* VUE 2 : FIL DE DISCUSSION DÉDIÉ (ATHLÈTE OU COACH SUR UN ATHLÈTE) */
+        /* VUE 2 : FIL DE DISCUSSION DÉDIÉ */
         <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 shadow-xl space-y-4">
-          {/* EN-TÊTE DU FIL DE DISCUSSION */}
           <div className="flex items-center justify-between border-b border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
               {isCoach && (
@@ -178,25 +153,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 >
                   {isCoach ? "Discussion avec" : "Votre Entraîneur"}
                 </span>
-                <h3 className="text-sm font-black uppercase text-stone-100">
-                  {isCoach
-                    ? activeConversationAthlete?.name || "Athlète"
-                    : "Coach David"}
-                </h3>
+
+                {!isCoach && isEditingName ? (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <input
+                      type="text"
+                      value={customNameInput}
+                      onChange={(e) => setCustomNameInput(e.target.value)}
+                      className="bg-stone-950 border border-stone-700 text-stone-100 text-xs px-2 py-0.5 rounded-lg focus:outline-none focus:border-[#CF9A61]"
+                      placeholder="Nom du coach..."
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveName}
+                      className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingName(false)}
+                      className="text-[10px] bg-stone-800 text-stone-400 px-1.5 py-0.5 rounded-lg"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-black uppercase text-stone-100">
+                      {displayedContactName}
+                    </h3>
+                    {!isCoach && onRenameContact && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomNameInput(currentAthleteName);
+                          setIsEditingName(true);
+                        }}
+                        className="text-stone-500 hover:text-stone-300 text-xs"
+                        title="Renommer mon entraîneur"
+                      >
+                        ✏️
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="w-8 h-8 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-center text-xs font-black text-stone-300">
-              {isCoach
-                ? activeConversationAthlete?.name.charAt(0) || "A"
-                : "C"}
+              {displayedContactName.charAt(0).toUpperCase()}
             </div>
           </div>
 
-          {/* ZONE D'AFFICHAGE DES MESSAGES DESK/MOBILE */}
-          <div className="space-y-3 min-h-[280px] max-h-[50vh] overflow-y-auto custom-scrollbar pr-1 p-1">
+          {/* ZONE D'AFFICHAGE DES MESSAGES */}
+          <div className="space-y-3 min-h-[280px] max-h-[50vh] overflow-y-auto custom-scrollbar pr-1 p-1 flex flex-col justify-end">
             {conversationMessages.length === 0 ? (
-              <div className="text-center py-10 space-y-2">
+              <div className="text-center py-10 space-y-2 m-auto">
                 <div className="text-2xl">💬</div>
                 <p className="text-xs text-stone-500 italic">
                   Aucun message échangé pour le moment. Envoyez votre premier message !
@@ -212,12 +226,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <div
                     key={msg.id}
                     className={`flex flex-col ${
-                      isMe ? "items-end" : "items-start"
-                    }`}
+                      isMe ? "items-end ml-auto" : "items-start mr-auto"
+                    } max-w-[85%]`}
                   >
                     <div className="flex items-center gap-1.5 mb-0.5 px-1">
                       <span className="text-[9px] font-bold text-stone-400">
-                        {msg.senderName}
+                        {isMe ? "Vous" : msg.senderName}
                       </span>
                       <span className="text-[8px] text-stone-500">
                         • {msg.timestamp}
@@ -226,13 +240,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                     <div
                       style={{
-                        backgroundColor: isMe
-                          ? themeColor
-                          : "#0c0a09",
+                        backgroundColor: isMe ? themeColor : "#0c0a09",
                         color: isMe ? "#0c0a09" : "#f5f5f4",
                         borderColor: isMe ? themeColor : "#27272a",
                       }}
-                      className={`p-3 rounded-2xl border text-xs max-w-[82%] leading-relaxed shadow-md ${
+                      className={`p-3 rounded-2xl border text-xs leading-relaxed shadow-md ${
                         isMe
                           ? "rounded-tr-none font-bold"
                           : "rounded-tl-none font-medium"
@@ -246,7 +258,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
           </div>
 
-          {/* CHAMP DE SAISIE DE MESSAGE */}
+          {/* CHAMP DE SAISIE */}
           <form
             onSubmit={handleSend}
             className="flex items-center gap-2 pt-2 border-t border-stone-800"
@@ -261,8 +273,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
             />
             <button
               type="submit"
+              disabled={!inputText.trim()}
               style={{ backgroundColor: themeColor }}
-              className="py-2.5 px-4 text-stone-950 font-black text-xs uppercase rounded-2xl transition cursor-pointer shadow-md hover:brightness-110"
+              className="py-2.5 px-4 text-stone-950 font-black text-xs uppercase rounded-2xl transition cursor-pointer shadow-md hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Envoyer
             </button>
