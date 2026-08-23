@@ -8,6 +8,7 @@ interface ManagedAthletesProps {
   coachName?: string;
   onUpdateCoachName?: (newName: string) => void;
   onRenameAthlete?: (athleteId: string, customName: string) => void;
+  onRemoveAthlete?: (athleteId: string) => void; // 👈 Dissociation par le coach
   onSelectAthlete: (id: string) => void;
   onInviteAthlete: () => void;
 }
@@ -17,6 +18,7 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
   coachName = "",
   onUpdateCoachName,
   onRenameAthlete,
+  onRemoveAthlete,
   onSelectAthlete,
   onInviteAthlete,
 }) => {
@@ -42,7 +44,7 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
 
   return (
     <div className="space-y-5 animate-fadeIn font-sans">
-      {/* BANDEAU PROFIL COACH & CHOIX DE SON NOM */}
+      {/* BANDEAU PROFIL COACH */}
       <div className="bg-stone-900 border border-stone-800 p-4 rounded-3xl flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-[#CDCF61]/20 border border-[#CDCF61]/40 flex items-center justify-center font-black text-[#CDCF61] text-base">
@@ -143,7 +145,6 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
 
             const hasPlan = Boolean(planName && planName !== "Aucun");
 
-            // Extraction Distance
             let displayDistance = "Aucun plan";
             if (athlete.targetGoal && athlete.targetGoal !== "En cours de définition") {
               displayDistance = String(athlete.targetGoal);
@@ -151,7 +152,6 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
               displayDistance = raceString;
             }
 
-            // Extraction Date
             let displayDate = "-";
             if (athlete.targetDate) {
               displayDate = String(athlete.targetDate);
@@ -159,7 +159,6 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
               displayDate = raceString.split("(")[1]?.replace(")", "") || "-";
             }
 
-            // Extraction Chrono
             let displayTime = "-";
             if (athlete.targetTime) {
               displayTime = String(athlete.targetTime);
@@ -235,9 +234,27 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
                     </div>
                   </div>
 
-                  <span className="text-[10px] font-extrabold text-[#CDCF61] bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
-                    Voir l'espace ➔
-                  </span>
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {/* BOUTON RETIRER L'ATHLÈTE */}
+                    {onRemoveAthlete && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Voulez-vous vraiment retirer ${athlete.name || "cet athlète"} de votre suivi ?`)) {
+                            onRemoveAthlete(athlete.id);
+                          }
+                        }}
+                        className="text-[9px] font-bold uppercase text-stone-500 hover:text-red-400 bg-stone-950 hover:bg-red-950/30 border border-stone-800 hover:border-red-800/40 px-2 py-1 rounded-xl transition cursor-pointer"
+                        title="Retirer cet athlète de ma liste"
+                      >
+                        ✕ Retirer
+                      </button>
+                    )}
+
+                    <span className="text-[10px] font-extrabold text-[#CDCF61] bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
+                      Voir ➔
+                    </span>
+                  </div>
                 </div>
 
                 {/* DÉTAILS OBJECTIF DU PLAN ACTIF */}

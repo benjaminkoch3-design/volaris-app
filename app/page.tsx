@@ -418,6 +418,36 @@ export default function Home() {
     await supabase.auth.updateUser({ data: { full_name: newName } });
   };
 
+  // HANDLER : L'athlète retire son coach (Le plan reste actif et devient modifiable)
+  const handleDisconnectCoachByAthlete = async () => {
+    if (!session?.user || userRole !== "athlete") return;
+
+    setAssignedCoachId(null);
+    setAssignedCoachName("Coach");
+
+    await supabase
+      .from("profiles")
+      .update({ coach_id: null, custom_coach_name: null })
+      .eq("id", session.user.id);
+
+    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif et vous pouvez désormais le modifier librement.");
+  };
+
+  // HANDLER : Le coach retire un athlète
+  const handleRemoveAthleteByCoach = async (athleteId: string) => {
+    if (!session?.user || userRole !== "coach") return;
+
+    setManagedAthletes((prev) => prev.filter((a) => a.id !== athleteId));
+    if (inspectingAthleteId === athleteId) {
+      setInspectingAthleteId(null);
+    }
+
+    await supabase
+      .from("profiles")
+      .update({ coach_id: null })
+      .eq("id", athleteId);
+  };
+
   // Historique des sorties (Stats)
   const [completedRuns, setCompletedRuns] = useState<CompletedRun[]>([]);
 
@@ -564,6 +594,7 @@ export default function Home() {
             setAssignedCoachName(profile.custom_coach_name || (profile as any).coach?.full_name || "Votre Entraîneur");
           } else {
             setAssignedCoachId(null);
+            setAssignedCoachName("Coach");
           }
         }
         if (profile.height) setHeight(profile.height.toString());
@@ -2004,6 +2035,7 @@ export default function Home() {
               coachName={athleteName || "Coach"}
               onUpdateCoachName={handleUpdateCoachOwnName}
               onRenameAthlete={handleRenameAthleteByCoach}
+              onRemoveAthlete={handleRemoveAthleteByCoach}
               onSelectAthlete={(id) => {
                 setInspectingAthleteId(id);
                 setActiveTab("plan");
@@ -2196,8 +2228,10 @@ export default function Home() {
                   currentAthleteName={userRole === "coach" ? (selectedAthlete?.name || "") : assignedCoachName}
                   athleteId={userRole === "coach" ? (selectedAthlete?.id || "") : session?.user?.id}
                   messages={messages}
-                  onSendMessage={(text) => handleSendMessage(text, userRole === "coach" ? selectedAthlete?.id : session?.user?.id)}
+                  onSendMessage={(text, targetId) => handleSendMessage(text, targetId)}
+                  managedAthletes={managedAthletes}
                   onRenameContact={userRole === "athlete" ? handleRenameCoachByAthlete : undefined}
+                  onDisconnectCoach={userRole === "athlete" ? handleDisconnectCoachByAthlete : undefined}
                 />
               )
             )}

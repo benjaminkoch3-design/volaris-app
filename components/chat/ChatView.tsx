@@ -11,6 +11,7 @@ interface ChatViewProps {
   onSendMessage: (text: string, targetAthleteId: string) => void;
   managedAthletes?: AthleteProfile[];
   onRenameContact?: (newName: string) => void;
+  onDisconnectCoach?: () => void; // 👈 Dissociation par l'athlète
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -21,6 +22,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSendMessage,
   managedAthletes = [],
   onRenameContact,
+  onDisconnectCoach,
 }) => {
   const [inputText, setInputText] = useState("");
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(
@@ -83,7 +85,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
                 <p className="text-xs text-stone-400 font-bold">Aucun athlète associé pour le moment.</p>
                 <p className="text-[11px] text-stone-500 max-w-xs mx-auto">
-                  Partagez votre Code Coach pour que vos athlètes puissent rejoindre votre fil de discussion.
+                  Partagez votre Code Coach pour que vos athlètes puissent vous contacter.
                 </p>
               </div>
             ) : (
@@ -202,8 +204,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </div>
 
-            <div className="w-8 h-8 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-center text-xs font-black text-stone-300">
-              {displayedContactName.charAt(0).toUpperCase()}
+            <div className="flex items-center gap-2">
+              {/* BOUTON DISSOCIATION POUR L'ATHLÈTE */}
+              {!isCoach && onDisconnectCoach && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Êtes-vous sûr de vouloir retirer votre coach ? Votre plan d'entraînement actuel restera actif et vous pourrez à nouveau le modifier librement.")) {
+                      onDisconnectCoach();
+                    }
+                  }}
+                  className="text-[9.5px] font-black uppercase text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/60 border border-red-800/40 px-2.5 py-1 rounded-xl transition cursor-pointer"
+                  title="Mettre fin à la collaboration avec mon entraîneur"
+                >
+                  Dissocier
+                </button>
+              )}
+
+              <div className="w-8 h-8 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-center text-xs font-black text-stone-300">
+                {displayedContactName.charAt(0).toUpperCase()}
+              </div>
             </div>
           </div>
 
