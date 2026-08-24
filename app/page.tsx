@@ -2118,17 +2118,17 @@ export default function Home() {
   }
 
   if (selectedWorkoutDetail && activePlan) {
-    return (
-      <WorkoutDetail
-        workout={selectedWorkoutDetail}
-        plan={activePlan}
-        completedWorkouts={completedWorkouts}
-        onClose={() => setSelectedWorkoutDetail(null)}
-        onOpenDebrief={(workout) => setDebriefWorkout(workout)}
-        onDeleteImport={handleDeleteWorkoutImport}
-      />
-    );
-  }
+      return (
+        <WorkoutDetail
+          workout={selectedWorkoutDetail}
+          plan={activePlan}
+          completedWorkouts={completedWorkouts}
+          onClose={() => setSelectedWorkoutDetail(null)}
+          onOpenDebrief={(workout) => setDebriefWorkout(workout)}
+          userRole={userRole}
+        />
+      );
+    }
 
   // ÉCRAN PRINCIPAL DE L'APPLICATION
   return (
