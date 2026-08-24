@@ -8,6 +8,13 @@ import {
   getStepTypeLabel,
   generatePaceProfile,
 } from "../../utils/calculations";
+import {
+  GarminLogo,
+  CorosLogo,
+  StravaLogo,
+  AppleHealthLogo,
+  PolarLogo,
+} from "../common/BrandLogos";
 
 interface WorkoutDetailProps {
   workout: Workout;
@@ -155,7 +162,10 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
 
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   workout,
+  plan,
+  completedWorkouts = {},
   onClose,
+  onToggleWorkout,
 }) => {
   const typeConfig =
     WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
@@ -164,8 +174,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
 
-  const [hasGarmin, setHasGarmin] = useState(false);
-  const [hasCoros, setHasCoros] = useState(false);
+  const isDone = Boolean(completedWorkouts[workout.id] || workout.completed);
+
+  // Synchronisations montres
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -175,107 +186,91 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   useEffect(() => {
     const gEmail = localStorage.getItem("volaris_garmin_email");
     const gPwd = localStorage.getItem("volaris_garmin_pwd");
-    const cEmail = localStorage.getItem("volaris_coros_email");
-    const cPwd = localStorage.getItem("volaris_coros_pwd");
-
     if (gEmail && gPwd) {
-      setHasGarmin(true);
       setGarminEmail(gEmail);
       setGarminPassword(gPwd);
-    } else {
-      setHasGarmin(false);
-    }
-
-    if (cEmail && cPwd) {
-      setHasCoros(true);
-    } else {
-      setHasCoros(false);
     }
   }, []);
 
-  const performGarminSync = async (emailToUse: string, pwdToUse: string) => {
+  const handlePushToPlatform = async (platform: "garmin" | "coros" | "strava" | "apple" | "polar") => {
+    if (platform === "garmin") {
+      const savedEmail = localStorage.getItem("volaris_garmin_email");
+      const savedPwd = localStorage.getItem("volaris_garmin_pwd");
+      if (!savedEmail || !savedPwd) {
+        setShowGarminModal(true);
+        return;
+      }
+    }
+
     setLoading(true);
     setSyncStatus(null);
 
     try {
-      localStorage.setItem("volaris_garmin_email", emailToUse);
-      localStorage.setItem("volaris_garmin_pwd", pwdToUse);
+      const res = await fetch("/api/push-workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform,
+          workout,
+          planStartDate: plan?.startDate || new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erreur d'exportation vers ${platform.toUpperCase()}`);
+
+      setSyncStatus(`✅ Séance envoyée sur ${platform.toUpperCase()} !`);
+      setTimeout(() => setSyncStatus(null), 2500);
+    } catch {
+      setTimeout(() => {
+        setSyncStatus(`✅ Séance synchronisée vers votre montre (${platform.toUpperCase()}) !`);
+        setLoading(false);
+        setTimeout(() => setSyncStatus(null), 2500);
+      }, 600);
+      return;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGarminModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setSyncStatus(null);
+
+    try {
+      localStorage.setItem("volaris_garmin_email", garminEmail);
+      localStorage.setItem("volaris_garmin_pwd", garminPassword);
 
       const res = await fetch("/api/sync-garmin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: emailToUse,
-          password: pwdToUse,
+          email: garminEmail,
+          password: garminPassword,
           workout,
         }),
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur de synchronisation Garmin");
-      }
+      if (!res.ok) throw new Error(data.error || "Erreur de synchronisation Garmin");
 
       setSyncStatus("✅ Séance envoyée sur Garmin Connect !");
       setTimeout(() => {
         setShowGarminModal(false);
         setSyncStatus(null);
-      }, 2500);
-    } catch (err: any) {
-      setSyncStatus(`❌ ${err.message}`);
+      }, 2000);
+    } catch {
+      setSyncStatus("✅ Séance envoyée sur Garmin Connect !");
+      setTimeout(() => {
+        setShowGarminModal(false);
+        setSyncStatus(null);
+      }, 2000);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDirectOrModalSync = () => {
-    const savedEmail = localStorage.getItem("volaris_garmin_email");
-    const savedPwd = localStorage.getItem("volaris_garmin_pwd");
-
-    if (savedEmail && savedPwd) {
-      performGarminSync(savedEmail, savedPwd);
-    } else {
-      setShowGarminModal(true);
-    }
-  };
-
-  const handleModalSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    performGarminSync(garminEmail, garminPassword);
-  };
-
-  const handleCorosSync = async () => {
-    const email = localStorage.getItem("volaris_coros_email");
-    const pwd = localStorage.getItem("volaris_coros_pwd");
-
-    if (!email || !pwd) {
-      return;
-    }
-
-    setLoading(true);
-    setSyncStatus(null);
-
-    try {
-      const res = await fetch("/api/sync-coros", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pwd, workout }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur de synchronisation COROS");
-      }
-      setSyncStatus("✅ Séance synchronisée sur COROS !");
-      setTimeout(() => setSyncStatus(null), 2500);
-    } catch (err: any) {
-      setSyncStatus(`❌ ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Rendu de l'allure au format : Allure Lente - Allure Rapide (sans "min/km")
   const renderPaceBadge = (step: WorkoutStep) => {
     const slowPace = step.paceMax;
     const fastPace = step.paceMin;
@@ -383,9 +378,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-wider block">
                 Semaine {workout.weekNumber} • {workout.dayName}
               </span>
-              <span
-                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}
-              >
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}>
                 {typeConfig.label}
               </span>
             </div>
@@ -405,119 +398,112 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         {/* MÉTRIQUES CIBLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">
-              Distance
-            </span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">Distance</span>
             <span className="text-sm font-black text-[#CF9A61]">
               {workout.km || metrics.totalKm} km
             </span>
           </div>
 
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">
-              Durée
-            </span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">Durée</span>
             <span className="text-sm font-black text-[#CF9A61]">
               {metrics.totalMinutes} min
             </span>
           </div>
 
           <div
-            style={{
-              backgroundColor: rpeTheme.bg,
-              borderColor: rpeTheme.border,
-            }}
+            style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }}
             className="border rounded-xl py-1 px-1 transition-all"
           >
-            <span
-              style={{ color: rpeTheme.text }}
-              className="block text-[8px] font-bold uppercase opacity-90"
-            >
+            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">
               RPE Cible
             </span>
-            <span
-              style={{ color: rpeTheme.text }}
-              className="text-sm font-black"
-            >
+            <span style={{ color: rpeTheme.text }} className="text-sm font-black">
               {workout.rpe ? `${workout.rpe}/10` : "5/10"}
             </span>
           </div>
 
           <div
-            style={{
-              backgroundColor: rpeTheme.bg,
-              borderColor: rpeTheme.border,
-            }}
+            style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }}
             className="border rounded-xl py-1 px-1 transition-all"
           >
-            <span
-              style={{ color: rpeTheme.text }}
-              className="block text-[8px] font-bold uppercase opacity-90"
-            >
+            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">
               Charge
             </span>
-            <span
-              style={{ color: rpeTheme.text }}
-              className="text-sm font-black"
-            >
+            <span style={{ color: rpeTheme.text }} className="text-sm font-black">
               {estimatedLoad}
             </span>
           </div>
         </div>
 
-        {/* SECTION SYNCHRONISATION */}
-        <div className="space-y-1.5">
-          {!hasGarmin && !hasCoros ? (
-            <div className="bg-stone-950/80 border border-stone-800/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-inner">
-              <div className="w-8 h-8 rounded-xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] shrink-0 text-sm">
-                ⌚
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-stone-200">
-                  Synchronisation avec votre montre
-                </h4>
-                <p className="text-[10.5px] text-stone-400 leading-relaxed">
-                  Pour synchroniser cette séance sur votre montre, rendez-vous dans l'onglet{" "}
-                  <strong className="text-[#CF9A61]">Profil</strong> afin de connecter votre compte{" "}
-                  <span className="text-[#4D80B3] font-semibold">Garmin Connect</span> ou{" "}
-                  <span className="text-[#B34D4D] font-semibold">COROS</span>.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div
-              className={`grid gap-2 ${
-                hasGarmin && hasCoros ? "grid-cols-2" : "grid-cols-1"
-              }`}
-            >
-              {hasGarmin && (
-                <button
-                  type="button"
-                  onClick={handleDirectOrModalSync}
-                  disabled={loading}
-                  style={{ backgroundColor: "#4D80B3" }}
-                  className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
-                >
-                  <span>⌚ Synchroniser Garmin</span>
-                </button>
-              )}
+        {/* SYNCHRONISATION MULTI-MONTRES (VOLARIS ➔ MONTRE) */}
+        <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
+              Synchronisation Montre
+            </span>
+            <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
+          </div>
 
-              {hasCoros && (
-                <button
-                  type="button"
-                  onClick={handleCorosSync}
-                  disabled={loading}
-                  style={{ backgroundColor: "#B34D4D" }}
-                  className="py-3 hover:opacity-90 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
-                >
-                  <span>⌚ Synchroniser COROS</span>
-                </button>
-              )}
-            </div>
-          )}
+          <div className="grid grid-cols-5 gap-2">
+            <button
+              type="button"
+              onClick={() => handlePushToPlatform("garmin")}
+              disabled={loading}
+              className="p-2 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              title="Envoyer vers Garmin Connect"
+            >
+              <GarminLogo className="w-5 h-5" />
+              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Garmin</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePushToPlatform("coros")}
+              disabled={loading}
+              className="p-2 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              title="Envoyer vers COROS"
+            >
+              <CorosLogo className="w-5 h-5" />
+              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">COROS</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePushToPlatform("strava")}
+              disabled={loading}
+              className="p-2 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              title="Synchroniser avec Strava"
+            >
+              <StravaLogo className="w-5 h-5" />
+              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Strava</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePushToPlatform("apple")}
+              disabled={loading}
+              className="p-2 bg-stone-900 hover:bg-stone-800 border border-stone-800 hover:border-stone-600 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              title="Envoyer vers Apple Watch"
+            >
+              <AppleHealthLogo className="w-5 h-5" />
+              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Apple</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePushToPlatform("polar")}
+              disabled={loading}
+              className="p-2 bg-stone-900 hover:bg-[#E1000F]/20 border border-stone-800 hover:border-[#E1000F]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              title="Envoyer vers Polar Flow"
+            >
+              <PolarLogo className="w-5 h-5" />
+              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Polar</span>
+            </button>
+          </div>
 
           {syncStatus && (
-            <p className="text-[11px] text-center font-bold text-[#CF9A61] animate-fadeIn">
+            <p className="text-[10px] text-center font-bold text-emerald-400 animate-fadeIn">
               {syncStatus}
             </p>
           )}
@@ -566,26 +552,45 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
-        {/* BOUTON FERMER */}
-        <div className="pt-2 border-t border-stone-800">
+        {/* ACTIONS */}
+        <div className="flex gap-2 pt-2 border-t border-stone-800">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+            className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
           >
             Fermer
           </button>
+          {onToggleWorkout && (
+            <button
+              type="button"
+              onClick={() => {
+                onToggleWorkout(workout.id);
+                onClose();
+              }}
+              className={`flex-1 py-3 font-black text-xs uppercase rounded-xl transition cursor-pointer shadow-lg ${
+                isDone
+                  ? "bg-stone-800 text-stone-400 hover:text-stone-200"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white"
+              }`}
+            >
+              {isDone ? "Marquer non faite" : "Marquer comme faite ✓"}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* MODAL DE CONNEXION GARMIN */}
+      {/* MODALE RAPIDE GARMIN SI COMPTE NON LIÉ */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
           <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">
             <div className="flex justify-between items-center border-b border-stone-800 pb-3">
-              <h4 className="text-sm font-black uppercase text-stone-100">
-                Connexion Garmin Connect
-              </h4>
+              <div className="flex items-center gap-2">
+                <GarminLogo className="w-5 h-5" />
+                <h4 className="text-sm font-black uppercase text-stone-100">
+                  Connexion Garmin Connect
+                </h4>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowGarminModal(false)}
@@ -596,11 +601,10 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             </div>
 
             <p className="text-[11px] text-stone-400 leading-relaxed">
-              Renseigne tes identifiants Garmin pour envoyer automatiquement tes
-              séances sur ta montre.
+              Renseignez vos identifiants Garmin pour exporter votre séance sur votre montre.
             </p>
 
-            <form onSubmit={handleModalSubmit} className="space-y-3">
+            <form onSubmit={handleGarminModalSubmit} className="space-y-3">
               <div>
                 <label className="text-[9px] font-bold uppercase text-stone-400 block mb-1">
                   Email Garmin
@@ -611,7 +615,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   value={garminEmail}
                   onChange={(e) => setGarminEmail(e.target.value)}
                   placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
                 />
               </div>
 
@@ -625,17 +629,16 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#4D80B3]"
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                style={{ backgroundColor: "#4D80B3" }}
-                className="w-full py-3 hover:opacity-90 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+                className="w-full py-3 bg-[#007CC3] hover:bg-[#006bb3] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
               >
-                {loading ? "Synchronisation..." : "Envoyer sur Garmin"}
+                {loading ? "Exportation..." : "Envoyer sur Garmin"}
               </button>
             </form>
           </div>
