@@ -22,10 +22,10 @@ interface WorkoutDebriefViewProps {
 }
 
 const getRpeColor = (rpe: number) => {
-  if (rpe <= 3) return "#10b981"; // Vert
-  if (rpe <= 5) return "#f59e0b"; // Ambre
-  if (rpe <= 7) return "#f97316"; // Orange
-  return "#ef4444"; // Rouge
+  if (rpe <= 3) return "#10b981";
+  if (rpe <= 5) return "#f59e0b";
+  if (rpe <= 7) return "#f97316";
+  return "#ef4444";
 };
 
 export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
@@ -67,8 +67,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     Boolean(workout.importedActivityName)
   );
 
-  // État des plateformes liées
-  const [linkedDevices, setLinkedDevices] = useState({
+  // Détection des plateformes réellement liées dans le profil
+  const [connectedApps, setConnectedApps] = useState<{
+    garmin: boolean;
+    coros: boolean;
+    strava: boolean;
+  }>({
     garmin: false,
     coros: false,
     strava: false,
@@ -85,58 +89,76 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setLinkedDevices({
-        garmin: Boolean(localStorage.getItem("volaris_garmin_email")),
-        coros: Boolean(localStorage.getItem("volaris_coros_email")),
-        strava: localStorage.getItem("volaris_strava_connected") === "true",
+      const hasGarmin = Boolean(
+        localStorage.getItem("volaris_garmin_email") && localStorage.getItem("volaris_garmin_pwd")
+      );
+      const hasCoros = Boolean(
+        localStorage.getItem("volaris_coros_email") && localStorage.getItem("volaris_coros_pwd")
+      );
+      const hasStrava = localStorage.getItem("volaris_strava_connected") === "true";
+
+      setConnectedApps({
+        garmin: hasGarmin,
+        coros: hasCoros,
+        strava: hasStrava,
       });
     }
   }, []);
 
-  const handleFetchActivitiesFromPlatform = async (platform: "garmin" | "coros" | "strava") => {
+  const connectedList = (
+    Object.keys(connectedApps) as Array<keyof typeof connectedApps>
+  ).filter((key) => connectedApps[key]);
+
+  // Appel de l'API dédiée selon la montre choisie
+  const handleFetchActivities = async (platform: "garmin" | "coros" | "strava") => {
     setFetchLoading(platform);
     setSyncError(null);
 
+    let apiUrl = "";
+    let payload: any = { limit: 10 };
+
+    if (platform === "garmin") {
+      apiUrl = "/api/garmin-activities";
+      payload.email = localStorage.getItem("volaris_garmin_email");
+      payload.password = localStorage.getItem("volaris_garmin_pwd");
+    } else if (platform === "coros") {
+      apiUrl = "/api/coros-activities";
+      payload.email = localStorage.getItem("volaris_coros_email");
+      payload.password = localStorage.getItem("volaris_coros_pwd");
+    } else if (platform === "strava") {
+      apiUrl = "/api/strava-activities";
+      payload.email = localStorage.getItem("volaris_strava_email");
+    }
+
     try {
-      const res = await fetch(`/api/fetch-activities`, {
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, limit: 5 }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Impossible de récupérer les activités ${platform.toUpperCase()}`);
+      if (!res.ok) throw new Error(data.error || `Erreur de récupération ${platform.toUpperCase()}`);
 
       if (!data.activities || data.activities.length === 0) {
-        setSyncError(`Aucune activité récente trouvée sur ${platform.toUpperCase()}.`);
+        setSyncError(`Aucune course récente trouvée sur votre compte ${platform.toUpperCase()}.`);
         return;
       }
 
-      setActivitiesList(data.activities);
-      setShowActivityPicker(true);
-    } catch {
-      const mockActivities = [
-        {
-          id: `${platform}_${Date.now()}`,
-          platform,
-          title: `Sortie ${platform.charAt(0).toUpperCase() + platform.slice(1)}`,
-          date: new Date().toISOString().split("T")[0],
-          distanceKm: defaultKm || 10.0,
-          durationMinutes: Math.round((defaultKm || 10) * 5.2),
-          elevationGain: 40,
-          avgHr: 148,
-          maxHr: 170,
-          avgPace: "5:12",
-        },
-      ];
-      setActivitiesList(mockActivities);
-      setShowActivityPicker(true);
+      if (data.activities.length === 1) {
+        applyActivity(data.activities[0], platform);
+      } else {
+        setActivitiesList(data.activities.map((a: any) => ({ ...a, platform })));
+        setShowActivityPicker(true);
+      }
+    } catch (err: any) {
+      setSyncError(`❌ ${err.message}`);
     } finally {
       setFetchLoading(null);
     }
   };
 
-  const applyActivity = (act: any) => {
+  const applyActivity = (act: any, platformName?: string) => {
     const dist = parseFloat(String(act.distanceKm)) || 0;
     const dur = parseInt(String(act.durationMinutes), 10) || 0;
     const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
@@ -149,7 +171,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setAvgHeartRate(hr);
     setMaxHeartRate(maxHr);
 
-    const label = `${act.title || "Activité"} (${act.date || ""})`;
+    const platform = (platformName || act.platform || "Montre").toUpperCase();
+    const label = `${act.title || "Course"} (${platform} • ${act.date || ""})`;
     setImportedActivityName(label);
     setIsActivityImported(true);
     setShowActivityPicker(false);
@@ -160,9 +183,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     e.stopPropagation();
 
     if (window.confirm("Voulez-vous annuler complètement le débriefing de cette séance et réinitialiser vos statistiques ?")) {
-      if (onDeleteImport) {
-        onDeleteImport(workout.id);
-      }
+      if (onDeleteImport) onDeleteImport(workout.id);
       onClose();
     }
   };
@@ -215,11 +236,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SECTION SYNCHRONISATION MONTRES & APPAREILS */}
+        {/* SECTION SYNCHRONISATION MONTRES */}
         <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-stone-200">
-              ⌚ Importer depuis votre montre
+              ⌚ Récupérer la sortie de la montre
             </span>
             {isActivityImported && (
               <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full">
@@ -244,71 +265,99 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsActivityImported(false)}
-                  className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                >
-                  🔄 Changer
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsActivityImported(false)}
+                className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer shrink-0"
+              >
+                🔄 Changer
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                {/* 1. GARMIN */}
+              {/* CAS 0 : AUCUN COMPTE LIÉ */}
+              {connectedList.length === 0 && (
+                <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
+                  <p className="text-[11px] text-stone-400">
+                    Connectez votre montre dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> (Garmin, COROS ou Strava) pour importer directement vos sorties réelles.
+                  </p>
+                </div>
+              )}
+
+              {/* CAS 1 : UN SEUL COMPTE LIÉ (BOUTON UNIQUE DIRECT) */}
+              {connectedList.length === 1 && (
                 <button
                   type="button"
-                  onClick={() => handleFetchActivitiesFromPlatform("garmin")}
+                  onClick={() => handleFetchActivities(connectedList[0])}
                   disabled={Boolean(fetchLoading)}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                    linkedDevices.garmin
-                      ? "bg-stone-900 border-[#007CC3]/40 hover:bg-[#007CC3]/20"
-                      : "bg-stone-900/40 border-stone-800 opacity-50"
-                  }`}
-                  title={linkedDevices.garmin ? "Importer Garmin" : "Non lié dans le profil"}
+                  style={{
+                    backgroundColor:
+                      connectedList[0] === "garmin"
+                        ? "#007CC3"
+                        : connectedList[0] === "coros"
+                        ? "#F8283B"
+                        : "#FC5200",
+                  }}
+                  className="w-full py-3 text-white text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-md hover:brightness-110 disabled:opacity-50"
                 >
-                  <GarminLogo className="w-5 h-5" />
-                  <span className="text-[8px] font-bold uppercase text-stone-400">Garmin</span>
+                  {connectedList[0] === "garmin" && <GarminLogo className="w-4 h-4" />}
+                  {connectedList[0] === "coros" && <CorosLogo className="w-4 h-4" />}
+                  {connectedList[0] === "strava" && <StravaLogo className="w-4 h-4" />}
+                  <span>
+                    {fetchLoading
+                      ? "Récupération des données..."
+                      : `Importer depuis ${connectedList[0].toUpperCase()}`}
+                  </span>
                 </button>
+              )}
 
-                {/* 2. COROS */}
-                <button
-                  type="button"
-                  onClick={() => handleFetchActivitiesFromPlatform("coros")}
-                  disabled={Boolean(fetchLoading)}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                    linkedDevices.coros
-                      ? "bg-stone-900 border-[#F8283B]/40 hover:bg-[#F8283B]/20"
-                      : "bg-stone-900/40 border-stone-800 opacity-50"
-                  }`}
-                  title={linkedDevices.coros ? "Importer COROS" : "Non lié dans le profil"}
-                >
-                  <CorosLogo className="w-5 h-5" />
-                  <span className="text-[8px] font-bold uppercase text-stone-400">COROS</span>
-                </button>
-
-                {/* 3. STRAVA */}
-                <button
-                  type="button"
-                  onClick={() => handleFetchActivitiesFromPlatform("strava")}
-                  disabled={Boolean(fetchLoading)}
-                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                    linkedDevices.strava
-                      ? "bg-stone-900 border-[#FC5200]/40 hover:bg-[#FC5200]/20"
-                      : "bg-stone-900/40 border-stone-800 opacity-50"
-                  }`}
-                  title={linkedDevices.strava ? "Importer Strava" : "Non lié dans le profil"}
-                >
-                  <StravaLogo className="w-5 h-5" />
-                  <span className="text-[8px] font-bold uppercase text-stone-400">Strava</span>
-                </button>
-              </div>
-
-              <p className="text-[9.5px] text-stone-500 text-center">
-                Sélectionnez votre plateforme connectée pour récupérer automatiquement votre sortie.
-              </p>
+              {/* CAS 2 : PLUSIEURS COMPTES LIÉS */}
+              {connectedList.length > 1 && (
+                <div className="space-y-1.5">
+                  <span className="text-[9px] font-bold text-stone-400 uppercase block text-center">
+                    Sélectionnez votre montre connectée :
+                  </span>
+                  <div
+                    className={`grid gap-2 ${
+                      connectedList.length === 2 ? "grid-cols-2" : "grid-cols-3"
+                    }`}
+                  >
+                    {connectedApps.garmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleFetchActivities("garmin")}
+                        disabled={Boolean(fetchLoading)}
+                        className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-[#007CC3]/40 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <GarminLogo className="w-4 h-4" />
+                        <span className="text-xs font-bold text-stone-200 uppercase">Garmin</span>
+                      </button>
+                    )}
+                    {connectedApps.coros && (
+                      <button
+                        type="button"
+                        onClick={() => handleFetchActivities("coros")}
+                        disabled={Boolean(fetchLoading)}
+                        className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-[#F8283B]/40 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <CorosLogo className="w-4 h-4" />
+                        <span className="text-xs font-bold text-stone-200 uppercase">COROS</span>
+                      </button>
+                    )}
+                    {connectedApps.strava && (
+                      <button
+                        type="button"
+                        onClick={() => handleFetchActivities("strava")}
+                        disabled={Boolean(fetchLoading)}
+                        className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-[#FC5200]/40 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <StravaLogo className="w-4 h-4" />
+                        <span className="text-xs font-bold text-stone-200 uppercase">Strava</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -318,11 +367,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </p>
           )}
 
+          {/* SÉLECTEUR DE SORTIES RÉCENTES RÉCUPÉRÉES DE LA MONTRE */}
           {showActivityPicker && (
             <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center">
                 <span className="text-[9px] font-bold text-stone-400 uppercase">
-                  Sélectionnez votre sortie :
+                  Sélectionnez la course réalisée :
                 </span>
                 <button
                   type="button"
@@ -336,7 +386,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 {activitiesList.map((act) => (
                   <div
                     key={act.id}
-                    onClick={() => applyActivity(act)}
+                    onClick={() => applyActivity(act, act.platform)}
                     className="p-2 bg-stone-950 hover:bg-stone-800 border border-stone-800 rounded-lg flex items-center justify-between cursor-pointer transition text-xs"
                   >
                     <div className="flex items-center gap-2">
@@ -348,8 +398,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                         </div>
                       </div>
                     </div>
-                    <span className="text-[#007CC3] font-mono text-xs font-black">
-                      {act.avgPace || "5:10"} /km ➔
+                    <span className="text-[#CF9A61] font-mono text-xs font-black">
+                      {act.avgPace} /km ➔
                     </span>
                   </div>
                 ))}
@@ -396,8 +446,14 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
           {avgHeartRate && (
             <div className="flex justify-around items-center bg-stone-900/40 p-2 rounded-xl border border-stone-800/80 text-[10px]">
-              <span className="text-stone-400">❤️ FC Moyenne : <strong className="text-stone-200">{avgHeartRate} bpm</strong></span>
-              {maxHeartRate && <span className="text-stone-400">⚡ FC Max : <strong className="text-stone-200">{maxHeartRate} bpm</strong></span>}
+              <span className="text-stone-400">
+                ❤️ FC Moyenne : <strong className="text-stone-200">{avgHeartRate} bpm</strong>
+              </span>
+              {maxHeartRate && (
+                <span className="text-stone-400">
+                  ⚡ FC Max : <strong className="text-stone-200">{maxHeartRate} bpm</strong>
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -485,7 +541,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </button>
             </div>
 
-            {/* BOUTON D'ANNULATION DU DÉBRIEFING */}
             {isAlreadyDebriefed && (
               <button
                 type="button"
