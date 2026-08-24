@@ -18,6 +18,7 @@ interface WorkoutDebriefViewProps {
     completedTimeMinutes: number;
     completedElevationGain: number;
     importedActivityName?: string;
+    activityTelemetry?: any;
   }) => void;
   onDeleteImport?: (workoutId: string) => void;
 }
@@ -68,6 +69,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     Boolean(workout.importedActivityName)
   );
 
+  // Vraies données télémétriques (Laps, courbes FC, Allure, D+)
+  const [activityTelemetry, setActivityTelemetry] = useState<any>(
+    (workout as any).activityTelemetry || (workout as any).activity_telemetry || null
+  );
+
   const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
 
   // Détection des plateformes réellement liées dans le profil
@@ -112,7 +118,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     Object.keys(connectedApps) as Array<keyof typeof connectedApps>
   ).filter((key) => connectedApps[key]);
 
-  // Appel de l'API dédiée selon la montre choisie
+  // Récupération de la liste des activités
   const handleFetchActivities = async (platform: "garmin" | "coros" | "strava") => {
     setFetchLoading(platform);
     setSyncError(null);
@@ -149,7 +155,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       }
 
       if (data.activities.length === 1) {
-        applyActivity(data.activities[0], platform);
+        await applyActivity(data.activities[0], platform);
       } else {
         setActivitiesList(data.activities.map((a: any) => ({ ...a, platform })));
         setShowActivityPicker(true);
@@ -161,7 +167,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     }
   };
 
-  const applyActivity = (act: any, platformName?: string) => {
+  // Application de l'activité avec chargement des vrais splits et courbes
+  const applyActivity = async (act: any, platformName?: string) => {
     const dist = parseFloat(String(act.distanceKm)) || 0;
     const dur = parseInt(String(act.durationMinutes), 10) || 0;
     const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
@@ -179,6 +186,27 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setImportedActivityName(label);
     setIsActivityImported(true);
     setShowActivityPicker(false);
+
+    // RÉCUPÉRATION IMMÉDIATE DES VRAIS LAPS ET COURBES DÉTAILLÉES DE LA MONTRE
+    if (act.id && (platformName === "garmin" || act.platform === "garmin")) {
+      const email = localStorage.getItem("volaris_garmin_email");
+      const password = localStorage.getItem("volaris_garmin_pwd");
+      if (email && password) {
+        try {
+          const detailRes = await fetch("/api/garmin-activities", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password, activityId: act.id }),
+          });
+          const detailData = await detailRes.json();
+          if (detailData.success && detailData.telemetry) {
+            setActivityTelemetry(detailData.telemetry);
+          }
+        } catch (e) {
+          console.warn("Impossible de récupérer la télémétrie complète:", e);
+        }
+      }
+    }
   };
 
   const handleCancelDebrief = (e: React.MouseEvent) => {
@@ -203,6 +231,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       completedTimeMinutes,
       completedElevationGain,
       importedActivityName: isActivityImported ? importedActivityName : undefined,
+      activityTelemetry: isActivityImported ? activityTelemetry : undefined,
     });
 
     onClose();
@@ -220,7 +249,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
-        {/* MODALE D'ANALYSE GRAPHIQUE */}
+        
+        {/* MODALE D'ANALYSE GRAPHIQUE COMPLÈTE */}
         {showTelemetryModal && (
           <WorkoutTelemetryModal
             workout={{
@@ -228,8 +258,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               completedKm,
               completedTimeMinutes,
               completedElevationGain,
+              actualAvgHr: avgHeartRate ? String(avgHeartRate) : undefined,
+              actualMaxHr: maxHeartRate ? String(maxHeartRate) : undefined,
               title: importedActivityName || workout.title,
-            }}
+              activityTelemetry,
+            } as any}
             onClose={() => setShowTelemetryModal(false)}
           />
         )}
@@ -292,13 +325,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 </button>
               </div>
 
-              {/* BOUTON D'ACCÈS AUX GRAPHIQUES POUR L'ATHLÈTE */}
+              {/* BOUTON DÉBRIEF DE LA SÉANCE */}
               <button
                 type="button"
                 onClick={() => setShowTelemetryModal(true)}
                 className="w-full py-2.5 bg-stone-900 hover:bg-stone-850 border border-stone-800 hover:border-[#CDCF61]/50 rounded-xl text-xs font-black uppercase text-[#CDCF61] tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
               >
-                <span>📈 Voir les graphiques de la sortie (FC, Allure, D+)</span>
+                <span>📊 Debrief de la séance</span>
               </button>
             </div>
           ) : (
@@ -312,7 +345,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 </div>
               )}
 
-              {/* CAS 1 : UN SEUL COMPTE LIÉ (BOUTON UNIQUE DIRECT) */}
+              {/* CAS 1 : UN SEUL COMPTE LIÉ */}
               {connectedList.length === 1 && (
                 <button
                   type="button"
@@ -395,7 +428,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </p>
           )}
 
-          {/* SÉLECTEUR DE SORTIES RÉCENTES RÉCUPÉRÉES DE LA MONTRE */}
+          {/* SÉLECTEUR DE SORTIES RÉCENTES */}
           {showActivityPicker && (
             <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center">
