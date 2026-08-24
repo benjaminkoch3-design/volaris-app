@@ -2,13 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Workout, Shoe } from "../../types";
-import {
-  GarminLogo,
-  CorosLogo,
-  StravaLogo,
-  AppleHealthLogo,
-  PolarLogo,
-} from "../common/BrandLogos";
+import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 
 interface WorkoutDebriefViewProps {
   workout: Workout;
@@ -73,13 +67,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     Boolean(workout.importedActivityName)
   );
 
-  // État des plateformes synchronisées/connectées
+  // État des plateformes liées
   const [linkedDevices, setLinkedDevices] = useState({
     garmin: false,
     coros: false,
     strava: false,
-    apple: false,
-    polar: false,
   });
 
   const [fetchLoading, setFetchLoading] = useState<string | null>(null);
@@ -97,13 +89,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
         garmin: Boolean(localStorage.getItem("volaris_garmin_email")),
         coros: Boolean(localStorage.getItem("volaris_coros_email")),
         strava: localStorage.getItem("volaris_strava_connected") === "true",
-        apple: localStorage.getItem("volaris_apple_connected") === "true",
-        polar: Boolean(localStorage.getItem("volaris_polar_email")),
       });
     }
   }, []);
 
-  const handleFetchActivitiesFromPlatform = async (platform: "garmin" | "coros" | "strava" | "apple" | "polar") => {
+  const handleFetchActivitiesFromPlatform = async (platform: "garmin" | "coros" | "strava") => {
     setFetchLoading(platform);
     setSyncError(null);
 
@@ -125,7 +115,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       setActivitiesList(data.activities);
       setShowActivityPicker(true);
     } catch {
-      // Simulation / Fallback d'importation d'activité
       const mockActivities = [
         {
           id: `${platform}_${Date.now()}`,
@@ -199,8 +188,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     const lower = nameStr.toLowerCase();
     if (lower.includes("strava")) return <StravaLogo className="w-4 h-4 shrink-0" />;
     if (lower.includes("coros")) return <CorosLogo className="w-4 h-4 shrink-0" />;
-    if (lower.includes("apple")) return <AppleHealthLogo className="w-4 h-4 shrink-0" />;
-    if (lower.includes("polar")) return <PolarLogo className="w-4 h-4 shrink-0" />;
     return <GarminLogo className="w-4 h-4 shrink-0" />;
   };
 
@@ -209,7 +196,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
-        
         {/* HEADER */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3">
           <div>
@@ -270,13 +256,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {/* 1. GARMIN */}
                 <button
                   type="button"
                   onClick={() => handleFetchActivitiesFromPlatform("garmin")}
                   disabled={Boolean(fetchLoading)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
                     linkedDevices.garmin
                       ? "bg-stone-900 border-[#007CC3]/40 hover:bg-[#007CC3]/20"
                       : "bg-stone-900/40 border-stone-800 opacity-50"
@@ -284,7 +270,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   title={linkedDevices.garmin ? "Importer Garmin" : "Non lié dans le profil"}
                 >
                   <GarminLogo className="w-5 h-5" />
-                  <span className="text-[7.5px] font-bold uppercase text-stone-400">Garmin</span>
+                  <span className="text-[8px] font-bold uppercase text-stone-400">Garmin</span>
                 </button>
 
                 {/* 2. COROS */}
@@ -292,7 +278,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   type="button"
                   onClick={() => handleFetchActivitiesFromPlatform("coros")}
                   disabled={Boolean(fetchLoading)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
                     linkedDevices.coros
                       ? "bg-stone-900 border-[#F8283B]/40 hover:bg-[#F8283B]/20"
                       : "bg-stone-900/40 border-stone-800 opacity-50"
@@ -300,7 +286,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   title={linkedDevices.coros ? "Importer COROS" : "Non lié dans le profil"}
                 >
                   <CorosLogo className="w-5 h-5" />
-                  <span className="text-[7.5px] font-bold uppercase text-stone-400">COROS</span>
+                  <span className="text-[8px] font-bold uppercase text-stone-400">COROS</span>
                 </button>
 
                 {/* 3. STRAVA */}
@@ -308,7 +294,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   type="button"
                   onClick={() => handleFetchActivitiesFromPlatform("strava")}
                   disabled={Boolean(fetchLoading)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
+                  className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
                     linkedDevices.strava
                       ? "bg-stone-900 border-[#FC5200]/40 hover:bg-[#FC5200]/20"
                       : "bg-stone-900/40 border-stone-800 opacity-50"
@@ -316,44 +302,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   title={linkedDevices.strava ? "Importer Strava" : "Non lié dans le profil"}
                 >
                   <StravaLogo className="w-5 h-5" />
-                  <span className="text-[7.5px] font-bold uppercase text-stone-400">Strava</span>
-                </button>
-
-                {/* 4. APPLE HEALTH */}
-                <button
-                  type="button"
-                  onClick={() => handleFetchActivitiesFromPlatform("apple")}
-                  disabled={Boolean(fetchLoading)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                    linkedDevices.apple
-                      ? "bg-stone-900 border-stone-600 hover:bg-stone-800"
-                      : "bg-stone-900/40 border-stone-800 opacity-50"
-                  }`}
-                  title={linkedDevices.apple ? "Importer Apple Watch" : "Non lié dans le profil"}
-                >
-                  <AppleHealthLogo className="w-5 h-5" />
-                  <span className="text-[7.5px] font-bold uppercase text-stone-400">Apple</span>
-                </button>
-
-                {/* 5. POLAR FLOW */}
-                <button
-                  type="button"
-                  onClick={() => handleFetchActivitiesFromPlatform("polar")}
-                  disabled={Boolean(fetchLoading)}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                    linkedDevices.polar
-                      ? "bg-stone-900 border-[#E1000F]/40 hover:bg-[#E1000F]/20"
-                      : "bg-stone-900/40 border-stone-800 opacity-50"
-                  }`}
-                  title={linkedDevices.polar ? "Importer Polar Flow" : "Non lié dans le profil"}
-                >
-                  <PolarLogo className="w-5 h-5" />
-                  <span className="text-[7.5px] font-bold uppercase text-stone-400">Polar</span>
+                  <span className="text-[8px] font-bold uppercase text-stone-400">Strava</span>
                 </button>
               </div>
 
               <p className="text-[9.5px] text-stone-500 text-center">
-                Sélectionnez votre montre liée pour charger automatiquement votre sortie.
+                Sélectionnez votre plateforme connectée pour récupérer automatiquement votre sortie.
               </p>
             </div>
           )}

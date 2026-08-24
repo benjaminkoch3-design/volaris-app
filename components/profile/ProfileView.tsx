@@ -2,13 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Race, Plan, Shoe } from "../../types";
-import {
-  GarminLogo,
-  CorosLogo,
-  StravaLogo,
-  AppleHealthLogo,
-  PolarLogo,
-} from "../common/BrandLogos";
+import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 import {
   formatPaceFromSpeed,
   calculateThresholds,
@@ -122,7 +116,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showAddShoeForm, setShowAddShoeForm] = useState(false);
   const [showShoeCloset, setShowShoeCloset] = useState(false);
 
-  // Édition
+  // Formulaire d'édition
   const [editName, setEditName] = useState(athleteName);
   const [editHeight, setEditHeight] = useState(height);
   const [editWeight, setEditWeight] = useState(weight);
@@ -342,7 +336,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setIsEditingProfile(false);
   };
 
-  // Modale pour plan archivé
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
 
   // ACCORDÉONS
@@ -439,7 +432,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <p className="text-[11px] text-stone-400 leading-relaxed">
-              Connectez votre compte Garmin Connect pour envoyer vos séances directement sur votre montre en un clic.
+              Connectez votre compte Garmin Connect pour envoyer vos séances directement sur votre montre et importer vos sorties.
             </p>
 
             <form onSubmit={handleGarminLogin} className="space-y-3">
@@ -725,7 +718,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* CARTE RESUMÉ HAUT DE PAGE */}
+      {/* CARTE RÉSUMÉ HAUT DE PAGE */}
       <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -869,7 +862,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {!isEditingProfile || isReadOnly ? (
         <div className="space-y-6">
-          {/* BOUTON ACCÈS BIBLIOTHÈQUE ATHLÈTE */}
           {onOpenAthleteLibrary && (
             <button
               type="button"
@@ -1093,8 +1085,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   if (!restNum || !maxNum || maxNum <= restNum) {
                     return (
                       <div className="text-[10px] text-stone-400 italic bg-stone-950/80 p-3 rounded-xl border border-stone-800">
-                        Veuillez renseigner votre FC de repos et votre FC max
-                        pour calculer les zones de FC.
+                        Veuillez renseigner votre FC de repos et votre FC max pour calculer les zones de FC.
                       </div>
                     );
                   }
@@ -1117,8 +1108,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       max: Math.round(restNum + 0.7 * rfc),
                       intensity: "Facile",
                       usage: "Endurance fondamentale",
-                      badge:
-                        "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
+                      badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
                     },
                     {
                       zone: "Z3",
@@ -1127,8 +1117,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       max: Math.round(restNum + 0.8 * rfc),
                       intensity: "Modérée",
                       usage: "Endurance active, allure marathon",
-                      badge:
-                        "bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40",
+                      badge: "bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40",
                     },
                     {
                       zone: "Z4",
@@ -1137,8 +1126,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       max: Math.round(restNum + 0.9 * rfc),
                       intensity: "Soutenue",
                       usage: "Seuil, allure 10 km",
-                      badge:
-                        "bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40",
+                      badge: "bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40",
                     },
                     {
                       zone: "Z5",
@@ -1174,22 +1162,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                           </thead>
                           <tbody className="divide-y divide-stone-800/60 bg-stone-950/60">
                             {zones.map((z) => (
-                              <tr
-                                key={z.zone}
-                                className="hover:bg-stone-900/40 transition"
-                              >
+                              <tr key={z.zone} className="hover:bg-stone-900/40 transition">
                                 <td className="py-2 px-2.5 font-black whitespace-nowrap">
-                                  <span
-                                    className={`inline-block px-2 py-0.5 rounded-md text-[9px] border font-extrabold ${z.badge}`}
-                                  >
+                                  <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] border font-extrabold ${z.badge}`}>
                                     {z.zone} ({z.pct})
                                   </span>
                                 </td>
                                 <td className="py-2 px-2.5 font-bold text-stone-100 whitespace-nowrap">
                                   {z.min} - {z.max}{" "}
-                                  <span className="text-[8px] text-[#CF9A61]/90 font-bold">
-                                    bpm
-                                  </span>
+                                  <span className="text-[8px] text-[#CF9A61]/90 font-bold">bpm</span>
                                 </td>
                                 <td className="py-2 px-2.5 font-semibold text-stone-300 whitespace-nowrap">
                                   {z.intensity}
@@ -1254,10 +1235,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[10px]">
                               <span className="font-bold text-stone-400">
-                                VDOT:{" "}
-                                <strong className="text-stone-200">
-                                  {score.vdot}
-                                </strong>
+                                VDOT: <strong className="text-stone-200">{score.vdot}</strong>
                               </span>
                               <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30">
                                 Score: {score.runningScore}
@@ -1266,12 +1244,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
                             {vmaPct !== null ? (
                               <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-stone-800/40">
-                                <span className="text-stone-400 font-medium">
-                                  Maintien VMA :
-                                </span>
-                                <span className="font-black text-stone-100">
-                                  {vmaPct}% VMA
-                                </span>
+                                <span className="text-stone-400 font-medium">Maintien VMA :</span>
+                                <span className="font-black text-stone-100">{vmaPct}% VMA</span>
                               </div>
                             ) : null}
                           </div>
@@ -1326,26 +1300,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                           : null;
 
                       const categoryConfig = {
-                        route: {
-                          label: "Route",
-                          badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40",
-                        },
-                        piste: {
-                          label: "Piste",
-                          badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40",
-                        },
-                        trail: {
-                          label: "Trail",
-                          badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
-                        },
-                        nature: {
-                          label: "Course Nature",
-                          badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
-                        },
-                      }[cat] || {
-                        label: "Route",
-                        badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40",
-                      };
+                        route: { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
+                        piste: { label: "Piste", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
+                        trail: { label: "Trail", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
+                        nature: { label: "Course Nature", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
+                      }[cat] || { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" };
 
                       return (
                         <div
@@ -1358,9 +1317,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                                 <h4 className="font-bold text-stone-100 text-xs uppercase">
                                   {race.name}
                                 </h4>
-                                <span
-                                  className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${categoryConfig.badge}`}
-                                >
+                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${categoryConfig.badge}`}>
                                   {categoryConfig.label}
                                 </span>
                               </div>
@@ -1417,7 +1374,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   )}
                 </div>
 
-                {/* FORMULAIRE COURSE */}
+                {/* FORMULAIRE AJOUT COURSE */}
                 {!isReadOnly && (
                   <div className="pt-2 border-t border-stone-800/60 space-y-2">
                     <button
@@ -1833,7 +1790,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS AVEC LOGOS */}
+          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS (GARMIN / COROS / STRAVA) */}
           <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
             <button
               type="button"
@@ -1850,7 +1807,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {openDevicesSection && (
               <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                {/* GARMIN CONNECT */}
+                {/* 1. GARMIN CONNECT */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
@@ -1888,7 +1845,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* COROS APP */}
+                {/* 2. COROS APP */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
@@ -1926,7 +1883,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* STRAVA */}
+                {/* 3. STRAVA */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
@@ -1963,66 +1920,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     {isStravaLinked ? "Déconnecter" : "Connecter"}
                   </button>
                 </div>
-
-                {/* APPLE HEALTH */}
-                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-stone-900 border border-stone-800 flex items-center justify-center shadow-md shrink-0">
-                      <AppleHealthLogo className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-stone-100">
-                        Apple Santé
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-medium">
-                        Apple Watch & Exercices
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => toggleDeviceConnection("apple")}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                      connectedDevices.apple
-                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
-                        : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200"
-                    }`}
-                  >
-                    {connectedDevices.apple ? "Connecté ✓" : "Lier"}
-                  </button>
-                </div>
-
-                {/* POLAR */}
-                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#E1000F]/10 border border-[#E1000F]/30 flex items-center justify-center shadow-md shrink-0">
-                      <PolarLogo className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-stone-100">
-                        Polar Flow
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-medium">
-                        Pacer, Vantage, Grit X
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => toggleDeviceConnection("polar")}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                      connectedDevices.polar
-                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
-                        : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200"
-                    }`}
-                  >
-                    {connectedDevices.polar ? "Connecté ✓" : "Lier"}
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -2038,24 +1935,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           )}
         </div>
       ) : (
-        /* FORMULAIRE D'ÉDITION */
+        /* FORMULAIRE D'ÉDITION DU PROFIL */
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="space-y-3 bg-stone-900/80 p-4 rounded-2xl border border-stone-800">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#CF9A61] flex items-center gap-1.5">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#CF9A61]">
               Identité & Gabarit
             </h3>
-
             <div>
               <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">
-                Prénom de l'athlète
+                Prénom
               </label>
               <input
                 type="text"
                 required
-                placeholder="Ex: Benjamin"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] transition"
+                className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
               />
             </div>
 
@@ -2156,7 +2051,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
 
           <div className="space-y-3 bg-stone-900/80 p-4 rounded-2xl border border-stone-800">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#CF9A61] flex items-center gap-1.5">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#CF9A61]">
               Éditer mes Records Personnels
             </h3>
             <div className="grid grid-cols-2 gap-2.5">
@@ -2183,13 +2078,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <button
               type="button"
               onClick={() => setIsEditingProfile(false)}
-              className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-bold uppercase transition cursor-pointer"
+              className="flex-1 py-3 bg-stone-800 text-stone-300 rounded-xl text-xs font-bold uppercase cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 rounded-xl text-xs font-bold uppercase transition cursor-pointer shadow-lg"
+              className="flex-1 py-3 bg-[#CF9A61] text-stone-950 rounded-xl text-xs font-bold uppercase cursor-pointer shadow-lg"
             >
               Enregistrer
             </button>

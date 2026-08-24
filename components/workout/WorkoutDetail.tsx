@@ -12,8 +12,6 @@ import {
   GarminLogo,
   CorosLogo,
   StravaLogo,
-  AppleHealthLogo,
-  PolarLogo,
 } from "../common/BrandLogos";
 
 interface WorkoutDetailProps {
@@ -25,21 +23,14 @@ interface WorkoutDetailProps {
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
-  if (rpe <= 3) {
-    return { text: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" };
-  }
-  if (rpe <= 5) {
-    return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" };
-  }
-  if (rpe <= 7) {
-    return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" };
-  }
+  if (rpe <= 3) return { text: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" };
+  if (rpe <= 5) return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" };
+  if (rpe <= 7) return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" };
   return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" };
 };
 
 export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
   const profile = generatePaceProfile(steps);
-
   if (!profile || profile.length === 0) return null;
 
   const totalTimeSec = profile.reduce((acc, p) => acc + p.durationSec, 0);
@@ -57,16 +48,11 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
 
   const getColor = (type: string) => {
     switch (type) {
-      case "echauffement":
-        return "#CF6361";
-      case "corps":
-        return "#CF9A61";
-      case "recup":
-        return "#CDCF61";
-      case "retour_calme":
-        return "#3b82f6";
-      default:
-        return "#10b981";
+      case "echauffement": return "#CF6361";
+      case "corps": return "#CF9A61";
+      case "recup": return "#CDCF61";
+      case "retour_calme": return "#3b82f6";
+      default: return "#10b981";
     }
   };
 
@@ -93,9 +79,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
             {profile.map((point, i) => {
               const widthPct = (point.durationSec / totalTimeSec) * 100;
               const normalizedHeight =
-                paceRange === 0
-                  ? 60
-                  : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
+                paceRange === 0 ? 60 : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
 
               return (
                 <div
@@ -122,11 +106,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
             {profile.map((point, i) => {
               const widthPct = (point.durationSec / totalTimeSec) * 100;
               return (
-                <div
-                  key={i}
-                  style={{ width: `${Math.max(widthPct, 4)}%` }}
-                  className="text-center overflow-hidden"
-                >
+                <div key={i} style={{ width: `${Math.max(widthPct, 4)}%` }} className="text-center overflow-hidden">
                   <span className="block text-[8px] font-bold text-[#CDCF61] truncate">
                     {point.paceFormatted}
                   </span>
@@ -167,8 +147,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   onClose,
   onToggleWorkout,
 }) => {
-  const typeConfig =
-    WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
+  const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
   const metrics = calculateStepMetrics(workout.steps);
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
@@ -192,7 +171,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
   }, []);
 
-  const handlePushToPlatform = async (platform: "garmin" | "coros" | "strava" | "apple" | "polar") => {
+  const handlePushToPlatform = async (platform: "garmin" | "coros" | "strava") => {
     if (platform === "garmin") {
       const savedEmail = localStorage.getItem("volaris_garmin_email");
       const savedPwd = localStorage.getItem("volaris_garmin_pwd");
@@ -445,60 +424,38 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
           </div>
 
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => handlePushToPlatform("garmin")}
               disabled={loading}
-              className="p-2 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
               title="Envoyer vers Garmin Connect"
             >
               <GarminLogo className="w-5 h-5" />
-              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Garmin</span>
+              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">Garmin</span>
             </button>
 
             <button
               type="button"
               onClick={() => handlePushToPlatform("coros")}
               disabled={loading}
-              className="p-2 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
               title="Envoyer vers COROS"
             >
               <CorosLogo className="w-5 h-5" />
-              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">COROS</span>
+              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">COROS</span>
             </button>
 
             <button
               type="button"
               onClick={() => handlePushToPlatform("strava")}
               disabled={loading}
-              className="p-2 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
+              className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
               title="Synchroniser avec Strava"
             >
               <StravaLogo className="w-5 h-5" />
-              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Strava</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handlePushToPlatform("apple")}
-              disabled={loading}
-              className="p-2 bg-stone-900 hover:bg-stone-800 border border-stone-800 hover:border-stone-600 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
-              title="Envoyer vers Apple Watch"
-            >
-              <AppleHealthLogo className="w-5 h-5" />
-              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Apple</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handlePushToPlatform("polar")}
-              disabled={loading}
-              className="p-2 bg-stone-900 hover:bg-[#E1000F]/20 border border-stone-800 hover:border-[#E1000F]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
-              title="Envoyer vers Polar Flow"
-            >
-              <PolarLogo className="w-5 h-5" />
-              <span className="text-[7.5px] font-bold uppercase text-stone-400 group-hover:text-white">Polar</span>
+              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">Strava</span>
             </button>
           </div>
 
