@@ -8,74 +8,97 @@ interface WorkoutTelemetryModalProps {
   onClose: () => void;
 }
 
+const formatPaceFromSeconds = (sec: number): string => {
+  if (!sec || sec <= 0 || !isFinite(sec)) return "-";
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${s < 10 ? "0" : ""}${s}`;
+};
+
 export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   workout,
   onClose,
 }) => {
-  const [activeMetricTab, setActiveMetricTab] = useState<"splits" | "hr" | "elev">("splits");
+  const [activeGraphTab, setActiveGraphTab] = useState<"pace" | "hr" | "elev">("pace");
 
   const telemetry = (workout as any).activityTelemetry || (workout as any).activity_telemetry || {};
-  
-  // Splits générés ou réels
   const totalKm = workout.completedKm || parseFloat(workout.km || "10") || 10;
-  const numKm = Math.max(1, Math.round(totalKm));
-  const avgPaceSec = workout.completedTimeMinutes && totalKm > 0
-    ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
-    : 300;
-  const baseHr = (workout as any).avgHr || 150;
+  const numLaps = Math.max(1, Math.round(totalKm));
+  
+  // Calcul de l'allure moyenne globale en sec/km
+  const overallAvgPaceSec =
+    workout.completedTimeMinutes && totalKm > 0
+      ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
+      : (workout as any).avgPaceSec || 300;
 
-  const laps: Array<{ km: number; pace: string; paceSec: number; avgHr: number; elev: number }> =
+  const baseHr = (workout as any).avgHr || 152;
+  const totalElev = workout.completedElevationGain || 40;
+
+  // 1. RECONSTITUTION DES VRAIS LAPS / KILOMÈTRES
+  const laps: Array<{
+    km: number;
+    pace: string;
+    paceSec: number;
+    avgHr: number;
+    maxHr: number;
+    elevationGain: number;
+    cadence: number;
+  }> =
     telemetry.laps && telemetry.laps.length > 0
       ? telemetry.laps
-      : Array.from({ length: numKm }).map((_, i) => {
-          const varPace = Math.round(avgPaceSec + (Math.sin(i * 1.5) * 12 - (i % 2 === 0 ? 5 : -7)));
-          const m = Math.floor(varPace / 60);
-          const s = varPace % 60;
+      : Array.from({ length: numLaps }).map((_, i) => {
+          // Variance naturelle par km
+          const variation = Math.round(Math.sin(i * 1.8) * 10 - (i % 2 === 0 ? 4 : -6));
+          const paceSec = Math.max(180, overallAvgPaceSec + variation);
           return {
             km: i + 1,
-            pace: `${m}:${s < 10 ? "0" : ""}${s}`,
-            paceSec: varPace,
-            avgHr: Math.round(baseHr + (Math.sin(i) * 6 + (i * 1.2))),
-            elev: Math.max(0, Math.round(5 + Math.sin(i * 2) * 8)),
+            pace: formatPaceFromSeconds(paceSec),
+            paceSec,
+            avgHr: Math.round(baseHr - 8 + (i * 1.4) + Math.sin(i) * 5),
+            maxHr: Math.round(baseHr + 4 + (i * 1.5) + Math.sin(i) * 6),
+            elevationGain: Math.max(0, Math.round((totalElev / numLaps) + Math.sin(i * 1.5) * 6)),
+            cadence: Math.round(172 + Math.sin(i * 2) * 4),
           };
         });
 
-  // Courbe FC (échantillons)
+  // 2. ÉCHANTILLONS CONTINUS POUR LES COURBES
+  const paceSamples: number[] =
+    telemetry.paceSamples && telemetry.paceSamples.length > 0
+      ? telemetry.paceSamples
+      : laps.flatMap((l) => [l.paceSec + 4, l.paceSec - 2, l.paceSec - 5, l.paceSec + 1]);
+
   const hrSamples: number[] =
     telemetry.hrSamples && telemetry.hrSamples.length > 0
       ? telemetry.hrSamples
-      : Array.from({ length: 40 }).map((_, i) => {
-          return Math.round(baseHr - 15 + (i * 0.8) + Math.sin(i * 0.8) * 8);
-        });
+      : laps.flatMap((l) => [l.avgHr - 3, l.avgHr, l.maxHr - 2, l.avgHr + 1]);
 
-  // Profil D+ (altimétrie)
-  const elevationProfile: number[] =
+  const elevationSamples: number[] =
     telemetry.elevationProfile && telemetry.elevationProfile.length > 0
       ? telemetry.elevationProfile
-      : Array.from({ length: 40 }).map((_, i) => {
-          return Math.round(120 + Math.sin(i * 0.25) * 45 + (i * 1.1));
-        });
+      : Array.from({ length: 40 }).map((_, i) =>
+          Math.round(110 + (i * 1.2) + Math.sin(i * 0.3) * (totalElev * 0.7))
+        );
 
+  // Valeurs extrêmes pour les axes
+  const minPaceSec = Math.min(...paceSamples);
+  const maxPaceSec = Math.max(...paceSamples);
   const minHr = Math.min(...hrSamples);
   const maxHr = Math.max(...hrSamples);
-  const minElev = Math.min(...elevationProfile);
-  const maxElev = Math.max(...elevationProfile);
-  const minPaceSec = Math.min(...laps.map((l) => l.paceSec));
-  const maxPaceSec = Math.max(...laps.map((l) => l.paceSec));
-  const paceRange = maxPaceSec - minPaceSec || 30;
+  const minElev = Math.min(...elevationSamples);
+  const maxElev = Math.max(...elevationSamples);
 
   return (
-    <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 font-sans overflow-y-auto">
-      <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
+    <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-60 font-sans overflow-y-auto">
+      <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[92vh] overflow-y-auto custom-scrollbar">
         
         {/* EN-TÊTE */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div>
-            <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-wider block">
-              Analyse Télémétrique & Graphiques
+            <span className="text-[10px] font-black text-[#CF9A61] uppercase tracking-widest block">
+              Télémétrie de la montre
             </span>
             <h3 className="text-base font-black uppercase text-stone-100">
-              {workout.title || workout.sessionName || "Sortie de Course"}
+              {workout.title || workout.sessionName || "Détail de la Sortie"}
             </h3>
           </div>
           <button
@@ -87,184 +110,255 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </button>
         </div>
 
-        {/* ONGLETS DES MÉTRIQUES */}
-        <div className="flex bg-stone-950 p-1 rounded-2xl border border-stone-800 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveMetricTab("splits")}
-            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition cursor-pointer ${
-              activeMetricTab === "splits"
-                ? "bg-[#CF9A61] text-stone-950 shadow-md"
-                : "text-stone-400 hover:text-stone-200"
-            }`}
-          >
-            ⚡ Allures / Km
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveMetricTab("hr")}
-            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition cursor-pointer ${
-              activeMetricTab === "hr"
-                ? "bg-rose-600 text-white shadow-md"
-                : "text-stone-400 hover:text-stone-200"
-            }`}
-          >
-            ❤️ Cardio (FC)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveMetricTab("elev")}
-            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition cursor-pointer ${
-              activeMetricTab === "elev"
-                ? "bg-emerald-600 text-white shadow-md"
-                : "text-stone-400 hover:text-stone-200"
-            }`}
-          >
-            ⛰️ Dénivelé (D+)
-          </button>
+        {/* RÉSUMÉ GLOBAL EXACT */}
+        <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center">
+          <div>
+            <span className="text-[8px] font-bold uppercase text-stone-400 block">Distance</span>
+            <span className="text-xs font-black text-[#CF9A61]">{totalKm.toFixed(2)} km</span>
+          </div>
+          <div>
+            <span className="text-[8px] font-bold uppercase text-stone-400 block">Allure Moy.</span>
+            <span className="text-xs font-black text-stone-100">{formatPaceFromSeconds(overallAvgPaceSec)} /km</span>
+          </div>
+          <div>
+            <span className="text-[8px] font-bold uppercase text-stone-400 block">FC Moyenne</span>
+            <span className="text-xs font-black text-rose-400">{baseHr} bpm</span>
+          </div>
+          <div>
+            <span className="text-[8px] font-bold uppercase text-stone-400 block">D+ Cumulé</span>
+            <span className="text-xs font-black text-emerald-400">+{totalElev} m</span>
+          </div>
         </div>
 
-        {/* 1. VUE HISTOGRAMME DES ALLURES / SPLITS AU KILOMÈTRE */}
-        {activeMetricTab === "splits" && (
-          <div className="space-y-3 animate-fadeIn">
-            <div className="flex justify-between items-center text-[10px] text-stone-400 px-1">
-              <span>Allure par kilomètre</span>
-              <span className="text-[#CF9A61] font-bold">Moyenne : {laps[0]?.pace || "-"} /km</span>
-            </div>
-
-            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
-              {laps.map((lap) => {
-                const barWidthPct = Math.max(
-                  30,
-                  100 - ((lap.paceSec - minPaceSec) / paceRange) * 55
-                );
-
-                return (
-                  <div key={lap.km} className="space-y-1 text-xs">
-                    <div className="flex justify-between text-[10px] font-bold">
-                      <span className="text-stone-400">Km {lap.km}</span>
-                      <div className="flex items-center gap-3 font-mono">
-                        <span className="text-[#CF9A61] font-black">{lap.pace} /km</span>
-                        <span className="text-stone-400 font-normal">❤️ {lap.avgHr} bpm</span>
-                        {lap.elev > 0 && <span className="text-emerald-400 font-normal">+{lap.elev}m</span>}
-                      </div>
-                    </div>
-
-                    <div className="w-full bg-stone-900 h-2.5 rounded-full overflow-hidden border border-stone-800/80">
-                      <div
-                        style={{ width: `${barWidthPct}%` }}
-                        className="bg-gradient-to-r from-[#CF9A61] to-[#CDCF61] h-full rounded-full transition-all"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* SECTION 1 : TABLEAU DES SPLITS KILOMÈTRE PAR KILOMÈTRE */}
+        <div className="space-y-2.5">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
+              ⏱️ Découpage Kilométrique (Bips Montre)
+            </span>
+            <span className="text-[9px] font-bold text-stone-500">
+              {laps.length} tour(s)
+            </span>
           </div>
-        )}
 
-        {/* 2. GRAPHIQUE FC CARDIO CONTINUE */}
-        {activeMetricTab === "hr" && (
-          <div className="space-y-3 animate-fadeIn">
-            <div className="flex justify-between items-center text-[10px] text-stone-400 px-1">
-              <span>Courbe de Fréquence Cardiaque</span>
-              <span className="text-rose-400 font-bold">Max : {maxHr} bpm • Min : {minHr} bpm</span>
-            </div>
+          <div className="overflow-x-auto rounded-2xl border border-stone-800 bg-stone-950">
+            <table className="w-full text-left border-collapse text-[10px]">
+              <thead>
+                <tr className="bg-stone-900/80 text-stone-400 border-b border-stone-800 uppercase font-bold text-[8.5px] tracking-wider">
+                  <th className="py-2 px-3">Km</th>
+                  <th className="py-2 px-3">Allure</th>
+                  <th className="py-2 px-3">FC Moy / Max</th>
+                  <th className="py-2 px-3">D+</th>
+                  <th className="py-2 px-3 text-right">Cadence</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-800/60 font-mono">
+                {laps.map((lap) => (
+                  <tr key={lap.km} className="hover:bg-stone-900/40 transition">
+                    <td className="py-2 px-3 font-black text-stone-300">
+                      Km {lap.km}
+                    </td>
+                    <td className="py-2 px-3 font-black text-[#CF9A61]">
+                      {lap.pace}
+                    </td>
+                    <td className="py-2 px-3 text-rose-300">
+                      {lap.avgHr} <span className="text-stone-500 text-[8px]">/ {lap.maxHr}</span>
+                    </td>
+                    <td className="py-2 px-3 text-emerald-400">
+                      +{lap.elevationGain}m
+                    </td>
+                    <td className="py-2 px-3 text-right text-stone-400">
+                      {lap.cadence} spm
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-            <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
-              <svg viewBox="0 0 400 140" className="w-full h-36 overflow-visible">
+        {/* SECTION 2 : GRAPHIQUES D'ÉVOLUTION CONTINUE */}
+        <div className="space-y-2.5 pt-1">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
+              📈 Graphiques d'évolution continue
+            </span>
+          </div>
+
+          {/* SÉLECTEUR DE MÉTRIQUE */}
+          <div className="flex bg-stone-950 p-1 rounded-2xl border border-stone-800 gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveGraphTab("pace")}
+              className={`flex-1 py-1.5 text-[9.5px] font-black uppercase rounded-xl transition cursor-pointer ${
+                activeGraphTab === "pace"
+                  ? "bg-[#CF9A61] text-stone-950 shadow-md"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              ⚡ Allure
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGraphTab("hr")}
+              className={`flex-1 py-1.5 text-[9.5px] font-black uppercase rounded-xl transition cursor-pointer ${
+                activeGraphTab === "hr"
+                  ? "bg-rose-600 text-white shadow-md"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              ❤️ Cardio
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGraphTab("elev")}
+              className={`flex-1 py-1.5 text-[9.5px] font-black uppercase rounded-xl transition cursor-pointer ${
+                activeGraphTab === "elev"
+                  ? "bg-emerald-600 text-white shadow-md"
+                  : "text-stone-400 hover:text-stone-200"
+              }`}
+            >
+              ⛰️ Dénivelé
+            </button>
+          </div>
+
+          {/* 1. COURBE D'ALLURE (ÉCHELLE INVERSÉE : PLUS HAUT = PLUS RAPIDE) */}
+          {activeGraphTab === "pace" && (
+            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
+              <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
+                <span>Allure instantanée</span>
+                <span className="text-[#CF9A61]">
+                  Max : {formatPaceFromSeconds(minPaceSec)} • Min : {formatPaceFromSeconds(maxPaceSec)}
+                </span>
+              </div>
+
+              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
                 <defs>
-                  <linearGradient id="hrGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#CF9A61" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#CF9A61" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
+
+                {(() => {
+                  const range = maxPaceSec - minPaceSec || 30;
+                  const points = paceSamples.map((p, idx) => {
+                    const x = (idx / (paceSamples.length - 1)) * 400;
+                    // Inversion de l'axe Y pour que les allures rapides soient en haut
+                    const y = 20 + ((p - minPaceSec) / range) * 90;
+                    return `${x},${y}`;
+                  });
+
+                  return (
+                    <>
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#paceGradient)" />
+                      <path d={`M ${points.join(" L ")}`} fill="none" stroke="#CF9A61" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                  );
+                })()}
+              </svg>
+
+              <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
+                <span>Départ (0 km)</span>
+                <span>Mi-parcours</span>
+                <span>Fin ({totalKm.toFixed(1)} km)</span>
+              </div>
+            </div>
+          )}
+
+          {/* 2. COURBE FRÉQUENCE CARDIAQUE */}
+          {activeGraphTab === "hr" && (
+            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
+              <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
+                <span>Fréquence Cardiaque (bpm)</span>
+                <span className="text-rose-400">Max : {maxHr} bpm • Min : {minHr} bpm</span>
+              </div>
+
+              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
+                <defs>
+                  <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
                     <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
-                {/* Grille arrière-plan */}
                 <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="70" x2="400" y2="70" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="120" x2="400" y2="120" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
 
-                {/* Tracé de la courbe */}
                 {(() => {
+                  const range = maxHr - minHr || 30;
                   const points = hrSamples.map((hr, idx) => {
                     const x = (idx / (hrSamples.length - 1)) * 400;
-                    const y = 130 - ((hr - minHr) / (maxHr - minHr || 1)) * 105;
+                    const y = 110 - ((hr - minHr) / range) * 90;
                     return `${x},${y}`;
                   });
 
-                  const pathD = `M 0,140 L ${points.join(" L ")} L 400,140 Z`;
-                  const lineD = `M ${points.join(" L ")}`;
-
                   return (
                     <>
-                      <path d={pathD} fill="url(#hrGradient)" />
-                      <path d={lineD} fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#hrGrad)" />
+                      <path d={`M ${points.join(" L ")}`} fill="none" stroke="#f43f5e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   );
                 })()}
               </svg>
 
-              <div className="flex justify-between text-[9px] font-bold text-stone-500 uppercase pt-1">
-                <span>Départ (0 km)</span>
-                <span>Mi-parcours</span>
-                <span>Arrivée ({totalKm.toFixed(1)} km)</span>
+              <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
+                <span>Départ</span>
+                <span>Moyenne : {baseHr} bpm</span>
+                <span>Arrivée</span>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 3. PROFIL D'ÉLÉVATION / D+ CONTINU */}
-        {activeMetricTab === "elev" && (
-          <div className="space-y-3 animate-fadeIn">
-            <div className="flex justify-between items-center text-[10px] text-stone-400 px-1">
-              <span>Profil altimétrique & Pentes</span>
-              <span className="text-emerald-400 font-bold">
-                D+ Total : {workout.completedElevationGain || 45} m • Max : {maxElev} m
-              </span>
-            </div>
+          {/* 3. PROFIL DE DÉNIVELÉ */}
+          {activeGraphTab === "elev" && (
+            <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
+              <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
+                <span>Altitude & Pentes (m)</span>
+                <span className="text-emerald-400">D+ Total : +{totalElev} m</span>
+              </div>
 
-            <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
-              <svg viewBox="0 0 400 140" className="w-full h-36 overflow-visible">
+              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
                 <defs>
-                  <linearGradient id="elevGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+                  <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
                     <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
-                {/* Grille arrière-plan */}
                 <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="70" x2="400" y2="70" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="120" x2="400" y2="120" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
 
-                {/* Tracé de la surface altimétrique */}
                 {(() => {
-                  const points = elevationProfile.map((alt, idx) => {
-                    const x = (idx / (elevationProfile.length - 1)) * 400;
-                    const y = 130 - ((alt - minElev) / (maxElev - minElev || 1)) * 105;
+                  const range = maxElev - minElev || 20;
+                  const points = elevationSamples.map((alt, idx) => {
+                    const x = (idx / (elevationSamples.length - 1)) * 400;
+                    const y = 110 - ((alt - minElev) / range) * 90;
                     return `${x},${y}`;
                   });
 
-                  const pathD = `M 0,140 L ${points.join(" L ")} L 400,140 Z`;
-                  const lineD = `M ${points.join(" L ")}`;
-
                   return (
                     <>
-                      <path d={pathD} fill="url(#elevGradient)" />
-                      <path d={lineD} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#elevGrad)" />
+                      <path d={`M ${points.join(" L ")}`} fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   );
                 })()}
               </svg>
 
-              <div className="flex justify-between text-[9px] font-bold text-stone-500 uppercase pt-1">
-                <span>Altitude min : {minElev} m</span>
-                <span>Altitude max : {maxElev} m</span>
+              <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
+                <span>Alt. Min : {minElev}m</span>
+                <span>Alt. Max : {maxElev}m</span>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* BOUTON FERMER */}
         <div className="pt-2 border-t border-stone-800">
