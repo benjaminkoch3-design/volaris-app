@@ -143,11 +143,9 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
 
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   workout,
-  plan,
   completedWorkouts = {},
   onClose,
   onOpenDebrief,
-  onDeleteImport,
 }) => {
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
   const metrics = calculateStepMetrics(workout.steps);
@@ -437,7 +435,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* SYNCHRONISATION MONTRES (UNIQUEMENT LES APPLICATIONS CONNECTÉES) */}
+        {/* SYNCHRONISATION MONTRES */}
         <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
@@ -561,43 +559,25 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
-        {/* ACTIONS & TERMINER / DÉBRIEFER */}
-        <div className="space-y-2 pt-2 border-t border-stone-800">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
-            >
-              Fermer
-            </button>
-            {onOpenDebrief && (
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenDebrief(workout);
-                  onClose();
-                }}
-                className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
-              >
-                🏁 {isDone ? "Modifier le débrief" : "Terminer & Débriefer"}
-              </button>
-            )}
-          </div>
-
-          {/* BOUTON D'ANNULATION DU DÉBRIEFING */}
-          {isDone && onDeleteImport && (
+        {/* ACTIONS */}
+        <div className="flex gap-2 pt-2 border-t border-stone-800">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+          >
+            Fermer
+          </button>
+          {onOpenDebrief && (
             <button
               type="button"
               onClick={() => {
-                if (window.confirm("Voulez-vous annuler complètement le débriefing de cette séance et réinitialiser vos statistiques ?")) {
-                  onDeleteImport(workout.id);
-                  onClose();
-                }
+                onOpenDebrief(workout);
+                onClose();
               }}
-              className="w-full py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-400 font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer"
+              className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
             >
-              🗑️ Annuler le débriefing de cette séance
+              🏁 {isDone ? "Modifier le débrief" : "Terminer & Débriefer"}
             </button>
           )}
         </div>
