@@ -557,7 +557,12 @@ export default function Home() {
               steps: Array.isArray(w.steps) ? w.steps : [],
               completed: Boolean(w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name),
               completedRpe: w.completed_rpe,
+              athleteComment: w.athlete_comment,
+              shoeId: w.shoe_id,
               completedKm: w.completed_km,
+              completedTimeMinutes: w.completed_time_minutes,
+              completedElevationGain: w.completed_elevation_gain,
+              importedActivityName: w.imported_activity_name,
             } as any))
           );
         }
@@ -620,6 +625,49 @@ export default function Home() {
     };
 
     fetchAthletes();
+
+    // Souscription Realtime pour recevoir les débriefs des athlètes en direct
+    const workoutsChannel = supabase
+      .channel("realtime_coach_workouts_sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workouts",
+        },
+        (payload) => {
+          const updatedWorkout = payload.new as any;
+          if (!updatedWorkout) return;
+
+          setAllCoachAthletesWorkouts((prev) =>
+            prev.map((w) =>
+              w.id === updatedWorkout.id
+                ? {
+                    ...w,
+                    completedRpe: updatedWorkout.completed_rpe,
+                    athleteComment: updatedWorkout.athlete_comment,
+                    shoeId: updatedWorkout.shoe_id,
+                    completedKm: updatedWorkout.completed_km,
+                    completedTimeMinutes: updatedWorkout.completed_time_minutes,
+                    completedElevationGain: updatedWorkout.completed_elevation_gain,
+                    importedActivityName: updatedWorkout.imported_activity_name,
+                    completed: Boolean(
+                      updatedWorkout.completed_rpe !== null ||
+                      updatedWorkout.completed_km !== null ||
+                      updatedWorkout.imported_activity_name !== null
+                    ),
+                  }
+                : w
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(workoutsChannel);
+    };
   }, [session, userRole]);
 
   // CHARGEMENT AUTOMATIQUE INTÉGRAL DEPUIS SUPABASE
@@ -2070,17 +2118,17 @@ export default function Home() {
   }
 
   if (selectedWorkoutDetail && activePlan) {
-      return (
-        <WorkoutDetail
-          workout={selectedWorkoutDetail}
-          plan={activePlan}
-          completedWorkouts={completedWorkouts}
-          onClose={() => setSelectedWorkoutDetail(null)}
-          onOpenDebrief={(workout) => setDebriefWorkout(workout)}
-          onDeleteImport={handleDeleteWorkoutImport}
-        />
-      );
-    }
+    return (
+      <WorkoutDetail
+        workout={selectedWorkoutDetail}
+        plan={activePlan}
+        completedWorkouts={completedWorkouts}
+        onClose={() => setSelectedWorkoutDetail(null)}
+        onOpenDebrief={(workout) => setDebriefWorkout(workout)}
+        onDeleteImport={handleDeleteWorkoutImport}
+      />
+    );
+  }
 
   // ÉCRAN PRINCIPAL DE L'APPLICATION
   return (

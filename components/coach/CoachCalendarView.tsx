@@ -29,29 +29,18 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
+  const handlePrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const handleNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  const handleCurrentMonth = () => setCurrentDate(new Date());
 
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const handleCurrentMonth = () => {
-    setCurrentDate(new Date());
-  };
-
-  // Calcul des bornes du mois
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
 
-  // Conversion Dimanche(0) -> 6, Lundi(1) -> 0
   const startDayIndex = (firstDayOfMonth.getDay() + 6) % 7;
   const daysInMonth = lastDayOfMonth.getDate();
-
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Regroupement des séances par date "YYYY-MM-DD"
+  // Regroupement des séances par date
   const sessionsByDate: Record<string, { athlete: AthleteProfile; workout: Workout }[]> = {};
 
   allPlans.forEach((item) => {
@@ -63,14 +52,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
     const planUserId = plan.userId || plan.user_id;
     const athlete = managedAthletes.find((a) => a.id === planUserId);
-    if (!athlete || !plan.startDate && !plan.start_date) return;
+    if (!athlete || (!plan.startDate && !plan.start_date)) return;
 
     const planStartDateStr: string = plan.startDate || plan.start_date;
     const planId = plan.id;
 
     const planWorkouts = allWorkouts.filter((wItem) => {
       const w = wItem as any;
-      return (w.planId === planId) || (w.plan_id === planId);
+      return w.planId === planId || w.plan_id === planId;
     });
 
     planWorkouts.forEach((wItem) => {
@@ -119,7 +108,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             type="button"
             onClick={handlePrevMonth}
             className="p-1.5 bg-stone-950 hover:bg-stone-800 text-stone-300 rounded-xl border border-stone-800 transition cursor-pointer"
-            title="Mois précédent"
           >
             ◀
           </button>
@@ -127,7 +115,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             type="button"
             onClick={handleNextMonth}
             className="p-1.5 bg-stone-950 hover:bg-stone-800 text-stone-300 rounded-xl border border-stone-800 transition cursor-pointer"
-            title="Mois suivant"
           >
             ▶
           </button>
@@ -136,7 +123,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
       {/* GRILLE MENSUELLE */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-3.5 shadow-xl space-y-2">
-        {/* JOURS DE LA SEMAINE */}
         <div className="grid grid-cols-7 gap-1 text-center pb-2 border-b border-stone-800/80">
           {DAYS_SHORT_FR.map((d) => (
             <span key={d} className="text-[10px] font-black uppercase text-stone-400">
@@ -145,25 +131,26 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           ))}
         </div>
 
-        {/* CASES DU CALENDRIER */}
         <div className="grid grid-cols-7 gap-1.5">
-          {/* Cases vides avant le 1er du mois */}
           {Array.from({ length: startDayIndex }).map((_, i) => (
-            <div key={`empty_${i}`} className="min-h-[64px] bg-stone-950/20 rounded-2xl border border-transparent" />
+            <div key={`empty_${i}`} className="min-h-[68px] bg-stone-950/20 rounded-2xl border border-transparent" />
           ))}
 
-          {/* Jours du mois */}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const dayNum = i + 1;
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
             const isToday = dateStr === todayStr;
             const daySessions = sessionsByDate[dateStr] || [];
 
+            const debriefedCount = daySessions.filter(
+              (s) => s.workout.completedRpe !== undefined || s.workout.completed || s.workout.completedKm
+            ).length;
+
             return (
               <div
                 key={dateStr}
                 onClick={() => onSelectDate(dateStr)}
-                className={`min-h-[68px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
+                className={`min-h-[70px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
                   isToday
                     ? "bg-[#CDCF61]/10 border-[#CDCF61]/60 shadow-md"
                     : daySessions.length > 0
@@ -181,27 +168,45 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   </span>
 
                   {daySessions.length > 0 && (
-                    <span className="text-[8px] font-black text-[#CDCF61] bg-[#CDCF61]/20 px-1 py-0.2 rounded-md">
-                      {daySessions.length}
+                    <span
+                      className={`text-[8px] font-black px-1 py-0.2 rounded-md ${
+                        debriefedCount > 0
+                          ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                          : "bg-[#CDCF61]/20 text-[#CDCF61]"
+                      }`}
+                    >
+                      {debriefedCount > 0 ? `✓ ${debriefedCount}` : daySessions.length}
                     </span>
                   )}
                 </div>
 
-                {/* PASTILLES DES ATHLÈTES */}
+                {/* PASTILLES AVEC INDICATEUR DE BILAN DÉBRIEFÉ */}
                 <div className="space-y-1 mt-1">
                   {daySessions.slice(0, 2).map((s, idx) => {
+                    const isDebriefed =
+                      s.workout.completedRpe !== undefined ||
+                      Boolean(s.workout.athleteComment) ||
+                      Boolean(s.workout.completedKm);
+
                     const typeConfig = getWorkoutTypeConfig(s.workout.type);
                     const firstName = (s.athlete.name || "Athlète").split(" ")[0];
+
                     return (
                       <div
                         key={idx}
-                        className={`text-[7.5px] font-bold px-1 py-0.5 rounded truncate border ${typeConfig.badgeClass}`}
-                        title={`${s.athlete.name} : ${s.workout.title || s.workout.type}`}
+                        className={`text-[7.5px] font-bold px-1 py-0.5 rounded truncate border flex items-center justify-between ${
+                          isDebriefed
+                            ? "bg-emerald-950/40 text-emerald-300 border-emerald-800"
+                            : typeConfig.badgeClass
+                        }`}
+                        title={`${s.athlete.name} : ${s.workout.title || s.workout.type} ${isDebriefed ? "(Débriefé)" : ""}`}
                       >
-                        {firstName}
+                        <span className="truncate">{firstName}</span>
+                        {isDebriefed && <span className="text-[7px] text-emerald-400 ml-0.5">✓</span>}
                       </div>
                     );
                   })}
+
                   {daySessions.length > 2 && (
                     <span className="text-[7.5px] font-black text-stone-500 block text-right">
                       +{daySessions.length - 2}

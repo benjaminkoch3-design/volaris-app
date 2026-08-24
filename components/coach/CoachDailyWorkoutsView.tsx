@@ -3,6 +3,7 @@
 import React from "react";
 import { AthleteProfile, Workout, Plan } from "../../types";
 import { getWorkoutTypeConfig, safeFormatDateFr } from "../../utils/calculations";
+import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 
 export interface AthleteDailySession {
   athlete: AthleteProfile;
@@ -28,13 +29,20 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
   const isToday = selectedDateStr === new Date().toISOString().split("T")[0];
   const formattedDate = safeFormatDateFr(selectedDateStr);
 
-  const getRpeColor = (rpeStr?: string) => {
-    if (!rpeStr) return "#CDCF61";
-    const rpe = parseInt(rpeStr, 10);
+  const getRpeColor = (rpeVal?: number | string) => {
+    if (!rpeVal) return "#CDCF61";
+    const rpe = typeof rpeVal === "number" ? rpeVal : parseInt(rpeVal, 10);
     if (rpe <= 3) return "#10b981";
     if (rpe <= 5) return "#f59e0b";
     if (rpe <= 7) return "#f97316";
     return "#ef4444";
+  };
+
+  const renderBrandLogo = (nameStr: string) => {
+    const lower = (nameStr || "").toLowerCase();
+    if (lower.includes("strava")) return <StravaLogo className="w-3.5 h-3.5" />;
+    if (lower.includes("coros")) return <CorosLogo className="w-3.5 h-3.5" />;
+    return <GarminLogo className="w-3.5 h-3.5" />;
   };
 
   return (
@@ -68,7 +76,7 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
         )}
       </div>
 
-      {/* LISTE DES SÉANCES DU JOUR DES ATHLÈTES */}
+      {/* LISTE DES SÉANCES DU JOUR */}
       {dailySessions.length === 0 ? (
         <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-stone-950 border border-stone-800 flex items-center justify-center mx-auto text-xl text-[#CDCF61]">
@@ -82,19 +90,39 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
           </p>
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {dailySessions.map(({ athlete, plan, workout }) => {
-            const isDone = completedWorkouts[workout.id] || workout.completed;
+            const hasDebrief =
+              workout.completedRpe !== undefined &&
+              workout.completedRpe !== null ||
+              Boolean(workout.athleteComment) ||
+              Boolean(workout.completedKm);
+
+            const isDone = completedWorkouts[workout.id] || workout.completed || hasDebrief;
             const typeConfig = getWorkoutTypeConfig(workout.type);
-            const rpeColor = getRpeColor(workout.rpe);
+            const rpeColor = getRpeColor(workout.completedRpe ?? workout.rpe);
+
+            // Calcul allure réelle si km et temps présents
+            let actualPaceStr = "";
+            if (workout.completedKm && workout.completedTimeMinutes) {
+              const totalSec = workout.completedTimeMinutes * 60;
+              const secPerKm = Math.round(totalSec / workout.completedKm);
+              const m = Math.floor(secPerKm / 60);
+              const s = secPerKm % 60;
+              actualPaceStr = `${m}:${s < 10 ? "0" : ""}${s} /km`;
+            }
 
             return (
               <div
                 key={`${athlete.id}_${workout.id}`}
                 onClick={() => onSelectWorkoutDetail(workout, plan)}
-                className={`bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/50 p-4 rounded-3xl space-y-3 shadow-xl transition-all cursor-pointer group border-l-4 ${typeConfig.borderClass}`}
+                className={`bg-stone-900/95 border p-4 rounded-3xl space-y-3.5 shadow-xl transition-all cursor-pointer group border-l-4 ${
+                  hasDebrief
+                    ? "border-emerald-700/60 hover:border-emerald-500"
+                    : "border-stone-800 hover:border-[#CDCF61]/50"
+                } ${typeConfig.borderClass}`}
               >
-                {/* ATHLÈTE ET STATUT */}
+                {/* ATHLÈTE ET STATUT DE DÉBRIEFING */}
                 <div className="flex justify-between items-center border-b border-stone-800/80 pb-2.5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-xs text-[#CDCF61]">
@@ -111,18 +139,20 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
                   </div>
 
                   <span
-                    className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border transition ${
-                      isDone
-                        ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
-                        : "bg-stone-950 text-stone-400 border-stone-800"
+                    className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition ${
+                      hasDebrief
+                        ? "bg-emerald-950/60 text-emerald-400 border-emerald-700/70"
+                        : isDone
+                        ? "bg-stone-900 text-stone-300 border-stone-700"
+                        : "bg-stone-950 text-stone-500 border-stone-800"
                     }`}
                   >
-                    {isDone ? "✓ Réalisée" : "À Faire"}
+                    {hasDebrief ? "✓ Débriefé" : isDone ? "✓ Réalisé" : "À Faire"}
                   </span>
                 </div>
 
-                {/* DÉTAIL SÉANCE (STYLE DASHBOARD) */}
-                <div className="space-y-2">
+                {/* SÉANCE PRÉVUE */}
+                <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <span
@@ -135,25 +165,10 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
                       </h3>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 text-[9.5px]">
                       {workout.km && (
-                        <span className="text-[9.5px] font-black bg-stone-950 text-stone-100 px-2 py-0.5 rounded-md border border-stone-800">
-                          {workout.completedKm !== undefined
-                            ? `${workout.completedKm} km (réel)`
-                            : `${workout.km} km`}
-                        </span>
-                      )}
-
-                      {workout.rpe && (
-                        <span
-                          style={{
-                            color: rpeColor,
-                            borderColor: `${rpeColor}40`,
-                            backgroundColor: `${rpeColor}15`,
-                          }}
-                          className="text-[9px] font-bold px-2 py-0.5 rounded-md border"
-                        >
-                          RPE {workout.completedRpe ?? workout.rpe}/10
+                        <span className="font-bold bg-stone-950 text-stone-300 px-2 py-0.5 rounded-md border border-stone-800">
+                          Prévu : {workout.km} km
                         </span>
                       )}
                     </div>
@@ -164,14 +179,71 @@ export const CoachDailyWorkoutsView: React.FC<CoachDailyWorkoutsViewProps> = ({
                       {workout.description}
                     </p>
                   )}
-
-                  {workout.steps && workout.steps.length > 0 && (
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-[#CDCF61] pt-1.5 border-t border-stone-800/60">
-                      <span>{workout.steps.length} bloc(s) de fractionné</span>
-                      <span className="underline font-bold">Consulter la séance ➔</span>
-                    </div>
-                  )}
                 </div>
+
+                {/* ENCART SPÉCIAL DU BILAN DÉBRIEFING ATHLÈTE */}
+                {hasDebrief && (
+                  <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2">
+                    <div className="flex justify-between items-center border-b border-stone-800/80 pb-2">
+                      <span className="text-[9.5px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                        <span>📊 Bilan de l'athlète</span>
+                      </span>
+
+                      {workout.importedActivityName && (
+                        <span className="text-[8.5px] font-bold text-stone-400 flex items-center gap-1 bg-stone-900 px-2 py-0.5 rounded-md border border-stone-800">
+                          {renderBrandLogo(workout.importedActivityName)}
+                          <span className="truncate max-w-[130px]">{workout.importedActivityName}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* MÉTRIQUES RÉELLES */}
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800/80">
+                        <span className="block text-[8px] font-bold uppercase text-stone-400">Réel</span>
+                        <span className="font-black text-[#CF9A61]">
+                          {workout.completedKm !== undefined ? `${workout.completedKm} km` : "-"}
+                        </span>
+                      </div>
+
+                      <div className="bg-stone-900/60 p-2 rounded-xl border border-stone-800/80">
+                        <span className="block text-[8px] font-bold uppercase text-stone-400">Temps & Allure</span>
+                        <span className="font-black text-stone-200">
+                          {workout.completedTimeMinutes ? `${workout.completedTimeMinutes} min` : "-"}
+                        </span>
+                        {actualPaceStr && (
+                          <span className="block text-[7.5px] text-stone-400 font-mono">{actualPaceStr}</span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          backgroundColor: `${rpeColor}15`,
+                          borderColor: `${rpeColor}40`,
+                          color: rpeColor,
+                        }}
+                        className="p-2 rounded-xl border flex flex-col justify-center"
+                      >
+                        <span className="block text-[8px] font-bold uppercase opacity-90">RPE Ressenti</span>
+                        <span className="font-black text-xs">
+                          {workout.completedRpe !== undefined ? `${workout.completedRpe}/10` : "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* COMMENTAIRE & SENSATIONS DE L'ATHLÈTE */}
+                    {workout.athleteComment && (
+                      <div className="bg-stone-900/80 p-2.5 rounded-xl border border-stone-800/90 text-xs">
+                        <span className="text-[8.5px] font-bold text-stone-400 uppercase block mb-0.5">
+                          💬 Sensations :
+                        </span>
+                        <p className="text-stone-300 italic text-[11px] leading-relaxed">
+                          « {workout.athleteComment} »
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
