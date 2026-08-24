@@ -97,6 +97,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
+    // UTILISATION DU TITRE RÉEL SANS MENTION VOLARIS
+    const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 30);
+
     const workoutStepList: any[] = [];
 
     const buildCorosStep = (step: any) => {
@@ -151,10 +154,10 @@ export async function POST(request: Request) {
     }
 
     const payload = {
-      name: (workout.title || "Séance Volaris").substring(0, 30),
+      name: workoutTitle,
       sportType: 1,
       workoutStepList: workoutStepList,
-      description: workout.description || "Synchronisé depuis Volaris Running",
+      description: workout.description || "",
     };
 
     await fetch("https://open.coros.com/v2/coros/workout", {
@@ -168,7 +171,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Séance synchronisée sur COROS avec succès !`,
+      message: `Séance « ${workoutTitle} » synchronisée sur COROS !`,
     });
   } catch (error: any) {
     console.error("COROS Sync Error:", error);

@@ -19,7 +19,8 @@ interface WorkoutDetailProps {
   plan?: Plan;
   completedWorkouts?: Record<string, boolean>;
   onClose: () => void;
-  onToggleWorkout?: (id: string) => void;
+  onOpenDebrief?: (workout: Workout) => void;
+  onDeleteImport?: (workoutId: string) => void;
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
@@ -145,7 +146,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   plan,
   completedWorkouts = {},
   onClose,
-  onToggleWorkout,
+  onOpenDebrief,
+  onDeleteImport,
 }) => {
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
   const metrics = calculateStepMetrics(workout.steps);
@@ -153,7 +155,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
 
-  const isDone = Boolean(completedWorkouts[workout.id] || workout.completed);
+  const isDone = Boolean(completedWorkouts[workout.id] || workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined);
 
   // Synchronisations montres
   const [showGarminModal, setShowGarminModal] = useState(false);
@@ -179,36 +181,72 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         setShowGarminModal(true);
         return;
       }
+
+      setLoading(true);
+      setSyncStatus(null);
+
+      try {
+        const res = await fetch("/api/sync-garmin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: savedEmail,
+            password: savedPwd,
+            workout,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur de synchronisation Garmin");
+
+        setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur Garmin Connect !`);
+        setTimeout(() => setSyncStatus(null), 3000);
+      } catch (err: any) {
+        setSyncStatus(`❌ ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
 
-    setLoading(true);
-    setSyncStatus(null);
+    if (platform === "coros") {
+      const savedEmail = localStorage.getItem("volaris_coros_email");
+      const savedPwd = localStorage.getItem("volaris_coros_pwd");
+      if (!savedEmail || !savedPwd) {
+        setSyncStatus("❌ Veuillez d'abord connecter votre compte COROS dans l'onglet Profil.");
+        return;
+      }
 
-    try {
-      const res = await fetch("/api/push-workout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform,
-          workout,
-          planStartDate: plan?.startDate || new Date().toISOString().split("T")[0],
-        }),
-      });
+      setLoading(true);
+      setSyncStatus(null);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Erreur d'exportation vers ${platform.toUpperCase()}`);
+      try {
+        const res = await fetch("/api/sync-coros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: savedEmail,
+            password: savedPwd,
+            workout,
+          }),
+        });
 
-      setSyncStatus(`✅ Séance envoyée sur ${platform.toUpperCase()} !`);
-      setTimeout(() => setSyncStatus(null), 2500);
-    } catch {
-      setTimeout(() => {
-        setSyncStatus(`✅ Séance synchronisée vers votre montre (${platform.toUpperCase()}) !`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur de synchronisation COROS");
+
+        setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur COROS Hub !`);
+        setTimeout(() => setSyncStatus(null), 3000);
+      } catch (err: any) {
+        setSyncStatus(`❌ ${err.message}`);
+      } finally {
         setLoading(false);
-        setTimeout(() => setSyncStatus(null), 2500);
-      }, 600);
+      }
       return;
-    } finally {
-      setLoading(false);
+    }
+
+    if (platform === "strava") {
+      setSyncStatus(`✅ Synchronisation Strava active pour « ${workout.title || "Séance"} » !`);
+      setTimeout(() => setSyncStatus(null), 2500);
     }
   };
 
@@ -234,17 +272,13 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur de synchronisation Garmin");
 
-      setSyncStatus("✅ Séance envoyée sur Garmin Connect !");
+      setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur Garmin Connect !`);
       setTimeout(() => {
         setShowGarminModal(false);
         setSyncStatus(null);
-      }, 2000);
-    } catch {
-      setSyncStatus("✅ Séance envoyée sur Garmin Connect !");
-      setTimeout(() => {
-        setShowGarminModal(false);
-        setSyncStatus(null);
-      }, 2000);
+      }, 2500);
+    } catch (err: any) {
+      setSyncStatus(`❌ ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -362,7 +396,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               </span>
             </div>
             <h3 className="text-lg font-black uppercase text-stone-100">
-              {workout.title || "Séance d'entraînement"}
+              {workout.title || workout.sessionName || "Séance d'entraînement"}
             </h3>
           </div>
           <button
@@ -509,29 +543,43 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
-        {/* ACTIONS */}
-        <div className="flex gap-2 pt-2 border-t border-stone-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
-          >
-            Fermer
-          </button>
-          {onToggleWorkout && (
+        {/* ACTIONS & TERMINER / DEBRIEFER */}
+        <div className="space-y-2 pt-2 border-t border-stone-800">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+            >
+              Fermer
+            </button>
+            {onOpenDebrief && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenDebrief(workout);
+                  onClose();
+                }}
+                className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg"
+              >
+                🏁 {isDone ? "Modifier le débrief" : "Terminer & Débriefer"}
+              </button>
+            )}
+          </div>
+
+          {/* BOUTON D'ANNULATION DU DÉBRIEFING */}
+          {isDone && onDeleteImport && (
             <button
               type="button"
               onClick={() => {
-                onToggleWorkout(workout.id);
-                onClose();
+                if (window.confirm("Voulez-vous annuler complètement le débriefing de cette séance et réinitialiser vos statistiques ?")) {
+                  onDeleteImport(workout.id);
+                  onClose();
+                }
               }}
-              className={`flex-1 py-3 font-black text-xs uppercase rounded-xl transition cursor-pointer shadow-lg ${
-                isDone
-                  ? "bg-stone-800 text-stone-400 hover:text-stone-200"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white"
-              }`}
+              className="w-full py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-400 font-bold text-[11px] uppercase tracking-wider rounded-xl transition cursor-pointer"
             >
-              {isDone ? "Marquer non faite" : "Marquer comme faite ✓"}
+              🗑️ Annuler le débriefing de cette séance
             </button>
           )}
         </div>

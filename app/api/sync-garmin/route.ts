@@ -172,8 +172,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    const workoutTitle = (workout.title || "Séance Volaris").substring(0, 45);
-    const workoutDesc = workout.description || "Synchronisé depuis Volaris Running";
+    // UTILISATION DU TITRE RÉEL SANS MENTION VOLARIS
+    const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 45);
+    const workoutDesc = workout.description || "";
 
     const workoutSteps: any[] = [];
     let stepOrder = 1;
@@ -310,7 +311,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Garmin Sync Error:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur de synchronisation Garmin." },
+      { error: error?.message || "Erreur lors de la synchronisation Garmin." },
       { status: 400 }
     );
   }
