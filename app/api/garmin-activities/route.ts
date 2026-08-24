@@ -3,7 +3,6 @@
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
 
-// Formatage précis des secondes en "M:SS"
 const formatSecondsToPace = (secPerKm: number): string => {
   if (!secPerKm || !isFinite(secPerKm) || secPerKm <= 0 || secPerKm > 1200) return "-";
   const mins = Math.floor(secPerKm / 60);
@@ -23,29 +22,41 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // 1. Si un ID spécifique est demandé pour extraire les splits détaillés
+    // 1. Récupération des détails télémétriques complets (Splits et métriques point par point)
     if (activityId) {
-      let details: any = null;
       let splitsData: any = null;
+      let detailsData: any = null;
 
       try {
-        if (typeof gc.getActivitySplits === "function") {
-          splitsData = await gc.getActivitySplits(activityId);
-        } else if (typeof gc.get === "function") {
+        if (typeof gc.get === "function") {
           splitsData = await gc.get(
             `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/splits`
           );
+          detailsData = await gc.get(
+            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
+          );
+        } else if (gc.client?.get) {
+          const sRes = await gc.client.get(
+            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/splits`
+          );
+          splitsData = sRes.data;
+          const dRes = await gc.client.get(
+            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
+          );
+          detailsData = dRes.data;
         }
       } catch (e) {
-        console.warn("Splits endpoint non disponible:", e);
+        console.warn("Détails Garmin non disponibles:", e);
       }
 
-      const lapDTOs = splitsData?.lapDTOs || splitsData?.lapList || [];
-      const formattedLaps = lapDTOs.map((lap: any, idx: number) => {
+      // Vrais tours / Splits au km
+      const rawLaps = splitsData?.lapDTOs || splitsData?.lapList || [];
+      const laps = rawLaps.map((lap: any, idx: number) => {
         const distM = lap.distance || 1000;
         const distKm = Math.round((distM / 1000) * 100) / 100;
         const durSec = Math.round(lap.duration || lap.movingDuration || 0);
-        const secPerKm = distKm > 0 ? Math.round(durSec / distKm) : 0;
+        const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
+        const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
 
         return {
           km: lap.lapIndex !== undefined ? lap.lapIndex + 1 : idx + 1,
@@ -60,10 +71,44 @@ export async function POST(request: Request) {
         };
       });
 
-      return NextResponse.json({ success: true, laps: formattedLaps });
+      // Échantillons de courbes point par point réels Garmin
+      const metricDescriptors = detailsData?.metricDescriptors || [];
+      const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate");
+      const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed");
+      const elevIndex = metricDescriptors.findIndex((m: any) => m.key === "directElevation");
+
+      const activityDetailMetrics = detailsData?.activityDetailMetrics || [];
+      const hrSamples: number[] = [];
+      const paceSamples: number[] = [];
+      const elevationProfile: number[] = [];
+
+      // Sous-échantillonnage fluide
+      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 50));
+      for (let i = 0; i < activityDetailMetrics.length; i += step) {
+        const metrics = activityDetailMetrics[i]?.metrics;
+        if (metrics) {
+          if (hrIndex !== -1 && metrics[hrIndex] !== undefined) hrSamples.push(Math.round(metrics[hrIndex]));
+          if (speedIndex !== -1 && metrics[speedIndex] > 0) {
+            paceSamples.push(Math.round(1000 / metrics[speedIndex]));
+          }
+          if (elevIndex !== -1 && metrics[elevIndex] !== undefined) {
+            elevationProfile.push(Math.round(metrics[elevIndex]));
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        telemetry: {
+          laps,
+          hrSamples,
+          paceSamples,
+          elevationProfile,
+        },
+      });
     }
 
-    // 2. Récupération des dernières activités de course
+    // 2. Récupération des dernières activités
     let activities: any[] = [];
     if (typeof gc.getActivities === "function") {
       activities = await gc.getActivities(0, limit);
@@ -92,8 +137,8 @@ export async function POST(request: Request) {
         const distKm = act.distance
           ? Math.round((act.distance / 1000) * 100) / 100
           : 0;
-        
-        // Utiliser la vitesse moyenne en m/s en priorité pour une précision exacte
+
+        // Vitesse moyenne en m/s calculée par la montre
         const avgSpeedMs = act.averageSpeed || (act.distance && act.duration ? act.distance / act.duration : 0);
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);

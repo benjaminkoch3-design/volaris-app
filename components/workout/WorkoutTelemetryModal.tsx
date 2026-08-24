@@ -22,19 +22,19 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   const [activeGraphTab, setActiveGraphTab] = useState<"pace" | "hr" | "elev">("pace");
 
   const telemetry = (workout as any).activityTelemetry || (workout as any).activity_telemetry || {};
-  const totalKm = workout.completedKm || parseFloat(workout.km || "10") || 10;
-  const numLaps = Math.max(1, Math.round(totalKm));
+  const totalKm = workout.completedKm !== undefined ? workout.completedKm : parseFloat(workout.km || "0") || 0;
   
-  // Calcul de l'allure moyenne globale en sec/km
+  // Allure moyenne globale réelle
   const overallAvgPaceSec =
     workout.completedTimeMinutes && totalKm > 0
       ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
       : (workout as any).avgPaceSec || 300;
 
-  const baseHr = (workout as any).avgHr || 152;
-  const totalElev = workout.completedElevationGain || 40;
+  const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || 150;
+  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || (baseHr + 20);
+  const totalElev = workout.completedElevationGain ?? 0;
 
-  // 1. RECONSTITUTION DES VRAIS LAPS / KILOMÈTRES
+  // Récupération des vrais tours ou calcul direct sur la distance
   const laps: Array<{
     km: number;
     pace: string;
@@ -46,40 +46,32 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   }> =
     telemetry.laps && telemetry.laps.length > 0
       ? telemetry.laps
-      : Array.from({ length: numLaps }).map((_, i) => {
-          // Variance naturelle par km
-          const variation = Math.round(Math.sin(i * 1.8) * 10 - (i % 2 === 0 ? 4 : -6));
-          const paceSec = Math.max(180, overallAvgPaceSec + variation);
-          return {
-            km: i + 1,
-            pace: formatPaceFromSeconds(paceSec),
-            paceSec,
-            avgHr: Math.round(baseHr - 8 + (i * 1.4) + Math.sin(i) * 5),
-            maxHr: Math.round(baseHr + 4 + (i * 1.5) + Math.sin(i) * 6),
-            elevationGain: Math.max(0, Math.round((totalElev / numLaps) + Math.sin(i * 1.5) * 6)),
-            cadence: Math.round(172 + Math.sin(i * 2) * 4),
-          };
-        });
+      : Array.from({ length: Math.max(1, Math.round(totalKm)) }).map((_, i) => ({
+          km: i + 1,
+          pace: formatPaceFromSeconds(overallAvgPaceSec),
+          paceSec: overallAvgPaceSec,
+          avgHr: baseHr,
+          maxHr: maxHrVal,
+          elevationGain: Math.round(totalElev / Math.max(1, Math.round(totalKm))),
+          cadence: (workout as any).avgCadence || 170,
+        }));
 
-  // 2. ÉCHANTILLONS CONTINUS POUR LES COURBES
+  // Vrais échantillons télémétriques
   const paceSamples: number[] =
     telemetry.paceSamples && telemetry.paceSamples.length > 0
       ? telemetry.paceSamples
-      : laps.flatMap((l) => [l.paceSec + 4, l.paceSec - 2, l.paceSec - 5, l.paceSec + 1]);
+      : laps.map((l) => l.paceSec);
 
   const hrSamples: number[] =
     telemetry.hrSamples && telemetry.hrSamples.length > 0
       ? telemetry.hrSamples
-      : laps.flatMap((l) => [l.avgHr - 3, l.avgHr, l.maxHr - 2, l.avgHr + 1]);
+      : laps.map((l) => l.avgHr);
 
   const elevationSamples: number[] =
     telemetry.elevationProfile && telemetry.elevationProfile.length > 0
       ? telemetry.elevationProfile
-      : Array.from({ length: 40 }).map((_, i) =>
-          Math.round(110 + (i * 1.2) + Math.sin(i * 0.3) * (totalElev * 0.7))
-        );
+      : [0, totalElev / 2, totalElev];
 
-  // Valeurs extrêmes pour les axes
   const minPaceSec = Math.min(...paceSamples);
   const maxPaceSec = Math.max(...paceSamples);
   const minHr = Math.min(...hrSamples);
@@ -95,7 +87,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div>
             <span className="text-[10px] font-black text-[#CF9A61] uppercase tracking-widest block">
-              Télémétrie de la montre
+              Débrief de la séance
             </span>
             <h3 className="text-base font-black uppercase text-stone-100">
               {workout.title || workout.sessionName || "Détail de la Sortie"}
@@ -110,7 +102,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </button>
         </div>
 
-        {/* RÉSUMÉ GLOBAL EXACT */}
+        {/* MÉTRIQUES RÉELLES DE LA MONTRE */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center">
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">Distance</span>
@@ -125,7 +117,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
             <span className="text-xs font-black text-rose-400">{baseHr} bpm</span>
           </div>
           <div>
-            <span className="text-[8px] font-bold uppercase text-stone-400 block">D+ Cumulé</span>
+            <span className="text-[8px] font-bold uppercase text-stone-400 block">D+ Total</span>
             <span className="text-xs font-black text-emerald-400">+{totalElev} m</span>
           </div>
         </div>
@@ -162,13 +154,13 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                       {lap.pace}
                     </td>
                     <td className="py-2 px-3 text-rose-300">
-                      {lap.avgHr} <span className="text-stone-500 text-[8px]">/ {lap.maxHr}</span>
+                      {lap.avgHr || "-"} {lap.maxHr ? <span className="text-stone-500 text-[8px]">/ {lap.maxHr}</span> : ""}
                     </td>
                     <td className="py-2 px-3 text-emerald-400">
                       +{lap.elevationGain}m
                     </td>
                     <td className="py-2 px-3 text-right text-stone-400">
-                      {lap.cadence} spm
+                      {lap.cadence ? `${lap.cadence} spm` : "-"}
                     </td>
                   </tr>
                 ))}
@@ -181,11 +173,10 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
         <div className="space-y-2.5 pt-1">
           <div className="flex justify-between items-center px-1">
             <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
-              📈 Graphiques d'évolution continue
+              📈 Graphiques d'évolution
             </span>
           </div>
 
-          {/* SÉLECTEUR DE MÉTRIQUE */}
           <div className="flex bg-stone-950 p-1 rounded-2xl border border-stone-800 gap-1">
             <button
               type="button"
@@ -222,11 +213,11 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
             </button>
           </div>
 
-          {/* 1. COURBE D'ALLURE (ÉCHELLE INVERSÉE : PLUS HAUT = PLUS RAPIDE) */}
+          {/* 1. COURBE D'ALLURE */}
           {activeGraphTab === "pace" && (
             <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
-                <span>Allure instantanée</span>
+                <span>Allure</span>
                 <span className="text-[#CF9A61]">
                   Max : {formatPaceFromSeconds(minPaceSec)} • Min : {formatPaceFromSeconds(maxPaceSec)}
                 </span>
@@ -234,7 +225,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
 
               <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
                 <defs>
-                  <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="paceGradReal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#CF9A61" stopOpacity="0.35" />
                     <stop offset="100%" stopColor="#CF9A61" stopOpacity="0.0" />
                   </linearGradient>
@@ -247,15 +238,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 {(() => {
                   const range = maxPaceSec - minPaceSec || 30;
                   const points = paceSamples.map((p, idx) => {
-                    const x = (idx / (paceSamples.length - 1)) * 400;
-                    // Inversion de l'axe Y pour que les allures rapides soient en haut
+                    const x = (idx / Math.max(1, paceSamples.length - 1)) * 400;
                     const y = 20 + ((p - minPaceSec) / range) * 90;
                     return `${x},${y}`;
                   });
 
                   return (
                     <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#paceGradient)" />
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#paceGradReal)" />
                       <path d={`M ${points.join(" L ")}`} fill="none" stroke="#CF9A61" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   );
@@ -263,14 +253,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
               </svg>
 
               <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
-                <span>Départ (0 km)</span>
-                <span>Mi-parcours</span>
-                <span>Fin ({totalKm.toFixed(1)} km)</span>
+                <span>0 km</span>
+                <span>Allure Moyenne : {formatPaceFromSeconds(overallAvgPaceSec)} /km</span>
+                <span>{totalKm.toFixed(1)} km</span>
               </div>
             </div>
           )}
 
-          {/* 2. COURBE FRÉQUENCE CARDIAQUE */}
+          {/* 2. COURBE CARDIO */}
           {activeGraphTab === "hr" && (
             <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
@@ -280,7 +270,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
 
               <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
                 <defs>
-                  <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="hrGradReal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
                     <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
                   </linearGradient>
@@ -293,14 +283,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 {(() => {
                   const range = maxHr - minHr || 30;
                   const points = hrSamples.map((hr, idx) => {
-                    const x = (idx / (hrSamples.length - 1)) * 400;
+                    const x = (idx / Math.max(1, hrSamples.length - 1)) * 400;
                     const y = 110 - ((hr - minHr) / range) * 90;
                     return `${x},${y}`;
                   });
 
                   return (
                     <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#hrGrad)" />
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#hrGradReal)" />
                       <path d={`M ${points.join(" L ")}`} fill="none" stroke="#f43f5e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   );
@@ -315,17 +305,17 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
             </div>
           )}
 
-          {/* 3. PROFIL DE DÉNIVELÉ */}
+          {/* 3. PROFIL DÉNIVELÉ */}
           {activeGraphTab === "elev" && (
             <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 animate-fadeIn">
               <div className="flex justify-between items-center text-[9px] text-stone-400 font-bold px-1">
-                <span>Altitude & Pentes (m)</span>
+                <span>Altitude & Dénivelé (m)</span>
                 <span className="text-emerald-400">D+ Total : +{totalElev} m</span>
               </div>
 
               <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
                 <defs>
-                  <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="elevGradReal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
                     <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                   </linearGradient>
@@ -338,14 +328,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 {(() => {
                   const range = maxElev - minElev || 20;
                   const points = elevationSamples.map((alt, idx) => {
-                    const x = (idx / (elevationSamples.length - 1)) * 400;
+                    const x = (idx / Math.max(1, elevationSamples.length - 1)) * 400;
                     const y = 110 - ((alt - minElev) / range) * 90;
                     return `${x},${y}`;
                   });
 
                   return (
                     <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#elevGrad)" />
+                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#elevGradReal)" />
                       <path d={`M ${points.join(" L ")}`} fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </>
                   );
@@ -360,14 +350,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           )}
         </div>
 
-        {/* BOUTON FERMER */}
+        {/* FERMER */}
         <div className="pt-2 border-t border-stone-800">
           <button
             type="button"
             onClick={onClose}
             className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
           >
-            Fermer l'analyse
+            Fermer
           </button>
         </div>
       </div>
