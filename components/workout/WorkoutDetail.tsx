@@ -157,28 +157,50 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 
   const isDone = Boolean(completedWorkouts[workout.id] || workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined);
 
-  // Synchronisations montres
-  const [showGarminModal, setShowGarminModal] = useState(false);
-  const [garminEmail, setGarminEmail] = useState("");
-  const [garminPassword, setGarminPassword] = useState("");
+  // Détection des applications connectées dans le profil
+  const [connectedApps, setConnectedApps] = useState<{
+    garmin: boolean;
+    coros: boolean;
+    strava: boolean;
+  }>({
+    garmin: false,
+    coros: false,
+    strava: false,
+  });
+
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    const gEmail = localStorage.getItem("volaris_garmin_email");
-    const gPwd = localStorage.getItem("volaris_garmin_pwd");
-    if (gEmail && gPwd) {
-      setGarminEmail(gEmail);
-      setGarminPassword(gPwd);
+    if (typeof window !== "undefined") {
+      const hasGarmin = Boolean(
+        localStorage.getItem("volaris_garmin_email") && localStorage.getItem("volaris_garmin_pwd")
+      );
+      const hasCoros = Boolean(
+        localStorage.getItem("volaris_coros_email") && localStorage.getItem("volaris_coros_pwd")
+      );
+      const hasStrava = localStorage.getItem("volaris_strava_connected") === "true";
+
+      setConnectedApps({
+        garmin: hasGarmin,
+        coros: hasCoros,
+        strava: hasStrava,
+      });
     }
   }, []);
 
+  const connectedList = (
+    Object.keys(connectedApps) as Array<keyof typeof connectedApps>
+  ).filter((key) => connectedApps[key]);
+
   const handlePushToPlatform = async (platform: "garmin" | "coros" | "strava") => {
+    const workoutName = workout.title || workout.sessionName || "Séance";
+
     if (platform === "garmin") {
       const savedEmail = localStorage.getItem("volaris_garmin_email");
       const savedPwd = localStorage.getItem("volaris_garmin_pwd");
       if (!savedEmail || !savedPwd) {
-        setShowGarminModal(true);
+        setSyncStatus("❌ Veuillez connecter votre compte Garmin dans l'onglet Profil.");
         return;
       }
 
@@ -199,7 +221,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur de synchronisation Garmin");
 
-        setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur Garmin Connect !`);
+        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur Garmin Connect !`);
         setTimeout(() => setSyncStatus(null), 3000);
       } catch (err: any) {
         setSyncStatus(`❌ ${err.message}`);
@@ -213,7 +235,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       const savedEmail = localStorage.getItem("volaris_coros_email");
       const savedPwd = localStorage.getItem("volaris_coros_pwd");
       if (!savedEmail || !savedPwd) {
-        setSyncStatus("❌ Veuillez d'abord connecter votre compte COROS dans l'onglet Profil.");
+        setSyncStatus("❌ Veuillez connecter votre compte COROS dans l'onglet Profil.");
         return;
       }
 
@@ -234,7 +256,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur de synchronisation COROS");
 
-        setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur COROS Hub !`);
+        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur COROS Hub !`);
         setTimeout(() => setSyncStatus(null), 3000);
       } catch (err: any) {
         setSyncStatus(`❌ ${err.message}`);
@@ -245,42 +267,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     }
 
     if (platform === "strava") {
-      setSyncStatus(`✅ Synchronisation Strava active pour « ${workout.title || "Séance"} » !`);
+      setSyncStatus(`✅ Synchronisation Strava active pour « ${workoutName} » !`);
       setTimeout(() => setSyncStatus(null), 2500);
-    }
-  };
-
-  const handleGarminModalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setSyncStatus(null);
-
-    try {
-      localStorage.setItem("volaris_garmin_email", garminEmail);
-      localStorage.setItem("volaris_garmin_pwd", garminPassword);
-
-      const res = await fetch("/api/sync-garmin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: garminEmail,
-          password: garminPassword,
-          workout,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur de synchronisation Garmin");
-
-      setSyncStatus(`✅ Séance « ${workout.title || "Séance"} » envoyée sur Garmin Connect !`);
-      setTimeout(() => {
-        setShowGarminModal(false);
-        setSyncStatus(null);
-      }, 2500);
-    } catch (err: any) {
-      setSyncStatus(`❌ ${err.message}`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -449,49 +437,79 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
-        {/* SYNCHRONISATION MULTI-MONTRES (VOLARIS ➔ MONTRE) */}
+        {/* SYNCHRONISATION MONTRES (UNIQUEMENT LES APPLICATIONS CONNECTÉES) */}
         <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
               Synchronisation Montre
             </span>
-            <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
+            {connectedList.length > 0 && (
+              <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
+            )}
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => handlePushToPlatform("garmin")}
-              disabled={loading}
-              className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
-              title="Envoyer vers Garmin Connect"
+          {connectedList.length === 0 ? (
+            <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
+              <p className="text-[11px] text-stone-400 leading-relaxed">
+                Aucune montre connectée. Rendez-vous dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour lier votre compte <span className="text-[#007CC3] font-semibold">Garmin Connect</span>, <span className="text-[#F8283B] font-semibold">COROS</span> ou <span className="text-[#FC5200] font-semibold">Strava</span>.
+              </p>
+            </div>
+          ) : (
+            <div
+              className={`grid gap-2 ${
+                connectedList.length === 1
+                  ? "grid-cols-1"
+                  : connectedList.length === 2
+                  ? "grid-cols-2"
+                  : "grid-cols-3"
+              }`}
             >
-              <GarminLogo className="w-5 h-5" />
-              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">Garmin</span>
-            </button>
+              {connectedApps.garmin && (
+                <button
+                  type="button"
+                  onClick={() => handlePushToPlatform("garmin")}
+                  disabled={loading}
+                  className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                  title="Envoyer vers Garmin Connect"
+                >
+                  <GarminLogo className="w-5 h-5" />
+                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
+                    Garmin
+                  </span>
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={() => handlePushToPlatform("coros")}
-              disabled={loading}
-              className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
-              title="Envoyer vers COROS"
-            >
-              <CorosLogo className="w-5 h-5" />
-              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">COROS</span>
-            </button>
+              {connectedApps.coros && (
+                <button
+                  type="button"
+                  onClick={() => handlePushToPlatform("coros")}
+                  disabled={loading}
+                  className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                  title="Envoyer vers COROS Training Hub"
+                >
+                  <CorosLogo className="w-5 h-5" />
+                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
+                    COROS
+                  </span>
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={() => handlePushToPlatform("strava")}
-              disabled={loading}
-              className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex flex-col items-center justify-center gap-1 transition cursor-pointer group"
-              title="Synchroniser avec Strava"
-            >
-              <StravaLogo className="w-5 h-5" />
-              <span className="text-[8px] font-bold uppercase text-stone-400 group-hover:text-white">Strava</span>
-            </button>
-          </div>
+              {connectedApps.strava && (
+                <button
+                  type="button"
+                  onClick={() => handlePushToPlatform("strava")}
+                  disabled={loading}
+                  className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                  title="Synchroniser avec Strava"
+                >
+                  <StravaLogo className="w-5 h-5" />
+                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
+                    Strava
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
 
           {syncStatus && (
             <p className="text-[10px] text-center font-bold text-emerald-400 animate-fadeIn">
@@ -543,7 +561,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
-        {/* ACTIONS & TERMINER / DEBRIEFER */}
+        {/* ACTIONS & TERMINER / DÉBRIEFER */}
         <div className="space-y-2 pt-2 border-t border-stone-800">
           <div className="flex gap-2">
             <button
@@ -584,71 +602,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
       </div>
-
-      {/* MODALE RAPIDE GARMIN SI COMPTE NON LIÉ */}
-      {showGarminModal && (
-        <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
-          <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">
-            <div className="flex justify-between items-center border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2">
-                <GarminLogo className="w-5 h-5" />
-                <h4 className="text-sm font-black uppercase text-stone-100">
-                  Connexion Garmin Connect
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGarminModal(false)}
-                className="text-stone-400 hover:text-stone-200 text-xs font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-[11px] text-stone-400 leading-relaxed">
-              Renseignez vos identifiants Garmin pour exporter votre séance sur votre montre.
-            </p>
-
-            <form onSubmit={handleGarminModalSubmit} className="space-y-3">
-              <div>
-                <label className="text-[9px] font-bold uppercase text-stone-400 block mb-1">
-                  Email Garmin
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={garminEmail}
-                  onChange={(e) => setGarminEmail(e.target.value)}
-                  placeholder="nom@exemple.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[9px] font-bold uppercase text-stone-400 block mb-1">
-                  Mot de passe Garmin
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={garminPassword}
-                  onChange={(e) => setGarminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#007CC3]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-[#007CC3] hover:bg-[#006bb3] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
-              >
-                {loading ? "Exportation..." : "Envoyer sur Garmin"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
