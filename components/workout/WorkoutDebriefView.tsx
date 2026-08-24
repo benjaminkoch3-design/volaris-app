@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Workout, Shoe } from "../../types";
 import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
+import { WorkoutTelemetryModal } from "./WorkoutTelemetryModal";
 
 interface WorkoutDebriefViewProps {
   workout: Workout;
@@ -66,6 +67,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [isActivityImported, setIsActivityImported] = useState<boolean>(
     Boolean(workout.importedActivityName)
   );
+
+  const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
 
   // Détection des plateformes réellement liées dans le profil
   const [connectedApps, setConnectedApps] = useState<{
@@ -217,6 +220,20 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
+        {/* MODALE D'ANALYSE GRAPHIQUE */}
+        {showTelemetryModal && (
+          <WorkoutTelemetryModal
+            workout={{
+              ...workout,
+              completedKm,
+              completedTimeMinutes,
+              completedElevationGain,
+              title: importedActivityName || workout.title,
+            }}
+            onClose={() => setShowTelemetryModal(false)}
+          />
+        )}
+
         {/* HEADER */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3">
           <div>
@@ -250,27 +267,38 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
 
           {isActivityImported && importedActivityName ? (
-            <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="w-8 h-8 rounded-lg bg-stone-950 border border-stone-800 flex items-center justify-center shrink-0">
-                  {renderActivityBrandLogo(importedActivityName)}
+            <div className="space-y-2">
+              <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-stone-950 border border-stone-800 flex items-center justify-center shrink-0">
+                    {renderActivityBrandLogo(importedActivityName)}
+                  </div>
+                  <div className="space-y-0.5 overflow-hidden">
+                    <span className="text-[9px] font-bold uppercase text-stone-400 block">
+                      Activité liée
+                    </span>
+                    <p className="text-xs font-bold text-stone-200 truncate">
+                      {importedActivityName}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-0.5 overflow-hidden">
-                  <span className="text-[9px] font-bold uppercase text-stone-400 block">
-                    Activité liée
-                  </span>
-                  <p className="text-xs font-bold text-stone-200 truncate">
-                    {importedActivityName}
-                  </p>
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsActivityImported(false)}
+                  className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer shrink-0"
+                >
+                  🔄 Changer
+                </button>
               </div>
 
+              {/* BOUTON D'ACCÈS AUX GRAPHIQUES POUR L'ATHLÈTE */}
               <button
                 type="button"
-                onClick={() => setIsActivityImported(false)}
-                className="text-[10px] font-bold text-stone-300 hover:text-white bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg transition cursor-pointer shrink-0"
+                onClick={() => setShowTelemetryModal(true)}
+                className="w-full py-2.5 bg-stone-900 hover:bg-stone-850 border border-stone-800 hover:border-[#CDCF61]/50 rounded-xl text-xs font-black uppercase text-[#CDCF61] tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
               >
-                🔄 Changer
+                <span>📈 Voir les graphiques de la sortie (FC, Allure, D+)</span>
               </button>
             </div>
           ) : (

@@ -13,6 +13,7 @@ import {
   CorosLogo,
   StravaLogo,
 } from "../common/BrandLogos";
+import { WorkoutTelemetryModal } from "./WorkoutTelemetryModal";
 
 interface WorkoutDetailProps {
   workout: Workout;
@@ -20,7 +21,7 @@ interface WorkoutDetailProps {
   completedWorkouts?: Record<string, boolean>;
   onClose: () => void;
   onOpenDebrief?: (workout: Workout) => void;
-  onDeleteImport?: (workoutId: string) => void;
+  userRole?: "athlete" | "coach";
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
@@ -146,16 +147,31 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   completedWorkouts = {},
   onClose,
   onOpenDebrief,
+  userRole = "athlete",
 }) => {
+  const isCoach = userRole === "coach";
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
   const metrics = calculateStepMetrics(workout.steps);
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
 
-  const isDone = Boolean(completedWorkouts[workout.id] || workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined);
+  const hasDebrief =
+    (workout.completedRpe !== undefined && workout.completedRpe !== null) ||
+    Boolean(workout.athleteComment) ||
+    Boolean(workout.completedKm);
 
-  // Détection des applications connectées dans le profil
+  const isDone = Boolean(
+    completedWorkouts[workout.id] ||
+    workout.completed ||
+    workout.completedKm !== undefined ||
+    workout.completedRpe !== undefined ||
+    hasDebrief
+  );
+
+  const [showTelemetryModal, setShowTelemetryModal] = useState(false);
+
+  // Applications connectées dans le profil
   const [connectedApps, setConnectedApps] = useState<{
     garmin: boolean;
     coros: boolean;
@@ -370,6 +386,14 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   return (
     <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
+        {/* MODALE D'ANALYSE GRAPHIQUE */}
+        {showTelemetryModal && (
+          <WorkoutTelemetryModal
+            workout={workout}
+            onClose={() => setShowTelemetryModal(false)}
+          />
+        )}
+
         {/* HEADER */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div className="space-y-1">
@@ -377,7 +401,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-wider block">
                 Semaine {workout.weekNumber} • {workout.dayName}
               </span>
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}>
+              <span
+                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}
+              >
                 {typeConfig.label}
               </span>
             </div>
@@ -397,124 +423,163 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         {/* MÉTRIQUES CIBLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">Distance</span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">
+              Distance
+            </span>
             <span className="text-sm font-black text-[#CF9A61]">
               {workout.km || metrics.totalKm} km
             </span>
           </div>
 
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">Durée</span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">
+              Durée
+            </span>
             <span className="text-sm font-black text-[#CF9A61]">
               {metrics.totalMinutes} min
             </span>
           </div>
 
           <div
-            style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }}
+            style={{
+              backgroundColor: rpeTheme.bg,
+              borderColor: rpeTheme.border,
+            }}
             className="border rounded-xl py-1 px-1 transition-all"
           >
-            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">
+            <span
+              style={{ color: rpeTheme.text }}
+              className="block text-[8px] font-bold uppercase opacity-90"
+            >
               RPE Cible
             </span>
-            <span style={{ color: rpeTheme.text }} className="text-sm font-black">
+            <span
+              style={{ color: rpeTheme.text }}
+              className="text-sm font-black"
+            >
               {workout.rpe ? `${workout.rpe}/10` : "5/10"}
             </span>
           </div>
 
           <div
-            style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }}
+            style={{
+              backgroundColor: rpeTheme.bg,
+              borderColor: rpeTheme.border,
+            }}
             className="border rounded-xl py-1 px-1 transition-all"
           >
-            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">
+            <span
+              style={{ color: rpeTheme.text }}
+              className="block text-[8px] font-bold uppercase opacity-90"
+            >
               Charge
             </span>
-            <span style={{ color: rpeTheme.text }} className="text-sm font-black">
+            <span
+              style={{ color: rpeTheme.text }}
+              className="text-sm font-black"
+            >
               {estimatedLoad}
             </span>
           </div>
         </div>
 
+        {/* BOUTON D'ACCÈS AUX GRAPHIQUES TÉLÉMÉTRIQUES */}
+        {hasDebrief && (
+          <button
+            type="button"
+            onClick={() => setShowTelemetryModal(true)}
+            className="w-full py-3 bg-gradient-to-r from-stone-950 via-stone-900 to-stone-950 hover:border-[#CDCF61] border border-stone-800 rounded-2xl text-xs font-black uppercase text-[#CDCF61] tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+          >
+            <span>📈 Voir les graphiques & splits (Allure, FC, D+)</span>
+          </button>
+        )}
+
         {/* SYNCHRONISATION MONTRES */}
-        <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
-              Synchronisation Montre
-            </span>
-            {connectedList.length > 0 && (
-              <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
+        {!isCoach && (
+          <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
+                Synchronisation Montre
+              </span>
+              {connectedList.length > 0 && (
+                <span className="text-[9px] text-stone-500 font-bold">
+                  Exporter la séance
+                </span>
+              )}
+            </div>
+
+            {connectedList.length === 0 ? (
+              <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
+                <p className="text-[11px] text-stone-400 leading-relaxed">
+                  Aucune montre connectée. Rendez-vous dans l'onglet{" "}
+                  <strong className="text-[#CF9A61]">Profil</strong> pour lier votre
+                  compte.
+                </p>
+              </div>
+            ) : (
+              <div
+                className={`grid gap-2 ${
+                  connectedList.length === 1
+                    ? "grid-cols-1"
+                    : connectedList.length === 2
+                    ? "grid-cols-2"
+                    : "grid-cols-3"
+                }`}
+              >
+                {connectedApps.garmin && (
+                  <button
+                    type="button"
+                    onClick={() => handlePushToPlatform("garmin")}
+                    disabled={loading}
+                    className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    title="Envoyer vers Garmin Connect"
+                  >
+                    <GarminLogo className="w-5 h-5" />
+                    <span className="text-xs font-bold uppercase text-stone-300">
+                      Garmin
+                    </span>
+                  </button>
+                )}
+
+                {connectedApps.coros && (
+                  <button
+                    type="button"
+                    onClick={() => handlePushToPlatform("coros")}
+                    disabled={loading}
+                    className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    title="Envoyer vers COROS Training Hub"
+                  >
+                    <CorosLogo className="w-5 h-5" />
+                    <span className="text-xs font-bold uppercase text-stone-300">
+                      COROS
+                    </span>
+                  </button>
+                )}
+
+                {connectedApps.strava && (
+                  <button
+                    type="button"
+                    onClick={() => handlePushToPlatform("strava")}
+                    disabled={loading}
+                    className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    title="Synchroniser avec Strava"
+                  >
+                    <StravaLogo className="w-5 h-5" />
+                    <span className="text-xs font-bold uppercase text-stone-300">
+                      Strava
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {syncStatus && (
+              <p className="text-[10px] text-center font-bold text-emerald-400 animate-fadeIn">
+                {syncStatus}
+              </p>
             )}
           </div>
-
-          {connectedList.length === 0 ? (
-            <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
-              <p className="text-[11px] text-stone-400 leading-relaxed">
-                Aucune montre connectée. Rendez-vous dans l'onglet <strong className="text-[#CF9A61]">Profil</strong> pour lier votre compte <span className="text-[#007CC3] font-semibold">Garmin Connect</span>, <span className="text-[#F8283B] font-semibold">COROS</span> ou <span className="text-[#FC5200] font-semibold">Strava</span>.
-              </p>
-            </div>
-          ) : (
-            <div
-              className={`grid gap-2 ${
-                connectedList.length === 1
-                  ? "grid-cols-1"
-                  : connectedList.length === 2
-                  ? "grid-cols-2"
-                  : "grid-cols-3"
-              }`}
-            >
-              {connectedApps.garmin && (
-                <button
-                  type="button"
-                  onClick={() => handlePushToPlatform("garmin")}
-                  disabled={loading}
-                  className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
-                  title="Envoyer vers Garmin Connect"
-                >
-                  <GarminLogo className="w-5 h-5" />
-                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
-                    Garmin
-                  </span>
-                </button>
-              )}
-
-              {connectedApps.coros && (
-                <button
-                  type="button"
-                  onClick={() => handlePushToPlatform("coros")}
-                  disabled={loading}
-                  className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
-                  title="Envoyer vers COROS Training Hub"
-                >
-                  <CorosLogo className="w-5 h-5" />
-                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
-                    COROS
-                  </span>
-                </button>
-              )}
-
-              {connectedApps.strava && (
-                <button
-                  type="button"
-                  onClick={() => handlePushToPlatform("strava")}
-                  disabled={loading}
-                  className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
-                  title="Synchroniser avec Strava"
-                >
-                  <StravaLogo className="w-5 h-5" />
-                  <span className="text-xs font-bold uppercase text-stone-300 group-hover:text-white">
-                    Strava
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {syncStatus && (
-            <p className="text-[10px] text-center font-bold text-emerald-400 animate-fadeIn">
-              {syncStatus}
-            </p>
-          )}
-        </div>
+        )}
 
         {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
         <PaceProfileChart steps={workout.steps} />
@@ -568,7 +633,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           >
             Fermer
           </button>
-          {onOpenDebrief && (
+          {!isCoach && onOpenDebrief && (
             <button
               type="button"
               onClick={() => {
