@@ -236,7 +236,7 @@ export default function Home() {
 
   // Utilisateur
   const [athleteName, setAthleteName] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState<string>(""); // 👈 Photo de profil
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -368,7 +368,9 @@ export default function Home() {
     const targetId = targetAthleteId || inspectingAthleteId || session.user.id;
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const senderName = userRole === "coach" ? (session?.user?.user_metadata?.full_name || athleteName || "Coach") : (athleteName || "Athlète");
+    const senderName = userRole === "coach"
+      ? (session?.user?.user_metadata?.full_name || athleteName || "Coach")
+      : (athleteName || "Athlète");
 
     const newMsg: ChatMessage = {
       id: msgId,
@@ -404,7 +406,6 @@ export default function Home() {
   // HANDLER : Suppression d'un message
   const handleDeleteMessage = async (messageId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
-
     if (session?.user) {
       try {
         await supabase.from("messages").delete().eq("id", messageId);
@@ -414,7 +415,7 @@ export default function Home() {
     }
   };
 
-  // HANDLER : Mise à jour de la photo de profil (Avatar)
+  // HANDLER : Mise à jour ou suppression de photo de profil
   const handleUpdateAvatar = async (newAvatarUrl: string) => {
     if (!session?.user) return;
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
@@ -425,10 +426,29 @@ export default function Home() {
     try {
       await supabase
         .from("profiles")
-        .update({ avatar_url: newAvatarUrl })
-        .eq("id", targetUserId);
+        .upsert({
+          id: targetUserId,
+          avatar_url: newAvatarUrl ? newAvatarUrl : null,
+        });
     } catch (err) {
       console.error("Erreur mise à jour avatar Supabase:", err);
+    }
+  };
+
+  // HANDLER : Connexion du coach par l'athlète avec persistance immédiate en base
+  const handleConnectCoachByCode = async (coachId: string, coachNameStr: string) => {
+    if (!session?.user) return;
+
+    setAssignedCoachId(coachId);
+    setAssignedCoachName(coachNameStr);
+
+    try {
+      await supabase
+        .from("profiles")
+        .update({ coach_id: coachId, custom_coach_name: coachNameStr })
+        .eq("id", session.user.id);
+    } catch (err) {
+      console.error("Erreur enregistrement coach_id Supabase:", err);
     }
   };
 
@@ -555,6 +575,26 @@ export default function Home() {
           .from("workouts")
           .select("*")
           .in("user_id", athleteIds);
+
+        // 4. Récupération de tous les messages des athlètes pour le coach
+        const { data: coachMsgsData } = await supabase
+          .from("messages")
+          .select("*")
+          .in("athlete_id", athleteIds)
+          .order("created_at", { ascending: true });
+
+        if (coachMsgsData) {
+          setMessages(coachMsgsData.map((m: any) => ({
+            id: m.id,
+            senderRole: m.sender_role,
+            senderName: m.sender_name,
+            senderId: m.sender_id,
+            senderAvatar: m.sender_avatar || undefined,
+            athleteId: m.athlete_id,
+            text: m.text,
+            timestamp: m.timestamp,
+          })));
+        }
 
         if (activePlansData) {
           setAllCoachAthletesPlans(
@@ -771,26 +811,26 @@ export default function Home() {
         })));
       }
 
-      // 3. Messages (Filtre strict par athlète)
-      const { data: msgsData } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("athlete_id", targetUserId)
-        .order("created_at", { ascending: true });
+      // 3. Messages pour l'athlète
+      if (userRole === "athlete") {
+        const { data: msgsData } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("athlete_id", targetUserId)
+          .order("created_at", { ascending: true });
 
-      if (msgsData) {
-        setMessages(msgsData.map((m: any) => ({
-          id: m.id,
-          senderRole: m.sender_role,
-          senderName: m.sender_name,
-          senderId: m.sender_id,
-          senderAvatar: m.sender_avatar || undefined,
-          athleteId: m.athlete_id,
-          text: m.text,
-          timestamp: m.timestamp,
-        })));
-      } else {
-        setMessages([]);
+        if (msgsData) {
+          setMessages(msgsData.map((m: any) => ({
+            id: m.id,
+            senderRole: m.sender_role,
+            senderName: m.sender_name,
+            senderId: m.sender_id,
+            senderAvatar: m.sender_avatar || undefined,
+            athleteId: m.athlete_id,
+            text: m.text,
+            timestamp: m.timestamp,
+          })));
+        }
       }
 
       // 4. Palmarès
@@ -830,7 +870,7 @@ export default function Home() {
         })));
       }
 
-      // 6. Catégories
+      // 6. Catégories & Modèles
       const { data: catsData } = await supabase
         .from("library_categories")
         .select("*")
@@ -841,7 +881,6 @@ export default function Home() {
         setCustomCategories(catsData.map((c: any) => ({ id: c.id, label: c.label })));
       }
 
-      // 7. Modèles
       const { data: libraryData } = await supabase
         .from("library_workouts")
         .select("*")
@@ -861,7 +900,7 @@ export default function Home() {
         })));
       }
 
-      // 8. Plan Actif & Séances
+      // 7. Plan Actif & Séances
       const { data: plansData } = await supabase
         .from("plans")
         .select("*")
@@ -965,7 +1004,7 @@ export default function Home() {
     };
 
     fetchUserData();
-  }, [session, inspectingAthleteId, isCoachInspecting]);
+  }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
   // Récupération des séances d'une date spécifique pour tous les athlètes du coach
   const getCoachDailySessionsForDate = (dateStr: string): AthleteDailySession[] => {
@@ -1016,7 +1055,7 @@ export default function Home() {
     return sessions;
   };
 
-  // SAUVEGARDE UNIFIÉE DU PROFIL
+  // SAUVEGARDE STRICTE ET PERSISTANTE DU PROFIL DANS SUPABASE
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -1032,10 +1071,10 @@ export default function Home() {
     if (!targetUserId) return;
 
     try {
-      const payload: any = {};
+      const payload: any = { id: targetUserId };
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
-      if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal;
+      if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal || null;
       if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal ? parseFloat(updatedFields.heightVal) : null;
       if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal ? parseFloat(updatedFields.weightVal) : null;
       if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal ? parseFloat(updatedFields.vmaVal) : null;
@@ -1045,8 +1084,7 @@ export default function Home() {
 
       const { error } = await supabase
         .from("profiles")
-        .update(payload)
-        .eq("id", targetUserId);
+        .upsert(payload);
 
       if (updatedFields.fullName !== undefined && !isCoachInspecting) {
         await supabase.auth.updateUser({
@@ -2445,10 +2483,7 @@ export default function Home() {
             {activeTab === "messages" && (
               userRole === "athlete" && !assignedCoachId ? (
                 <ConnectCoachView
-                  onCoachConnected={(cId, cName) => {
-                    setAssignedCoachId(cId);
-                    setAssignedCoachName(cName);
-                  }}
+                  onCoachConnected={handleConnectCoachByCode}
                 />
               ) : (
                 <ChatView

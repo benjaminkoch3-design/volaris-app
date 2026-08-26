@@ -23,7 +23,7 @@ interface ProfileViewProps {
   athleteName: string;
   setAthleteName: (val: string) => void;
   avatarUrl?: string; // 👈 Photo de profil
-  onUpdateAvatar?: (url: string) => void; // 👈 Handler de mise à jour photo
+  onUpdateAvatar?: (url: string) => void; // 👈 Handler de mise à jour/suppression photo
   height: string;
   setHeight: (val: string) => void;
   weight: string;
@@ -738,7 +738,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
             
-            {/* PHOTO DE PROFIL AVEC UPLOAD */}
+            {/* PHOTO DE PROFIL AVEC UPLOAD ET SUPPRESSION */}
             <div className="relative group">
               <div className="w-16 h-16 bg-stone-800 border-2 border-[#CF9A61]/60 rounded-full flex items-center justify-center text-xl font-black text-stone-200 overflow-hidden shadow-md">
                 {avatarUrl ? (
@@ -749,18 +749,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
 
               {!isReadOnly && (
-                <label
-                  className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center cursor-pointer transition text-[8.5px] font-bold text-stone-200 uppercase"
-                  title="Changer la photo de profil"
-                >
-                  <span>📷 Photo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarFileChange}
-                  />
-                </label>
+                <div className="absolute inset-0 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition gap-1">
+                  <label
+                    className="cursor-pointer text-[8px] font-black text-[#CF9A61] uppercase hover:underline"
+                    title="Changer la photo"
+                  >
+                    <span>📷 Changer</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarFileChange}
+                    />
+                  </label>
+
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (confirm("Supprimer votre photo de profil ?")) {
+                          onUpdateAvatar?.("");
+                        }
+                      }}
+                      className="text-[8px] font-black text-rose-400 uppercase hover:underline cursor-pointer"
+                      title="Supprimer la photo"
+                    >
+                      🗑️ Retirer
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
