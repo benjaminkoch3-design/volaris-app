@@ -169,28 +169,29 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
   // Application de l'activité avec conservation de la télémétrie complète
   const applyActivity = (act: any, platformName?: string) => {
-    const dist = parseFloat(String(act.distanceKm)) || 0;
-    const dur = parseInt(String(act.durationMinutes), 10) || 0;
-    const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
-    const hr = parseInt(String(act.avgHr || 0), 10) || null;
-    const maxHr = parseInt(String(act.maxHr || 0), 10) || null;
+      const dist = parseFloat(String(act.distanceKm)) || 0;
+      const dur = parseInt(String(act.durationMinutes), 10) || 0;
+      const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
+      const hr = parseInt(String(act.avgHr || 0), 10) || null;
+      const maxHr = parseInt(String(act.maxHr || 0), 10) || null;
 
-    setCompletedKm(dist);
-    setCompletedTimeMinutes(dur);
-    setCompletedElevationGain(elev);
-    setAvgHeartRate(hr);
-    setMaxHeartRate(maxHr);
+      setCompletedKm(dist);
+      setCompletedTimeMinutes(dur);
+      setCompletedElevationGain(elev);
+      setAvgHeartRate(hr);
+      setMaxHeartRate(maxHr);
 
-    if (act.activityTelemetry) {
-      setActivityTelemetry(act.activityTelemetry);
-    }
+      // Injection immédiate de la vraie télémétrie
+      if (act.activityTelemetry) {
+        setActivityTelemetry(act.activityTelemetry);
+      }
 
-    const platform = (platformName || act.platform || "Montre").toUpperCase();
-    const label = `${act.title || "Course"} (${platform} • ${act.date || ""})`;
-    setImportedActivityName(label);
-    setIsActivityImported(true);
-    setShowActivityPicker(false);
-  };
+      const platform = (platformName || act.platform || "Montre").toUpperCase();
+      const label = `${act.title || "Course"} (${platform} • ${act.date || ""})`;
+      setImportedActivityName(label);
+      setIsActivityImported(true);
+      setShowActivityPicker(false);
+    };
 
   const handleCancelDebrief = (e: React.MouseEvent) => {
     e.preventDefault();

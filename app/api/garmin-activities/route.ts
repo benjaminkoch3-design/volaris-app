@@ -22,38 +22,28 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Fonction d'extraction complète avec gestion de tous les types de clients internes GarminConnect
-    const fetchFullTelemetry = async (actId: string | number) => {
-      let splitsData: any = null;
-      let detailsData: any = null;
-
-      const client = gc.client || gc;
-
-      // 1. Récupération des Splits / Laps
+    // Fonction universelle d'appel GET avec la session Garmin active
+    const garminGet = async (endpoint: string) => {
       try {
-        if (typeof gc.getActivitySplits === "function") {
-          splitsData = await gc.getActivitySplits(actId);
-        } else if (client.get) {
-          const res = await client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
-          splitsData = res.data || res;
+        if (typeof gc.get === "function") {
+          return await gc.get(endpoint);
         }
-      } catch (e) {
-        console.warn("Splits non accessibles via endpoint 1, tentative alternative:", e);
-      }
-
-      // 2. Récupération des Détails Point par Point (Graphiques)
-      try {
-        if (typeof gc.getActivityDetails === "function") {
-          detailsData = await gc.getActivityDetails(actId);
-        } else if (client.get) {
-          const res = await client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
-          detailsData = res.data || res;
+        if (gc.client && typeof gc.client.get === "function") {
+          const res = await gc.client.get(endpoint);
+          return res.data || res;
         }
-      } catch (e) {
-        console.warn("Details non accessibles via endpoint 1:", e);
+      } catch (err) {
+        console.warn(`Erreur GET sur ${endpoint}:`, err);
       }
+      return null;
+    };
 
-      // Formatage des LAPS / SPLITS
+    // Extraction complète de la télémétrie réelle d'une activité
+    const extractTelemetry = async (actId: string | number) => {
+      const splitsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
+      const detailsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
+
+      // 1. VRAIS LAPS / KILOMÈTRES
       const rawLaps = splitsData?.lapDTOs || splitsData?.splitSummaries || splitsData?.lapList || [];
       const laps = rawLaps.map((lap: any, idx: number) => {
         const distM = lap.distance || 1000;
@@ -75,7 +65,7 @@ export async function POST(request: Request) {
         };
       });
 
-      // Formatage des ÉCHANTILLONS COURBES (Cardio, Allure, Altitude)
+      // 2. VRAIS POINTS DE COURBE (CARDIO, ALLURE, ÉLÉVATION)
       const metricDescriptors = detailsData?.metricDescriptors || [];
       const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate" || m.key === "heartRate");
       const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed" || m.key === "speed");
@@ -86,12 +76,12 @@ export async function POST(request: Request) {
       const paceSamples: number[] = [];
       const elevationProfile: number[] = [];
 
-      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 60));
+      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 80));
       for (let i = 0; i < activityDetailMetrics.length; i += step) {
         const row = activityDetailMetrics[i]?.metrics;
         if (row) {
           if (hrIndex !== -1 && row[hrIndex] > 30) hrSamples.push(Math.round(row[hrIndex]));
-          if (speedIndex !== -1 && row[speedIndex] > 0.3) {
+          if (speedIndex !== -1 && row[speedIndex] > 0.4) {
             paceSamples.push(Math.round(1000 / row[speedIndex]));
           }
           if (elevIndex !== -1 && row[elevIndex] !== undefined) {
@@ -108,24 +98,22 @@ export async function POST(request: Request) {
       };
     };
 
-    // Si on demande les détails d'une activité spécifique
+    // Si un ID précis est demandé
     if (activityId) {
-      const telemetry = await fetchFullTelemetry(activityId);
+      const telemetry = await extractTelemetry(activityId);
       return NextResponse.json({ success: true, telemetry });
     }
 
     // Récupération de la liste des activités
-    let activities: any[] = [];
+    let rawActivities: any[] = [];
     if (typeof gc.getActivities === "function") {
-      activities = await gc.getActivities(0, limit);
+      rawActivities = await gc.getActivities(0, limit);
     } else {
-      const res = await (gc.client || gc).get(
-        `https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`
-      );
-      activities = res.data || res;
+      const res = await garminGet(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
+      rawActivities = res || [];
     }
 
-    const runningActivities = (activities || []).filter((act: any) => {
+    const runningActivities = (rawActivities || []).filter((act: any) => {
       const typeKey =
         act.activityType?.typeKey ||
         act.activityTypeDTO?.typeKey ||
@@ -139,7 +127,7 @@ export async function POST(request: Request) {
       );
     });
 
-    // Chargement automatique de la télémétrie pour les 3 dernières courses
+    // Chargement de la télémétrie complète pour les courses
     const formattedActivities = await Promise.all(
       runningActivities.slice(0, 3).map(async (act: any) => {
         const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
@@ -147,7 +135,7 @@ export async function POST(request: Request) {
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);
 
-        const telemetry = await fetchFullTelemetry(act.activityId);
+        const telemetry = await extractTelemetry(act.activityId);
 
         return {
           id: String(act.activityId),
