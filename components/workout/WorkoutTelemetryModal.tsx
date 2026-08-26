@@ -37,10 +37,9 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
       : (workout as any).avgPaceSec || 291;
 
   const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || null;
-  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || null;
   const totalElev = workout.completedElevationGain ?? 0;
 
-  // Récupération des vrais intervalles Garmin
+  // Récupération des vrais intervalles
   const intervals: Array<{
     circuit: number;
     intervalNum: string;
@@ -134,14 +133,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </div>
         </div>
 
-        {/* SECTION 1 : TABLEAU DES INTERVALLES & ÉTAPES (COMME GARMIN CONNECT) */}
+        {/* SECTION 1 : TABLEAU DES INTERVALLES & ÉTAPES (STYLE GARMIN CONNECT) */}
         <div className="space-y-2.5">
           <div className="flex justify-between items-center px-1">
             <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
               📊 Intervalles & Étapes de la Séance
             </span>
             <span className="text-[9px] font-bold text-stone-500">
-              {intervals.length > 0 ? `${intervals.length} étape(s)` : "En attente"}
+              {intervals.length > 0 ? `${intervals.length} étape(s)` : "Non disponible"}
             </span>
           </div>
 
