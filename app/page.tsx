@@ -144,17 +144,6 @@ export default function Home() {
 
     const checkBothProfiles = async () => {
       const currentEmail = session.user.email;
-
-      const { data: hasBothRpc, error: rpcError } = await supabase.rpc(
-        "check_has_both_accounts",
-        { user_email: currentEmail }
-      );
-
-      if (!rpcError && typeof hasBothRpc === "boolean") {
-        setHasBothAccounts(hasBothRpc);
-        return;
-      }
-
       const baseEmail = currentEmail.replace("+coach@", "@");
       const coachEmail = currentEmail.includes("+coach@")
         ? currentEmail
@@ -287,23 +276,18 @@ export default function Home() {
   const [customCategories, setCustomCategories] = useState<LibraryCategory[]>([]);
   const [libraryWorkouts, setLibraryWorkouts] = useState<LibraryWorkout[]>([]);
 
-  // HANDLERS BIBLIOTHÈQUE SYNCHRONISÉS SUR SUPABASE
   const handleAddCategory = async (label: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
     const newCat = { id: catId, label };
     setCustomCategories((prev) => [...prev, newCat]);
-
-    await supabase.from("library_categories").insert([
-      { id: catId, user_id: session.user.id, label }
-    ]);
+    await supabase.from("library_categories").insert([{ id: catId, user_id: session.user.id, label }]);
   };
 
   const handleDeleteCategory = async (catId: string) => {
     if (!session?.user) return;
     setCustomCategories((prev) => prev.filter((c) => c.id !== catId));
     setLibraryWorkouts((prev) => prev.filter((w) => w.categoryId !== catId));
-
     await supabase.from("library_categories").delete().eq("id", catId);
     await supabase.from("library_workouts").delete().eq("category_id", catId);
   };
@@ -358,7 +342,6 @@ export default function Home() {
     });
   };
 
-  // Messages de discussion & Handlers synchronisés Supabase
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
@@ -403,7 +386,6 @@ export default function Home() {
     }
   };
 
-  // HANDLER : Suppression d'un message
   const handleDeleteMessage = async (messageId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
     if (session?.user) {
@@ -426,10 +408,8 @@ export default function Home() {
     try {
       await supabase
         .from("profiles")
-        .upsert({
-          id: targetUserId,
-          avatar_url: newAvatarUrl ? newAvatarUrl : null,
-        });
+        .update({ avatar_url: newAvatarUrl || null })
+        .eq("id", targetUserId);
     } catch (err) {
       console.error("Erreur mise à jour avatar Supabase:", err);
     }
@@ -443,6 +423,16 @@ export default function Home() {
     setAssignedCoachName(coachNameStr);
 
     try {
+      const { data: coachData } = await supabase
+        .from("profiles")
+        .select("avatar_url, full_name")
+        .eq("id", coachId)
+        .maybeSingle();
+
+      if (coachData?.avatar_url) {
+        setAssignedCoachAvatar(coachData.avatar_url);
+      }
+
       await supabase
         .from("profiles")
         .update({ coach_id: coachId, custom_coach_name: coachNameStr })
@@ -452,14 +442,12 @@ export default function Home() {
     }
   };
 
-  // HANDLER : L'athlète renomme son coach
   const handleRenameCoachByAthlete = async (customName: string) => {
     if (!session?.user || userRole !== "athlete") return;
     setAssignedCoachName(customName);
     await supabase.from("profiles").update({ custom_coach_name: customName }).eq("id", session.user.id);
   };
 
-  // HANDLER : Le coach renomme son athlète
   const handleRenameAthleteByCoach = async (athleteId: string, customName: string) => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -473,7 +461,6 @@ export default function Home() {
     await supabase.from("profiles").update({ custom_athlete_names: updatedMap }).eq("id", session.user.id);
   };
 
-  // HANDLER : Le coach modifie son propre nom
   const handleUpdateCoachOwnName = async (newName: string) => {
     if (!session?.user || userRole !== "coach") return;
     setAthleteName(newName);
@@ -481,7 +468,6 @@ export default function Home() {
     await supabase.auth.updateUser({ data: { full_name: newName } });
   };
 
-  // HANDLER : L'athlète retire son coach
   const handleDisconnectCoachByAthlete = async () => {
     if (!session?.user || userRole !== "athlete") return;
 
@@ -494,10 +480,9 @@ export default function Home() {
       .update({ coach_id: null, custom_coach_name: null })
       .eq("id", session.user.id);
 
-    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif et vous pouvez désormais le modifier librement.");
+    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif.");
   };
 
-  // HANDLER : Le coach retire un athlète
   const handleRemoveAthleteByCoach = async (athleteId: string) => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -512,10 +497,7 @@ export default function Home() {
       .eq("id", athleteId);
   };
 
-  // Historique des sorties (Stats)
   const [completedRuns, setCompletedRuns] = useState<CompletedRun[]>([]);
-
-  // Plans d'entraînement
   const [goal, setGoal] = useState("10 km");
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
   const [archivedPlans, setArchivedPlans] = useState<Plan[]>([]);
@@ -524,7 +506,7 @@ export default function Home() {
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
 
-  // CHARGEMENT DE LA LISTE DES ATHLÈTES ET DES SÉANCES GLOBALES POUR LE COACH
+  // CHARGEMENT DE LA LISTE DES ATHLÈTES ET DES MESSAGES POUR LE COACH
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -535,12 +517,8 @@ export default function Home() {
         .eq("id", session.user.id)
         .maybeSingle();
 
-      if (myProfile?.full_name) {
-        setAthleteName(myProfile.full_name);
-      }
-      if (myProfile?.avatar_url) {
-        setAvatarUrl(myProfile.avatar_url);
-      }
+      if (myProfile?.full_name) setAthleteName(myProfile.full_name);
+      if (myProfile?.avatar_url) setAvatarUrl(myProfile.avatar_url);
 
       if (myProfile?.custom_athlete_names && typeof myProfile.custom_athlete_names === "object") {
         setCustomAthleteNamesMap(myProfile.custom_athlete_names);
@@ -554,7 +532,6 @@ export default function Home() {
         await supabase.from("profiles").update({ coach_code: generatedCode }).eq("id", session.user.id);
       }
 
-      // 1. Profils des athlètes coachés
       const { data: athletesData } = await supabase
         .from("profiles")
         .select("*")
@@ -564,19 +541,17 @@ export default function Home() {
       if (athletesData && athletesData.length > 0) {
         const athleteIds = athletesData.map((a: any) => a.id);
 
-        // 2. Récupération des plans actifs pour chaque athlète
         const { data: activePlansData } = await supabase
           .from("plans")
           .select("*")
           .in("user_id", athleteIds);
 
-        // 3. Récupération de toutes les séances des athlètes
         const { data: workoutsData } = await supabase
           .from("workouts")
           .select("*")
           .in("user_id", athleteIds);
 
-        // 4. Récupération de tous les messages des athlètes pour le coach
+        // RÉCUPÉRATION DE TOUS LES MESSAGES DES ATHLÈTES POUR LE COACH
         const { data: coachMsgsData } = await supabase
           .from("messages")
           .select("*")
@@ -754,7 +729,7 @@ export default function Home() {
     };
   }, [session, userRole]);
 
-  // CHARGEMENT AUTOMATIQUE INTÉGRAL DEPUIS SUPABASE
+  // CHARGEMENT AUTOMATIQUE INTÉGRAL DEPUIS SUPABASE SANS ERREUR DE JOINTURE
   useEffect(() => {
     if (!session?.user) return;
 
@@ -762,10 +737,10 @@ export default function Home() {
     if (!targetUserId) return;
 
     const fetchUserData = async () => {
-      // 1. Profil
+      // 1. Profil utilisateur
       const { data: profile } = await supabase
         .from("profiles")
-        .select("*, coach:coach_id(full_name, avatar_url)")
+        .select("*")
         .eq("id", targetUserId)
         .maybeSingle();
 
@@ -775,8 +750,22 @@ export default function Home() {
           if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
           if (profile.coach_id) {
             setAssignedCoachId(profile.coach_id);
-            setAssignedCoachName(profile.custom_coach_name || (profile as any).coach?.full_name || "Votre Entraîneur");
-            setAssignedCoachAvatar((profile as any).coach?.avatar_url || undefined);
+            let cName = profile.custom_coach_name || "Votre Entraîneur";
+            const { data: coachData } = await supabase
+              .from("profiles")
+              .select("full_name, avatar_url")
+              .eq("id", profile.coach_id)
+              .maybeSingle();
+
+            if (coachData) {
+              if (!profile.custom_coach_name && coachData.full_name) {
+                cName = coachData.full_name;
+              }
+              if (coachData.avatar_url) {
+                setAssignedCoachAvatar(coachData.avatar_url);
+              }
+            }
+            setAssignedCoachName(cName);
           } else {
             setAssignedCoachId(null);
             setAssignedCoachName("Coach");
@@ -877,9 +866,7 @@ export default function Home() {
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: true });
 
-      if (catsData) {
-        setCustomCategories(catsData.map((c: any) => ({ id: c.id, label: c.label })));
-      }
+      if (catsData) setCustomCategories(catsData.map((c: any) => ({ id: c.id, label: c.label })));
 
       const { data: libraryData } = await supabase
         .from("library_workouts")
@@ -1006,56 +993,7 @@ export default function Home() {
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
-  // Récupération des séances d'une date spécifique pour tous les athlètes du coach
-  const getCoachDailySessionsForDate = (dateStr: string): AthleteDailySession[] => {
-    const sessions: AthleteDailySession[] = [];
-
-    managedAthletes.forEach((athlete) => {
-      const activePlanForAthlete = allCoachAthletesPlans.find((p: any) => {
-        const planUserId = p.userId || p.user_id;
-        const isPlanActive = p.isActive !== undefined ? p.isActive : p.is_active !== false;
-        const isPlanArchived = p.isArchived !== undefined ? p.isArchived : p.is_archived === true;
-        return planUserId === athlete.id && isPlanActive && !isPlanArchived;
-      });
-
-      if (!activePlanForAthlete) return;
-
-      const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
-        const wUserId = w.userId || w.user_id;
-        const wPlanId = w.planId || w.plan_id;
-        return wUserId === athlete.id && wPlanId === activePlanForAthlete.id;
-      });
-
-      athleteWorkouts.forEach((w: any) => {
-        const planStart = activePlanForAthlete.startDate || (activePlanForAthlete as any).start_date;
-        if (!planStart) return;
-
-        const [sY, sM, sD] = planStart.split("-").map(Number);
-        const wDate = new Date(sY, sM - 1, sD);
-        const wNum = w.weekNumber !== undefined ? w.weekNumber : (w.week_number || 1);
-        const dIdx = w.dayIndex !== undefined ? w.dayIndex : (w.day_index || 0);
-
-        wDate.setDate(wDate.getDate() + ((wNum - 1) * 7 + dIdx));
-
-        const y = wDate.getFullYear();
-        const m = String(wDate.getMonth() + 1).padStart(2, "0");
-        const d = String(wDate.getDate()).padStart(2, "0");
-        const matchDate = `${y}-${m}-${d}`;
-
-        if (matchDate === dateStr) {
-          sessions.push({
-            athlete,
-            plan: activePlanForAthlete,
-            workout: w,
-          });
-        }
-      });
-    });
-
-    return sessions;
-  };
-
-  // SAUVEGARDE STRICTE ET PERSISTANTE DU PROFIL DANS SUPABASE
+  // SAUVEGARDE SÉCURISÉE AVEC .UPDATE() (PAS D'ERREUR NOT-NULL SUR EMAIL)
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -1071,7 +1009,7 @@ export default function Home() {
     if (!targetUserId) return;
 
     try {
-      const payload: any = { id: targetUserId };
+      const payload: any = {};
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
       if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal || null;
@@ -1084,7 +1022,8 @@ export default function Home() {
 
       const { error } = await supabase
         .from("profiles")
-        .upsert(payload);
+        .update(payload)
+        .eq("id", targetUserId);
 
       if (updatedFields.fullName !== undefined && !isCoachInspecting) {
         await supabase.auth.updateUser({
@@ -1101,7 +1040,6 @@ export default function Home() {
     }
   };
 
-  // HANDLERS COURSES
   const handleAddRace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isCoachInspecting || !session?.user || !newRace.name || !newRace.time) return;
@@ -1138,7 +1076,6 @@ export default function Home() {
     await supabase.from("races").delete().eq("id", id);
   };
 
-  // HANDLERS CHAUSSURES
   const handleAddShoe = async (newShoe: Shoe) => {
     if (isCoachInspecting || !session?.user) return;
 
@@ -1179,7 +1116,6 @@ export default function Home() {
     await supabase.from("shoes").update({ is_active: nextState }).eq("id", id);
   };
 
-  // HANDLERS AJOUT ET SUPPRESSION DE SORTIE MANUELLE
   const handleAddCompletedRun = async (run: CompletedRun) => {
     if (isCoachInspecting || !session?.user) return;
 
@@ -1210,7 +1146,6 @@ export default function Home() {
     }
   };
 
-  // Accordéons de semaines
   const [openWeeks, setOpenWeeks] = useState<Record<number, boolean>>({});
   const [openCreationWeeks, setOpenCreationWeeks] = useState<Record<number, boolean>>({});
 
@@ -1222,7 +1157,6 @@ export default function Home() {
     setOpenCreationWeeks((prev) => ({ ...prev, [wNum]: !prev[wNum] }));
   };
 
-  // Formulaire & Brouillon de Plan
   const [draftWeekTypes, setDraftWeekTypes] = useState<
     Record<number, { type: WeekType; customLabel?: string }>
   >({});
@@ -1250,7 +1184,6 @@ export default function Home() {
     eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   });
 
-  // HANDLERS AUTHENTIFICATION
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1315,7 +1248,6 @@ export default function Home() {
     setScreen("landing");
   };
 
-  // HANDLERS ARCHIVAGE & SUPPRESSION PLAN
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -1342,7 +1274,6 @@ export default function Home() {
     setShowDeletePlanModal(false);
   };
 
-  // HANDLERS CRÉATION / MODIFICATION PLAN AVEC DATES RÉELLES
   const handleStartEmptyWorkoutSetup = (e: React.FormEvent) => {
     e.preventDefault();
     const weeks = calculateWeeks(newPlanForm.startDate, newPlanForm.eventDate);
@@ -1487,7 +1418,6 @@ export default function Home() {
     );
   };
 
-  // RECURSIVE STEPS
   const updateNestedStepsRecursive = (
     stepList: WorkoutStep[],
     targetPath: string[],
@@ -1752,7 +1682,6 @@ export default function Home() {
     setDraggedStepPath(null);
   };
 
-  // FINALISATION ET SAUVEGARDE PERSISTANTE DANS SUPABASE
   const handleFinalizePlan = async () => {
     if (!session?.user) return;
 
@@ -2248,7 +2177,7 @@ export default function Home() {
       )}
 
       <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-5">
-        {/* MODE COACH 1 : SÉANCES DU JOUR (OU DATE SÉLECTIONNÉE) */}
+        {/* MODE COACH 1 : SÉANCES DU JOUR */}
         {userRole === "coach" && !inspectingAthleteId && activeTab === "today" && (
           <CoachDailyWorkoutsView
             selectedDateStr={selectedCalendarDate}
@@ -2560,15 +2489,7 @@ export default function Home() {
                 setRecords={async (actionOrValue) => {
                   const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
                   setRecords(nextRecords);
-                  await saveProfileToSupabase({
-                    fullName: athleteName,
-                    heightVal: height,
-                    weightVal: weight,
-                    vmaVal: vma,
-                    fcRestVal: fcRest,
-                    fcMaxVal: fcMax,
-                    recordsMap: nextRecords,
-                  });
+                  await saveProfileToSupabase({ recordsMap: nextRecords });
                 }}
                 onSaveFullProfile={async (data) => {
                   setAthleteName(data.name);
