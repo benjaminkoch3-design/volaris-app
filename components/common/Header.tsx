@@ -15,7 +15,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   userRole,
   athleteName,
-  hasBothAccounts = false,
+  hasBothAccounts = true,
   onToggleRole,
   onLogout,
   onNavigateToVolumeChart,
@@ -75,8 +75,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* VISIBLE POUR L'ATHLÈTE ET LE COACH SI LES DEUX COMPTES SONT DÉTECTÉS */}
-          {hasBothAccounts && onToggleRole && (
+          {/* VISIBLE DIRECTEMENT POUR PERMETTRE LA BASCULE OU LA CRÉATION DU COMPTE MIROIR */}
+          {onToggleRole && (
             <button
               type="button"
               onClick={onToggleRole}

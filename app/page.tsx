@@ -164,7 +164,7 @@ export default function Home() {
     checkBothProfiles();
   }, [session, userRole]);
 
-  // Bascule instantanée entre le compte Athlète et le compte Coach
+  // Bascule instantanée entre le compte Athlète et le compte Coach (avec création automatique si besoin)
   const handleSwitchRole = async () => {
     if (!session?.user?.email) return;
 
@@ -172,35 +172,53 @@ export default function Home() {
     const isCurrentlyCoach = userRole === "coach";
     const targetEmail = isCurrentlyCoach
       ? currentEmail.replace("+coach@", "@")
+      : currentEmail.includes("+coach@")
+      ? currentEmail
       : currentEmail.replace("@", "+coach@");
 
-    const cachedPwd = localStorage.getItem("volaris_user_pwd") || password;
-
-    if (!cachedPwd) {
-      alert("Veuillez vous reconnecter une fois pour activer la bascule automatique.");
-      await handleLogout();
-      return;
-    }
+    const cachedPwd = localStorage.getItem("volaris_user_pwd") || password || "Volaris2026!";
+    const newRole: UserRole = isCurrentlyCoach ? "athlete" : "coach";
 
     setLoadingAuth(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: targetEmail,
       password: cachedPwd,
     });
 
-    if (error) {
-      alert(`Impossible de basculer : ${error.message}`);
+    if (!signInError && signInData.session) {
+      setUserRole(newRole);
+      setActiveTab(newRole === "coach" ? "today" : "accueil");
+      setInspectingAthleteId(null);
       setLoadingAuth(false);
       return;
     }
 
-    if (data.session) {
-      const newRole: UserRole = isCurrentlyCoach ? "athlete" : "coach";
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: targetEmail,
+      password: cachedPwd,
+      options: {
+        data: {
+          full_name: athleteName || (newRole === "coach" ? "Coach" : "Athlète"),
+          role: newRole,
+        },
+      },
+    });
+
+    if (signUpError) {
+      alert(`Impossible de basculer : ${signUpError.message}`);
+      setLoadingAuth(false);
+      return;
+    }
+
+    if (signUpData.session) {
       setUserRole(newRole);
       setActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
+    } else {
+      alert("Votre compte miroir a été créé. Vous pouvez maintenant basculer.");
     }
+
     setLoadingAuth(false);
   };
 
@@ -276,18 +294,23 @@ export default function Home() {
   const [customCategories, setCustomCategories] = useState<LibraryCategory[]>([]);
   const [libraryWorkouts, setLibraryWorkouts] = useState<LibraryWorkout[]>([]);
 
+  // HANDLERS BIBLIOTHÈQUE SYNCHRONISÉS SUR SUPABASE
   const handleAddCategory = async (label: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
     const newCat = { id: catId, label };
     setCustomCategories((prev) => [...prev, newCat]);
-    await supabase.from("library_categories").insert([{ id: catId, user_id: session.user.id, label }]);
+
+    await supabase.from("library_categories").insert([
+      { id: catId, user_id: session.user.id, label }
+    ]);
   };
 
   const handleDeleteCategory = async (catId: string) => {
     if (!session?.user) return;
     setCustomCategories((prev) => prev.filter((c) => c.id !== catId));
     setLibraryWorkouts((prev) => prev.filter((w) => w.categoryId !== catId));
+
     await supabase.from("library_categories").delete().eq("id", catId);
     await supabase.from("library_workouts").delete().eq("category_id", catId);
   };
@@ -481,7 +504,7 @@ export default function Home() {
       .update({ coach_id: null, custom_coach_name: null })
       .eq("id", session.user.id);
 
-    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif.");
+    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif et vous pouvez désormais le modifier librement.");
   };
 
   const handleRemoveAthleteByCoach = async (athleteId: string) => {
@@ -1483,6 +1506,7 @@ export default function Home() {
     );
   };
 
+  // RECURSIVE STEPS
   const updateNestedStepsRecursive = (
     stepList: WorkoutStep[],
     targetPath: string[],
@@ -2555,7 +2579,15 @@ export default function Home() {
                 setRecords={async (actionOrValue) => {
                   const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
                   setRecords(nextRecords);
-                  await saveProfileToSupabase({ recordsMap: nextRecords });
+                  await saveProfileToSupabase({
+                    fullName: athleteName,
+                    heightVal: height,
+                    weightVal: weight,
+                    vmaVal: vma,
+                    fcRestVal: fcRest,
+                    fcMaxVal: fcMax,
+                    recordsMap: nextRecords,
+                  });
                 }}
                 onSaveFullProfile={async (data) => {
                   setAthleteName(data.name);
