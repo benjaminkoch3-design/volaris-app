@@ -1,6 +1,6 @@
 // src/components/chat/ChatView.tsx
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { UserRole, ChatMessage, AthleteProfile } from "../../types";
 
 interface ChatViewProps {
@@ -9,9 +9,12 @@ interface ChatViewProps {
   athleteId: string;
   messages: ChatMessage[];
   onSendMessage: (text: string, targetAthleteId: string) => void;
+  onDeleteMessage?: (messageId: string) => void; // 👈 Suppression de messages
   managedAthletes?: AthleteProfile[];
   onRenameContact?: (newName: string) => void;
   onDisconnectCoach?: () => void; // 👈 Dissociation par l'athlète
+  myAvatarUrl?: string; // 👈 Photo de profil de l'utilisateur connecté
+  contactAvatarUrl?: string; // 👈 Photo de profil du contact
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -20,9 +23,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
   athleteId,
   messages,
   onSendMessage,
+  onDeleteMessage,
   managedAthletes = [],
   onRenameContact,
   onDisconnectCoach,
+  myAvatarUrl,
+  contactAvatarUrl,
 }) => {
   const [inputText, setInputText] = useState("");
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(
@@ -30,6 +36,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   );
   const [isEditingName, setIsEditingName] = useState(false);
   const [customNameInput, setCustomNameInput] = useState(currentAthleteName);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isCoach = userRole === "coach";
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
@@ -42,6 +51,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const conversationMessages = messages.filter(
     (m) => m.athleteId === targetId
   );
+
+  useEffect(() => {
+    setCustomNameInput(currentAthleteName);
+  }, [currentAthleteName]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversationMessages]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +77,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const displayedContactName = isCoach
     ? activeConversationAthlete?.name || "Athlète"
     : currentAthleteName || "Mon Entraîneur";
+
+  const displayedContactAvatar = isCoach
+    ? activeConversationAthlete?.avatarUrl || (activeConversationAthlete as any)?.avatar_url
+    : contactAvatarUrl;
 
   return (
     <div className="space-y-4 animate-fadeIn font-sans max-w-2xl mx-auto pb-6">
@@ -92,6 +113,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               managedAthletes.map((athlete) => {
                 const athleteMsgs = messages.filter((m) => m.athleteId === athlete.id);
                 const lastMsg = athleteMsgs[athleteMsgs.length - 1];
+                const athAvatar = athlete.avatarUrl || (athlete as any).avatar_url;
 
                 return (
                   <div
@@ -100,8 +122,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     className="bg-stone-900/90 border border-stone-800 hover:border-[#CDCF61]/50 p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition shadow-lg group"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-11 h-11 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-base shrink-0">
-                        {athlete.name ? athlete.name.charAt(0).toUpperCase() : "A"}
+                      {/* AVATAR ATHLÈTE DANS LA LISTE */}
+                      <div className="w-11 h-11 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center font-black text-[#CDCF61] text-base shrink-0 overflow-hidden shadow-inner">
+                        {athAvatar ? (
+                          <img
+                            src={athAvatar}
+                            alt={athlete.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span>{athlete.name ? athlete.name.charAt(0).toUpperCase() : "A"}</span>
+                        )}
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -136,17 +167,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
       ) : (
         /* VUE 2 : FIL DE DISCUSSION DÉDIÉ */
         <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 shadow-xl space-y-4">
+          
+          {/* HEADER DE LA DISCUSSION */}
           <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               {isCoach && (
                 <button
                   type="button"
                   onClick={() => setSelectedAthleteId(null)}
                   className="text-stone-400 hover:text-stone-100 text-xs font-extrabold bg-stone-950 px-2.5 py-1.5 rounded-xl border border-stone-800 transition cursor-pointer"
                 >
-                  ← Conversations
+                  ←
                 </button>
               )}
+
+              {/* AVATAR DU CONTACT */}
+              <div className="w-10 h-10 rounded-full bg-stone-950 border border-stone-800 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-inner">
+                {displayedContactAvatar ? (
+                  <img
+                    src={displayedContactAvatar}
+                    alt={displayedContactName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span style={{ color: themeColor }}>
+                    {displayedContactName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
 
               <div>
                 <span
@@ -169,14 +217,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <button
                       type="button"
                       onClick={handleSaveName}
-                      className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg"
+                      className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg cursor-pointer"
                     >
                       ✓
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsEditingName(false)}
-                      className="text-[10px] bg-stone-800 text-stone-400 px-1.5 py-0.5 rounded-lg"
+                      className="text-[10px] bg-stone-800 text-stone-400 px-1.5 py-0.5 rounded-lg cursor-pointer"
                     >
                       ✕
                     </button>
@@ -193,7 +241,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           setCustomNameInput(currentAthleteName);
                           setIsEditingName(true);
                         }}
-                        className="text-stone-500 hover:text-stone-300 text-xs"
+                        className="text-stone-500 hover:text-stone-300 text-xs cursor-pointer"
                         title="Renommer mon entraîneur"
                       >
                         ✏️
@@ -204,34 +252,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* BOUTON DISSOCIATION POUR L'ATHLÈTE */}
-              {!isCoach && onDisconnectCoach && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm("Êtes-vous sûr de vouloir retirer votre coach ? Votre plan d'entraînement actuel restera actif et vous pourrez à nouveau le modifier librement.")) {
-                      onDisconnectCoach();
-                    }
-                  }}
-                  className="text-[9.5px] font-black uppercase text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/60 border border-red-800/40 px-2.5 py-1 rounded-xl transition cursor-pointer"
-                  title="Mettre fin à la collaboration avec mon entraîneur"
-                >
-                  Dissocier
-                </button>
-              )}
-
-              <div className="w-8 h-8 rounded-xl bg-stone-950 border border-stone-800 flex items-center justify-center text-xs font-black text-stone-300">
-                {displayedContactName.charAt(0).toUpperCase()}
-              </div>
-            </div>
+            {/* BOUTON DISSOCIATION POUR L'ATHLÈTE */}
+            {!isCoach && onDisconnectCoach && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Êtes-vous sûr de vouloir retirer votre coach ? Votre plan d'entraînement actuel restera actif et vous pourrez à nouveau le modifier librement.")) {
+                    onDisconnectCoach();
+                  }
+                }}
+                className="text-[9.5px] font-black uppercase text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/60 border border-red-800/40 px-2.5 py-1 rounded-xl transition cursor-pointer"
+                title="Mettre fin à la collaboration avec mon entraîneur"
+              >
+                Dissocier
+              </button>
+            )}
           </div>
 
           {/* ZONE D'AFFICHAGE DES MESSAGES */}
-          <div className="space-y-3 min-h-[280px] max-h-[50vh] overflow-y-auto custom-scrollbar pr-1 p-1 flex flex-col justify-end">
+          <div className="space-y-3 min-h-[300px] max-h-[52vh] overflow-y-auto custom-scrollbar pr-1 p-1 flex flex-col">
             {conversationMessages.length === 0 ? (
-              <div className="text-center py-10 space-y-2 m-auto">
-                <div className="text-2xl">💬</div>
+              <div className="text-center py-12 space-y-2 m-auto">
+                <div className="text-3xl">💬</div>
                 <p className="text-xs text-stone-500 italic">
                   Aucun message échangé pour le moment. Envoyez votre premier message !
                 </p>
@@ -242,40 +284,96 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   (isCoach && msg.senderRole === "coach") ||
                   (!isCoach && msg.senderRole === "athlete");
 
+                const avatarSrc = isMe ? myAvatarUrl : displayedContactAvatar;
+
                 return (
                   <div
                     key={msg.id}
-                    className={`flex flex-col ${
-                      isMe ? "items-end ml-auto" : "items-start mr-auto"
+                    onMouseEnter={() => setHoveredMessageId(msg.id)}
+                    onMouseLeave={() => setHoveredMessageId(null)}
+                    className={`flex items-end gap-2 group ${
+                      isMe ? "justify-end ml-auto" : "justify-start mr-auto"
                     } max-w-[85%]`}
                   >
-                    <div className="flex items-center gap-1.5 mb-0.5 px-1">
-                      <span className="text-[9px] font-bold text-stone-400">
-                        {isMe ? "Vous" : msg.senderName}
-                      </span>
-                      <span className="text-[8px] text-stone-500">
-                        • {msg.timestamp}
-                      </span>
+                    {/* AVATAR CONTACT (À GAUCHE) */}
+                    {!isMe && (
+                      <div className="w-7 h-7 rounded-full bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow">
+                        {avatarSrc ? (
+                          <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] font-black text-stone-400">
+                            {msg.senderName?.charAt(0).toUpperCase() || "C"}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* BOUTON SUPPRESSION (POUR MES MESSAGES) */}
+                    {isMe && onDeleteMessage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm("Voulez-vous supprimer ce message ?")) {
+                            onDeleteMessage(msg.id);
+                          }
+                        }}
+                        className={`text-stone-500 hover:text-red-400 text-xs p-1 transition cursor-pointer self-center ${
+                          hoveredMessageId === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        }`}
+                        title="Supprimer ce message"
+                      >
+                        🗑️
+                      </button>
+                    )}
+
+                    {/* BULLE DU MESSAGE */}
+                    <div className="flex flex-col">
+                      <div
+                        className={`flex items-center gap-1.5 mb-1 px-1 ${
+                          isMe ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <span className="text-[9px] font-bold text-stone-400">
+                          {isMe ? "Vous" : msg.senderName}
+                        </span>
+                        <span className="text-[8px] text-stone-500">
+                          • {msg.timestamp}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          backgroundColor: isMe ? themeColor : "#0c0a09",
+                          color: isMe ? "#0c0a09" : "#f5f5f4",
+                          borderColor: isMe ? themeColor : "#27272a",
+                        }}
+                        className={`p-3 rounded-2xl border text-xs leading-relaxed shadow-md break-words whitespace-pre-wrap ${
+                          isMe
+                            ? "rounded-tr-none font-bold"
+                            : "rounded-tl-none font-medium"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
                     </div>
 
-                    <div
-                      style={{
-                        backgroundColor: isMe ? themeColor : "#0c0a09",
-                        color: isMe ? "#0c0a09" : "#f5f5f4",
-                        borderColor: isMe ? themeColor : "#27272a",
-                      }}
-                      className={`p-3 rounded-2xl border text-xs leading-relaxed shadow-md ${
-                        isMe
-                          ? "rounded-tr-none font-bold"
-                          : "rounded-tl-none font-medium"
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
+                    {/* MON AVATAR (À DROITE) */}
+                    {isMe && (
+                      <div className="w-7 h-7 rounded-full bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow">
+                        {avatarSrc ? (
+                          <img src={avatarSrc} alt="Mon Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] font-black text-[#CF9A61]">
+                            {msg.senderName?.charAt(0).toUpperCase() || "M"}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* CHAMP DE SAISIE */}
@@ -289,7 +387,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               placeholder="Écrivez votre message..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 bg-stone-950 border border-stone-800 rounded-2xl px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-stone-700"
+              className="flex-1 bg-stone-950 border border-stone-800 rounded-2xl px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-stone-700 placeholder:text-stone-500"
             />
             <button
               type="submit"

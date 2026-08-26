@@ -80,6 +80,7 @@ export default function Home() {
   // Liaison Coach / Athlète & Noms personnalisés
   const [assignedCoachId, setAssignedCoachId] = useState<string | null>(null);
   const [assignedCoachName, setAssignedCoachName] = useState<string>("Coach");
+  const [assignedCoachAvatar, setAssignedCoachAvatar] = useState<string | undefined>(undefined);
   const [coachCode, setCoachCode] = useState<string>("");
   const [customAthleteNamesMap, setCustomAthleteNamesMap] = useState<Record<string, string>>({});
 
@@ -235,6 +236,7 @@ export default function Home() {
 
   // Utilisateur
   const [athleteName, setAthleteName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string>(""); // 👈 Photo de profil
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -372,6 +374,8 @@ export default function Home() {
       id: msgId,
       senderRole: userRole,
       senderName,
+      senderId: session.user.id,
+      senderAvatar: avatarUrl,
       athleteId: targetId,
       text,
       timestamp: timeStr,
@@ -387,12 +391,44 @@ export default function Home() {
           sender_id: session.user.id,
           sender_role: userRole,
           sender_name: senderName,
+          sender_avatar: avatarUrl || null,
           text,
           timestamp: timeStr,
         },
       ]);
     } catch (err) {
       console.error("Erreur envoi message Supabase:", err);
+    }
+  };
+
+  // HANDLER : Suppression d'un message
+  const handleDeleteMessage = async (messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+    if (session?.user) {
+      try {
+        await supabase.from("messages").delete().eq("id", messageId);
+      } catch (err) {
+        console.error("Erreur suppression message Supabase:", err);
+      }
+    }
+  };
+
+  // HANDLER : Mise à jour de la photo de profil (Avatar)
+  const handleUpdateAvatar = async (newAvatarUrl: string) => {
+    if (!session?.user) return;
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
+    if (!targetUserId) return;
+
+    setAvatarUrl(newAvatarUrl);
+
+    try {
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: newAvatarUrl })
+        .eq("id", targetUserId);
+    } catch (err) {
+      console.error("Erreur mise à jour avatar Supabase:", err);
     }
   };
 
@@ -431,6 +467,7 @@ export default function Home() {
 
     setAssignedCoachId(null);
     setAssignedCoachName("Coach");
+    setAssignedCoachAvatar(undefined);
 
     await supabase
       .from("profiles")
@@ -474,12 +511,15 @@ export default function Home() {
     const fetchAthletes = async () => {
       const { data: myProfile } = await supabase
         .from("profiles")
-        .select("coach_code, full_name, custom_athlete_names")
+        .select("coach_code, full_name, custom_athlete_names, avatar_url")
         .eq("id", session.user.id)
         .maybeSingle();
 
       if (myProfile?.full_name) {
         setAthleteName(myProfile.full_name);
+      }
+      if (myProfile?.avatar_url) {
+        setAvatarUrl(myProfile.avatar_url);
       }
 
       if (myProfile?.custom_athlete_names && typeof myProfile.custom_athlete_names === "object") {
@@ -602,6 +642,8 @@ export default function Home() {
               id: a.id,
               name: displayName,
               email: a.email || "",
+              avatarUrl: a.avatar_url || undefined,
+              avatar_url: a.avatar_url || undefined,
               vma: a.vma ? `${a.vma} km/h` : "N/A",
               activePlanName: activePlanForAthlete?.name || "Plan en cours",
               weeklyVolume,
@@ -683,19 +725,22 @@ export default function Home() {
       // 1. Profil
       const { data: profile } = await supabase
         .from("profiles")
-        .select("*, coach:coach_id(full_name)")
+        .select("*, coach:coach_id(full_name, avatar_url)")
         .eq("id", targetUserId)
         .maybeSingle();
 
       if (profile) {
         if (!isCoachInspecting) {
           if (profile.full_name) setAthleteName(profile.full_name);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
           if (profile.coach_id) {
             setAssignedCoachId(profile.coach_id);
             setAssignedCoachName(profile.custom_coach_name || (profile as any).coach?.full_name || "Votre Entraîneur");
+            setAssignedCoachAvatar((profile as any).coach?.avatar_url || undefined);
           } else {
             setAssignedCoachId(null);
             setAssignedCoachName("Coach");
+            setAssignedCoachAvatar(undefined);
           }
         }
         if (profile.height) setHeight(profile.height.toString());
@@ -738,6 +783,8 @@ export default function Home() {
           id: m.id,
           senderRole: m.sender_role,
           senderName: m.sender_name,
+          senderId: m.sender_id,
+          senderAvatar: m.sender_avatar || undefined,
           athleteId: m.athlete_id,
           text: m.text,
           timestamp: m.timestamp,
@@ -972,6 +1019,7 @@ export default function Home() {
   // SAUVEGARDE UNIFIÉE DU PROFIL
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
+    avatarUrlVal?: string;
     heightVal?: string;
     weightVal?: string;
     vmaVal?: string;
@@ -987,6 +1035,7 @@ export default function Home() {
       const payload: any = {};
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
+      if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal;
       if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal ? parseFloat(updatedFields.heightVal) : null;
       if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal ? parseFloat(updatedFields.weightVal) : null;
       if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal ? parseFloat(updatedFields.vmaVal) : null;
@@ -2119,17 +2168,17 @@ export default function Home() {
   }
 
   if (selectedWorkoutDetail && activePlan) {
-      return (
-        <WorkoutDetail
-          workout={selectedWorkoutDetail}
-          plan={activePlan}
-          completedWorkouts={completedWorkouts}
-          onClose={() => setSelectedWorkoutDetail(null)}
-          onOpenDebrief={(workout) => setDebriefWorkout(workout)}
-          userRole={userRole}
-        />
-      );
-    }
+    return (
+      <WorkoutDetail
+        workout={selectedWorkoutDetail}
+        plan={activePlan}
+        completedWorkouts={completedWorkouts}
+        onClose={() => setSelectedWorkoutDetail(null)}
+        onOpenDebrief={(workout) => setDebriefWorkout(workout)}
+        userRole={userRole}
+      />
+    );
+  }
 
   // ÉCRAN PRINCIPAL DE L'APPLICATION
   return (
@@ -2405,10 +2454,13 @@ export default function Home() {
                 <ChatView
                   userRole={userRole}
                   currentAthleteName={userRole === "coach" ? (selectedAthlete?.name || "") : assignedCoachName}
-                  athleteId={userRole === "coach" ? (selectedAthlete?.id || "") : session?.user?.id}
+                  athleteId={userRole === "coach" ? (selectedAthlete?.id || "") : (session?.user?.id || "")}
                   messages={messages}
                   onSendMessage={(text, targetId) => handleSendMessage(text, targetId)}
+                  onDeleteMessage={handleDeleteMessage}
                   managedAthletes={managedAthletes}
+                  myAvatarUrl={avatarUrl}
+                  contactAvatarUrl={userRole === "coach" ? (selectedAthlete?.avatarUrl || (selectedAthlete as any)?.avatar_url) : assignedCoachAvatar}
                   onRenameContact={userRole === "athlete" ? handleRenameCoachByAthlete : undefined}
                   onDisconnectCoach={userRole === "athlete" ? handleDisconnectCoachByAthlete : undefined}
                 />
@@ -2440,6 +2492,8 @@ export default function Home() {
                   setAthleteName(newName);
                   await saveProfileToSupabase({ fullName: newName });
                 }}
+                avatarUrl={isCoachInspecting ? (selectedAthlete?.avatarUrl || (selectedAthlete as any)?.avatar_url) : avatarUrl}
+                onUpdateAvatar={handleUpdateAvatar}
                 height={height}
                 setHeight={async (newHeight) => {
                   setHeight(newHeight);

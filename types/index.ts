@@ -56,6 +56,8 @@ export interface WorkoutStep {
 
 export interface Workout {
   id: string;
+  planId?: string;
+  userId?: string;
   weekNumber: number;
   dayIndex: number;
   dayName: string;
@@ -78,6 +80,13 @@ export interface Workout {
   completedTimeMinutes?: number;
   completedElevationGain?: number;
   importedActivityName?: string;
+  activityTelemetry?: any;
+  activity_telemetry?: any;
+  avgHr?: number | null;
+  maxHr?: number | null;
+  avgPaceSec?: number;
+  avgCadence?: number | null;
+
   actualDuration?: string;
   actualKm?: string;
   actualPace?: string;
@@ -95,6 +104,8 @@ export interface Workout {
 
 export interface Plan {
   id: string;
+  userId?: string;
+  user_id?: string;
   name: string;
   title?: string;
   targetDistance: string; // ex: "10 km", "Semi-Marathon", "42.2 km"
@@ -106,6 +117,10 @@ export interface Plan {
   durationWeeks?: string;
   totalWeeks?: number;
   weekTypes?: Record<number, { type: WeekType; customLabel?: string }>;
+  isActive?: boolean;
+  is_active?: boolean;
+  isArchived?: boolean;
+  is_archived?: boolean;
   workouts: Workout[];
 }
 
@@ -117,6 +132,8 @@ export interface AthleteProfile {
   id: string;
   name: string; // Nom & Prénom
   email: string;
+  avatarUrl?: string; // 👈 Photo de profil
+  avatar_url?: string; // Alias base de données Supabase
   vma?: string;
   targetGoal?: string; // Distance cible (ex: "10 km", "Semi-Marathon")
   targetDate?: string; // Date de la course (ex: "24/11/2026")
@@ -125,6 +142,17 @@ export interface AthleteProfile {
   adherenceRate?: number;
   lastActive?: string;
   status?: string;
+  activePlanName?: string;
+  weeklyVolume?: string;
+  upcomingRace?: string;
+  weeksToRace?: number;
+  hasUnreadMessage?: boolean;
+  joinedDate?: string;
+  height?: string;
+  weight?: string;
+  fcRest?: string;
+  fcMax?: string;
+  records?: Record<string, string>;
 }
 
 export interface Race {
@@ -159,6 +187,8 @@ export interface ChatMessage {
   id: string;
   senderRole: "athlete" | "coach";
   senderName: string;
+  senderId?: string;
+  senderAvatar?: string; // 👈 Photo de profil dans les messages
   athleteId: string;
   text: string;
   timestamp: string;

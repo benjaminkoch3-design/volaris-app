@@ -22,6 +22,8 @@ import {
 interface ProfileViewProps {
   athleteName: string;
   setAthleteName: (val: string) => void;
+  avatarUrl?: string; // 👈 Photo de profil
+  onUpdateAvatar?: (url: string) => void; // 👈 Handler de mise à jour photo
   height: string;
   setHeight: (val: string) => void;
   weight: string;
@@ -81,6 +83,8 @@ interface ProfileViewProps {
 export const ProfileView: React.FC<ProfileViewProps> = ({
   athleteName,
   setAthleteName,
+  avatarUrl,
+  onUpdateAvatar,
   height,
   setHeight,
   weight,
@@ -334,6 +338,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
 
     setIsEditingProfile(false);
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUpdateAvatar) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onUpdateAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
@@ -718,13 +733,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* CARTE RÉSUMÉ HAUT DE PAGE */}
+      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL */}
       <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-16 h-16 bg-stone-800 border-2 border-[#CF9A61]/60 rounded-full flex items-center justify-center text-xl font-black text-stone-200">
-              {athleteName ? athleteName.substring(0, 2).toUpperCase() : "A"}
+            
+            {/* PHOTO DE PROFIL AVEC UPLOAD */}
+            <div className="relative group">
+              <div className="w-16 h-16 bg-stone-800 border-2 border-[#CF9A61]/60 rounded-full flex items-center justify-center text-xl font-black text-stone-200 overflow-hidden shadow-md">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={athleteName} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{athleteName ? athleteName.substring(0, 2).toUpperCase() : "A"}</span>
+                )}
+              </div>
+
+              {!isReadOnly && (
+                <label
+                  className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center cursor-pointer transition text-[8.5px] font-bold text-stone-200 uppercase"
+                  title="Changer la photo de profil"
+                >
+                  <span>📷 Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarFileChange}
+                  />
+                </label>
+              )}
             </div>
+
             <div>
               <h3 className="text-xl font-black uppercase text-stone-100">
                 {athleteName || "Athlète"}
