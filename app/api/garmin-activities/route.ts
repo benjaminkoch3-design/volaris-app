@@ -3,12 +3,104 @@
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
 
+// Formatage précis des secondes en "M:SS"
 const formatSecondsToPace = (secPerKm: number): string => {
   if (!secPerKm || !isFinite(secPerKm) || secPerKm <= 0 || secPerKm > 1200) return "-";
   const mins = Math.floor(secPerKm / 60);
   const secs = Math.round(secPerKm % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
+
+// Parser XML pour extraire les vrais tours et points du TCX Garmin
+function parseGarminTcx(tcxXml: string) {
+  if (!tcxXml || typeof tcxXml !== "string" || !tcxXml.includes("<Lap")) {
+    return null;
+  }
+
+  const laps: any[] = [];
+  const hrSamples: number[] = [];
+  const paceSamples: number[] = [];
+  const elevationProfile: number[] = [];
+
+  // 1. EXTRACTION DES VRAIS LAPS / TOURS (BIPS 1 KM)
+  const lapMatches = tcxXml.match(/<Lap[\s\S]*?<\/Lap>/g) || [];
+  lapMatches.forEach((lapXml, idx) => {
+    const totalTimeSecMatch = lapXml.match(/<TotalTimeSeconds>([\d.]+)<\/TotalTimeSeconds>/);
+    const distanceMetersMatch = lapXml.match(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/);
+    const avgHrMatch = lapXml.match(/<AverageHeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
+    const maxHrMatch = lapXml.match(/<MaximumHeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
+    const cadenceMatch = lapXml.match(/<Cadence>(\d+)<\/Cadence>/);
+
+    const durSec = totalTimeSecMatch ? Math.round(parseFloat(totalTimeSecMatch[1])) : 0;
+    const distM = distanceMetersMatch ? parseFloat(distanceMetersMatch[1]) : 1000;
+    const distKm = Math.round((distM / 1000) * 100) / 100;
+    const secPerKm = distKm > 0 && durSec > 0 ? Math.round(durSec / distKm) : 0;
+
+    // Calcul du D+ dans ce tour précis
+    const altitudeMatches = [...lapXml.matchAll(/<AltitudeMeters>([\d.-]+)<\/AltitudeMeters>/g)];
+    let lapGain = 0;
+    for (let i = 1; i < altitudeMatches.length; i++) {
+      const prev = parseFloat(altitudeMatches[i - 1][1]);
+      const curr = parseFloat(altitudeMatches[i][1]);
+      if (curr > prev) lapGain += (curr - prev);
+    }
+
+    laps.push({
+      km: idx + 1,
+      distanceKm: distKm,
+      durationSec: durSec,
+      pace: formatSecondsToPace(secPerKm),
+      paceSec: secPerKm,
+      avgHr: avgHrMatch ? parseInt(avgHrMatch[1], 10) : null,
+      maxHr: maxHrMatch ? parseInt(maxHrMatch[1], 10) : null,
+      elevationGain: Math.round(lapGain),
+      cadence: cadenceMatch ? parseInt(cadenceMatch[1], 10) : null,
+    });
+  });
+
+  // 2. EXTRACTION DES VRAIS TRACKPOINTS CHRONOLOGIQUES (COURBES)
+  const trackpoints = tcxXml.match(/<Trackpoint>[\s\S]*?<\/Trackpoint>/g) || [];
+  let lastDist = 0;
+  let lastTime: number | null = null;
+
+  const step = Math.max(1, Math.floor(trackpoints.length / 80));
+
+  for (let i = 0; i < trackpoints.length; i += step) {
+    const tp = trackpoints[i];
+    const hrMatch = tp.match(/<HeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
+    const altMatch = tp.match(/<AltitudeMeters>([\d.-]+)<\/AltitudeMeters>/);
+    const distMatch = tp.match(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/);
+    const timeMatch = tp.match(/<Time>(.*?)<\/Time>/);
+
+    if (hrMatch) hrSamples.push(parseInt(hrMatch[1], 10));
+    if (altMatch) elevationProfile.push(Math.round(parseFloat(altMatch[1])));
+
+    if (distMatch && timeMatch) {
+      const currentDist = parseFloat(distMatch[1]);
+      const currentTime = new Date(timeMatch[1]).getTime() / 1000;
+
+      if (lastTime !== null && currentDist > lastDist) {
+        const deltaDistKm = (currentDist - lastDist) / 1000;
+        const deltaTimeSec = currentTime - lastTime;
+        if (deltaDistKm > 0 && deltaTimeSec > 0) {
+          const instantPace = Math.round(deltaTimeSec / deltaDistKm);
+          if (instantPace >= 120 && instantPace <= 900) {
+            paceSamples.push(instantPace);
+          }
+        }
+      }
+      lastDist = currentDist;
+      lastTime = currentTime;
+    }
+  }
+
+  return {
+    laps: laps.length > 0 ? laps : null,
+    hrSamples: hrSamples.length > 0 ? hrSamples : null,
+    paceSamples: paceSamples.length > 0 ? paceSamples : null,
+    elevationProfile: elevationProfile.length > 0 ? elevationProfile : null,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -22,152 +114,42 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Fonction d'appel universelle
-    const garminGet = async (url: string) => {
+    // Fonction de téléchargement du fichier brut TCX
+    const fetchTcxTelemetry = async (actId: string | number) => {
       try {
-        if (typeof gc.get === "function") return await gc.get(url);
-        if (gc.client?.get) {
-          const res = await gc.client.get(url);
-          return res.data || res;
+        const client = gc.client || gc;
+        let tcxData: string | null = null;
+
+        if (typeof gc.get === "function") {
+          tcxData = await gc.get(`https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/${actId}`);
+        } else if (client.get) {
+          const res = await client.get(`https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/${actId}`);
+          tcxData = res.data || res;
         }
-      } catch (err: any) {
-        console.warn(`Garmin GET error [${url}]:`, err?.message);
+
+        if (tcxData && typeof tcxData === "string") {
+          return parseGarminTcx(tcxData);
+        }
+      } catch (err) {
+        console.warn(`Erreur téléchargement TCX (${actId}):`, err);
       }
       return null;
     };
 
-    // Extraction complète de la télémétrie réelle d'une activité
-    const extractTelemetry = async (act: any) => {
-      const actId = String(act.activityId || act.id);
-      let splitsData: any = null;
-      let detailsData: any = null;
-
-      // 1. Récupération des splits
-      try {
-        if (typeof gc.getActivitySplits === "function") {
-          splitsData = await gc.getActivitySplits(actId);
-        } else {
-          splitsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
-        }
-      } catch (e) {
-        console.warn("Splits endpoint non disponible:", e);
-      }
-
-      // 2. Récupération des détails point par point
-      try {
-        if (typeof gc.getActivityDetails === "function") {
-          detailsData = await gc.getActivityDetails(actId);
-        } else {
-          detailsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
-        }
-      } catch (e) {
-        console.warn("Details endpoint non disponible:", e);
-      }
-
-      // 3. Formatage des tours (Laps / Splits)
-      const rawLaps =
-        splitsData?.lapDTOs ||
-        splitsData?.splitSummaries ||
-        splitsData?.lapList ||
-        [];
-
-      let laps = rawLaps
-        .filter((l: any) => (l.distance || 0) > 50)
-        .map((lap: any, idx: number) => {
-          const distM = lap.distance || 1000;
-          const distKm = Math.round((distM / 1000) * 100) / 100;
-          const durSec = Math.round(lap.duration || lap.movingDuration || 0);
-          const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
-          const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
-
-          return {
-            km: lap.lapIndex !== undefined ? lap.lapIndex + 1 : idx + 1,
-            distanceKm: distKm,
-            durationSec: durSec,
-            pace: formatSecondsToPace(secPerKm),
-            paceSec: secPerKm,
-            avgHr: Math.round(lap.averageHR || lap.avgHR || lap.averageHeartRate || 0) || null,
-            maxHr: Math.round(lap.maxHR || lap.maxHeartRate || 0) || null,
-            elevationGain: Math.round(lap.elevationGain || lap.gain || 0),
-            cadence: Math.round(lap.averageRunningCadenceInStepsPerMinute || lap.avgRunCadence || lap.averageCadence || 0) || null,
-          };
-        });
-
-      // 4. Formatage des points de courbe continue (Cardio, Allure, Altitude)
-      const metricDescriptors = detailsData?.metricDescriptors || [];
-      const findMetricIndex = (keys: string[]) => {
-        const desc = metricDescriptors.find((m: any) => keys.includes(m.key));
-        if (!desc) return -1;
-        return desc.metricsIndex !== undefined ? desc.metricsIndex : metricDescriptors.indexOf(desc);
-      };
-
-      const hrIndex = findMetricIndex(["directHeartRate", "heartRate"]);
-      const speedIndex = findMetricIndex(["directSpeed", "speed"]);
-      const elevIndex = findMetricIndex(["directElevation", "elevation"]);
-
-      const activityDetailMetrics = detailsData?.activityDetailMetrics || [];
-      const hrSamples: number[] = [];
-      const paceSamples: number[] = [];
-      const elevationProfile: number[] = [];
-
-      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 80));
-      for (let i = 0; i < activityDetailMetrics.length; i += step) {
-        const row = activityDetailMetrics[i]?.metrics;
-        if (row && Array.isArray(row)) {
-          if (hrIndex !== -1 && row[hrIndex] > 30) {
-            hrSamples.push(Math.round(row[hrIndex]));
-          }
-          if (speedIndex !== -1 && row[speedIndex] > 0.4) {
-            paceSamples.push(Math.round(1000 / row[speedIndex]));
-          }
-          if (elevIndex !== -1 && row[elevIndex] !== undefined) {
-            elevationProfile.push(Math.round(row[elevIndex]));
-          }
-        }
-      }
-
-      // Si Garmin n'a pas retourné de tours automatiques, calculer les tours à partir des métriques globales
-      if (laps.length === 0) {
-        const totalDistKm = act.distance ? act.distance / 1000 : 10;
-        const totalSec = act.movingDuration || act.duration || 3000;
-        const avgSpeed = act.averageSpeed || totalDistKm / (totalSec / 1000);
-        const avgPaceSec = avgSpeed > 0 ? Math.round(1000 / avgSpeed) : 291;
-        const numKm = Math.max(1, Math.round(totalDistKm));
-
-        laps = Array.from({ length: numKm }).map((_, i) => ({
-          km: i + 1,
-          distanceKm: 1,
-          durationSec: avgPaceSec,
-          pace: formatSecondsToPace(avgPaceSec),
-          paceSec: avgPaceSec,
-          avgHr: Math.round(act.averageHR || act.avgHR || 140),
-          maxHr: Math.round(act.maxHR || (act.averageHR || 140) + 10),
-          elevationGain: Math.round((act.elevationGain || 0) / numKm),
-          cadence: Math.round(act.averageRunningCadenceInStepsPerMinute || act.avgRunCadence || 170),
-        }));
-      }
-
-      return {
-        laps,
-        hrSamples: hrSamples.length > 0 ? hrSamples : laps.map((l) => l.avgHr || 140),
-        paceSamples: paceSamples.length > 0 ? paceSamples : laps.map((l) => l.paceSec),
-        elevationProfile: elevationProfile.length > 0 ? elevationProfile : [0, act.elevationGain || 40],
-      };
-    };
-
-    // Si on demande la télémétrie d'un ID spécifique
+    // 1. Si un ID spécifique est demandé
     if (activityId) {
-      const telemetry = await extractTelemetry({ activityId });
+      const telemetry = await fetchTcxTelemetry(activityId);
       return NextResponse.json({ success: true, telemetry });
     }
 
-    // Récupération de la liste des activités
+    // 2. Récupération des activités de course
     let rawActivities: any[] = [];
     if (typeof gc.getActivities === "function") {
       rawActivities = await gc.getActivities(0, limit);
     } else {
-      const res = await garminGet(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
-      rawActivities = res || [];
+      const client = gc.client || gc;
+      const res = await client.get(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
+      rawActivities = res.data || res || [];
     }
 
     const runningActivities = (rawActivities || []).filter((act: any) => {
@@ -184,6 +166,7 @@ export async function POST(request: Request) {
       );
     });
 
+    // 3. Téléchargement et parsing du vrai TCX pour les activités
     const formattedActivities = await Promise.all(
       runningActivities.slice(0, 3).map(async (act: any) => {
         const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
@@ -191,7 +174,8 @@ export async function POST(request: Request) {
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);
 
-        const telemetry = await extractTelemetry(act);
+        // Vraies données natives Garmin
+        const telemetry = await fetchTcxTelemetry(act.activityId);
 
         return {
           id: String(act.activityId),
