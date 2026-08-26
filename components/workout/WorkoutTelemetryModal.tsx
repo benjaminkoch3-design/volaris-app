@@ -34,12 +34,12 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   const overallAvgPaceSec =
     workout.completedTimeMinutes && totalKm > 0
       ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
-      : (workout as any).avgPaceSec || 291;
+      : (workout as any).avgPaceSec || 0;
 
-  const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || 139;
-  const totalElev = workout.completedElevationGain ?? 49;
+  const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || null;
+  const totalElev = workout.completedElevationGain ?? 0;
 
-  // VRAIS LAPS GARMIN
+  // Laps et séries strictement réels
   const laps: Array<{
     km: number;
     pace: string;
@@ -50,15 +50,22 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
     cadence: number | null;
   }> = telemetry.laps || [];
 
-  // VRAIS ÉCHANTILLONS CONTINUS GARMIN
-  const paceSamples: number[] = telemetry.paceSamples || (laps.length > 0 ? laps.map((l) => l.paceSec) : []);
-  const hrSamples: number[] = telemetry.hrSamples || (laps.length > 0 ? laps.map((l) => l.avgHr || baseHr) : []);
+  const paceSamples: number[] =
+    telemetry.paceSamples && telemetry.paceSamples.length > 0
+      ? telemetry.paceSamples
+      : laps.map((l) => l.paceSec);
+
+  const hrSamples: number[] =
+    telemetry.hrSamples && telemetry.hrSamples.length > 0
+      ? telemetry.hrSamples
+      : laps.map((l) => l.avgHr).filter(Boolean) as number[];
+
   const elevationSamples: number[] = telemetry.elevationProfile || [];
 
   const minPaceSec = paceSamples.length > 0 ? Math.min(...paceSamples) : overallAvgPaceSec;
   const maxPaceSec = paceSamples.length > 0 ? Math.max(...paceSamples) : overallAvgPaceSec;
-  const minHr = hrSamples.length > 0 ? Math.min(...hrSamples) : baseHr;
-  const maxHr = hrSamples.length > 0 ? Math.max(...hrSamples) : baseHr;
+  const minHr = hrSamples.length > 0 ? Math.min(...hrSamples) : (baseHr || 120);
+  const maxHr = hrSamples.length > 0 ? Math.max(...hrSamples) : (baseHr || 180);
   const minElev = elevationSamples.length > 0 ? Math.min(...elevationSamples) : 0;
   const maxElev = elevationSamples.length > 0 ? Math.max(...elevationSamples) : totalElev;
 
@@ -97,7 +104,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </div>
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">FC Moyenne</span>
-            <span className="text-xs font-black text-rose-400">{baseHr} bpm</span>
+            <span className="text-xs font-black text-rose-400">{baseHr ? `${baseHr} bpm` : "-"}</span>
           </div>
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">D+ Total</span>
@@ -112,14 +119,14 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
               ⏱️ Découpage Kilométrique (Bips Montre)
             </span>
             <span className="text-[9px] font-bold text-stone-500">
-              {laps.length > 0 ? `${laps.length} tour(s)` : "En attente"}
+              {laps.length > 0 ? `${laps.length} tour(s)` : "Non disponible"}
             </span>
           </div>
 
           {laps.length === 0 ? (
             <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
               <p className="text-xs text-stone-400">
-                Synchronisation des tours en cours avec votre montre...
+                Aucun découpage kilométrique enregistré sur cette activité.
               </p>
             </div>
           ) : (
@@ -144,8 +151,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                         {lap.pace}
                       </td>
                       <td className="py-2 px-3 text-rose-300">
-                        {lap.avgHr ? `${lap.avgHr}` : "-"}
-                        {lap.maxHr ? <span className="text-stone-500 text-[8px]"> / {lap.maxHr}</span> : ""}
+                        {lap.avgHr || "-"} {lap.maxHr ? <span className="text-stone-500 text-[8px]"> / {lap.maxHr}</span> : ""}
                       </td>
                       <td className="py-2 px-3 text-emerald-400">
                         +{lap.elevationGain}m
@@ -161,7 +167,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           )}
         </div>
 
-        {/* SECTION 2 : GRAPHIQUES D'ÉVOLUTION */}
+        {/* SECTION 2 : GRAPHIQUES D'ÉVOLUTION CONTINUE */}
         <div className="space-y-2.5 pt-1">
           <div className="flex justify-between items-center px-1">
             <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
@@ -317,7 +323,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
 
               <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
                 <span>Départ</span>
-                <span>Moyenne : {baseHr} bpm</span>
+                <span>Moyenne : {baseHr ? `${baseHr} bpm` : "-"}</span>
                 <span>Arrivée</span>
               </div>
             </div>

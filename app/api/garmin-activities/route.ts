@@ -22,66 +22,95 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Fonction universelle d'appel GET avec la session Garmin active
-    const garminGet = async (endpoint: string) => {
+    // Méthode de requête authentifiée universelle
+    const garminFetch = async (url: string) => {
       try {
-        if (typeof gc.get === "function") {
-          return await gc.get(endpoint);
-        }
-        if (gc.client && typeof gc.client.get === "function") {
-          const res = await gc.client.get(endpoint);
+        if (typeof gc.get === "function") return await gc.get(url);
+        if (gc.client?.get) {
+          const res = await gc.client.get(url);
           return res.data || res;
         }
-      } catch (err) {
-        console.warn(`Erreur GET sur ${endpoint}:`, err);
+      } catch (e) {
+        console.warn(`Garmin endpoint non joignable: ${url}`, e?.message);
       }
       return null;
     };
 
     // Extraction complète de la télémétrie réelle d'une activité
-    const extractTelemetry = async (actId: string | number) => {
-      const splitsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
-      const detailsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
+    const extractFullTelemetry = async (actId: string | number) => {
+      // 1. Appel des Splits (Bips kilomètres)
+      const splitsData = await garminFetch(
+        `https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`
+      );
 
-      // 1. VRAIS LAPS / KILOMÈTRES
-      const rawLaps = splitsData?.lapDTOs || splitsData?.splitSummaries || splitsData?.lapList || [];
-      const laps = rawLaps.map((lap: any, idx: number) => {
-        const distM = lap.distance || 1000;
-        const distKm = Math.round((distM / 1000) * 100) / 100;
-        const durSec = Math.round(lap.duration || lap.movingDuration || 0);
-        const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
-        const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
+      // 2. Appel des Détails seconde par seconde (Cardio, Allure, Altitude)
+      const detailsData = await garminFetch(
+        `https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`
+      );
 
-        return {
-          km: lap.lapIndex !== undefined ? lap.lapIndex + 1 : idx + 1,
-          distanceKm: distKm,
-          durationSec: durSec,
-          pace: formatSecondsToPace(secPerKm),
-          paceSec: secPerKm,
-          avgHr: Math.round(lap.averageHR || lap.avgHR || lap.averageHeartRate || 0) || null,
-          maxHr: Math.round(lap.maxHR || lap.maxHeartRate || 0) || null,
-          elevationGain: Math.round(lap.elevationGain || lap.gain || 0),
-          cadence: Math.round(lap.averageRunningCadenceInStepsPerMinute || lap.avgRunCadence || lap.averageCadence || 0) || null,
-        };
-      });
+      // Formatage des vrais tours / laps
+      let laps: any[] = [];
+      const rawLaps =
+        splitsData?.lapDTOs ||
+        splitsData?.splitSummaries ||
+        splitsData?.lapList ||
+        [];
 
-      // 2. VRAIS POINTS DE COURBE (CARDIO, ALLURE, ÉLÉVATION)
-      const metricDescriptors = detailsData?.metricDescriptors || [];
-      const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate" || m.key === "heartRate");
-      const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed" || m.key === "speed");
-      const elevIndex = metricDescriptors.findIndex((m: any) => m.key === "directElevation" || m.key === "elevation");
+      if (rawLaps.length > 0) {
+        laps = rawLaps
+          .filter((lap: any) => (lap.distance || 0) > 100) // Filtrer les laps parasites
+          .map((lap: any, idx: number) => {
+            const distM = lap.distance || 1000;
+            const distKm = Math.round((distM / 1000) * 100) / 100;
+            const durSec = Math.round(lap.duration || lap.movingDuration || 0);
+            const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
+            const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
 
-      const activityDetailMetrics = detailsData?.activityDetailMetrics || [];
+            return {
+              km: lap.lapIndex !== undefined ? lap.lapIndex + 1 : idx + 1,
+              distanceKm: distKm,
+              durationSec: durSec,
+              pace: formatSecondsToPace(secPerKm),
+              paceSec: secPerKm,
+              avgHr: Math.round(lap.averageHR || lap.avgHR || lap.averageHeartRate || 0) || null,
+              maxHr: Math.round(lap.maxHR || lap.maxHeartRate || 0) || null,
+              elevationGain: Math.round(lap.elevationGain || lap.gain || 0),
+              cadence: Math.round(
+                lap.averageRunningCadenceInStepsPerMinute ||
+                lap.avgRunCadence ||
+                lap.averageCadence ||
+                0
+              ) || null,
+            };
+          });
+      }
+
+      // Formatage des vraies séries temporelles
       const hrSamples: number[] = [];
       const paceSamples: number[] = [];
       const elevationProfile: number[] = [];
 
+      const metricDescriptors = detailsData?.metricDescriptors || [];
+      const hrIndex = metricDescriptors.findIndex(
+        (m: any) => m.key === "directHeartRate" || m.key === "heartRate"
+      );
+      const speedIndex = metricDescriptors.findIndex(
+        (m: any) => m.key === "directSpeed" || m.key === "speed"
+      );
+      const elevIndex = metricDescriptors.findIndex(
+        (m: any) => m.key === "directElevation" || m.key === "elevation"
+      );
+
+      const activityDetailMetrics = detailsData?.activityDetailMetrics || [];
       const step = Math.max(1, Math.floor(activityDetailMetrics.length / 80));
+
       for (let i = 0; i < activityDetailMetrics.length; i += step) {
         const row = activityDetailMetrics[i]?.metrics;
         if (row) {
-          if (hrIndex !== -1 && row[hrIndex] > 30) hrSamples.push(Math.round(row[hrIndex]));
-          if (speedIndex !== -1 && row[speedIndex] > 0.4) {
+          if (hrIndex !== -1 && row[hrIndex] > 30) {
+            hrSamples.push(Math.round(row[hrIndex]));
+          }
+          if (speedIndex !== -1 && row[speedIndex] > 0.3) {
             paceSamples.push(Math.round(1000 / row[speedIndex]));
           }
           if (elevIndex !== -1 && row[elevIndex] !== undefined) {
@@ -98,18 +127,20 @@ export async function POST(request: Request) {
       };
     };
 
-    // Si un ID précis est demandé
+    // Si on demande la télémétrie d'un ID précis
     if (activityId) {
-      const telemetry = await extractTelemetry(activityId);
+      const telemetry = await extractFullTelemetry(activityId);
       return NextResponse.json({ success: true, telemetry });
     }
 
-    // Récupération de la liste des activités
+    // Récupération de la liste des courses récentes
     let rawActivities: any[] = [];
     if (typeof gc.getActivities === "function") {
       rawActivities = await gc.getActivities(0, limit);
     } else {
-      const res = await garminGet(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
+      const res = await garminFetch(
+        `https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`
+      );
       rawActivities = res || [];
     }
 
@@ -127,7 +158,7 @@ export async function POST(request: Request) {
       );
     });
 
-    // Chargement de la télémétrie complète pour les courses
+    // Chargement synchronisé de la vraie télémétrie pour chaque course
     const formattedActivities = await Promise.all(
       runningActivities.slice(0, 3).map(async (act: any) => {
         const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
@@ -135,7 +166,7 @@ export async function POST(request: Request) {
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);
 
-        const telemetry = await extractTelemetry(act.activityId);
+        const telemetry = await extractFullTelemetry(act.activityId);
 
         return {
           id: String(act.activityId),
@@ -160,9 +191,9 @@ export async function POST(request: Request) {
       activities: formattedActivities,
     });
   } catch (error: any) {
-    console.error("Garmin Activities Error:", error);
+    console.error("Garmin API Error:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur lors de la récupération Garmin." },
+      { error: error?.message || "Erreur de connexion Garmin Connect." },
       { status: 400 }
     );
   }
