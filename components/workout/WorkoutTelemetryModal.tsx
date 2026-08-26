@@ -29,75 +29,77 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   const totalKm =
     workout.completedKm !== undefined
       ? workout.completedKm
-      : parseFloat(workout.km || "0") || 10;
-
-  const numLaps = Math.max(1, Math.round(totalKm));
+      : parseFloat(workout.km || "0") || 0;
 
   const overallAvgPaceSec =
     workout.completedTimeMinutes && totalKm > 0
       ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
       : (workout as any).avgPaceSec || 291;
 
-  const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || 139;
-  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || (baseHr + 10);
-  const totalElev = workout.completedElevationGain ?? 49;
-  const cadenceVal = (workout as any).avgCadence || 170;
+  const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || null;
+  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || null;
+  const totalElev = workout.completedElevationGain ?? 0;
 
-  // Récupération des tours
-  const rawLaps = telemetry.laps || [];
-  const laps: Array<{
-    km: number;
+  // Récupération des vrais intervalles Garmin
+  const intervals: Array<{
+    circuit: number;
+    intervalNum: string;
+    stepType: string;
+    durationFormatted: string;
+    cumulativeTime: string;
+    distanceKm: string;
     pace: string;
     paceSec: number;
     avgHr: number | null;
     maxHr: number | null;
     elevationGain: number;
     cadence: number | null;
-  }> =
-    rawLaps.length > 0
-      ? rawLaps
-      : Array.from({ length: numLaps }).map((_, i) => ({
-          km: i + 1,
-          pace: formatPaceFromSeconds(overallAvgPaceSec),
-          paceSec: overallAvgPaceSec,
-          avgHr: baseHr,
-          maxHr: maxHrVal,
-          elevationGain: Math.round(totalElev / numLaps),
-          cadence: cadenceVal,
-        }));
+  }> = telemetry.intervals || telemetry.laps || [];
 
   // Échantillons pour les graphiques
   const paceSamples: number[] =
     telemetry.paceSamples && telemetry.paceSamples.length > 0
       ? telemetry.paceSamples
-      : laps.map((l) => l.paceSec);
+      : intervals.map((i) => i.paceSec).filter((p) => p > 0);
 
   const hrSamples: number[] =
     telemetry.hrSamples && telemetry.hrSamples.length > 0
       ? telemetry.hrSamples
-      : laps.map((l) => l.avgHr || baseHr);
+      : intervals.map((i) => i.avgHr).filter(Boolean) as number[];
 
-  const elevationSamples: number[] =
-    telemetry.elevationProfile && telemetry.elevationProfile.length > 0
-      ? telemetry.elevationProfile
-      : [0, totalElev];
+  const elevationSamples: number[] = telemetry.elevationProfile || [];
 
-  const minPaceSec = Math.min(...paceSamples);
-  const maxPaceSec = Math.max(...paceSamples);
-  const minHr = Math.min(...hrSamples);
-  const maxHr = Math.max(...hrSamples);
-  const minElev = Math.min(...elevationSamples);
-  const maxElev = Math.max(...elevationSamples);
+  const minPaceSec = paceSamples.length > 0 ? Math.min(...paceSamples) : overallAvgPaceSec;
+  const maxPaceSec = paceSamples.length > 0 ? Math.max(...paceSamples) : overallAvgPaceSec;
+  const minHr = hrSamples.length > 0 ? Math.min(...hrSamples) : 130;
+  const maxHr = hrSamples.length > 0 ? Math.max(...hrSamples) : 180;
+  const minElev = elevationSamples.length > 0 ? Math.min(...elevationSamples) : 0;
+  const maxElev = elevationSamples.length > 0 ? Math.max(...elevationSamples) : totalElev;
+
+  const getStepBadgeStyle = (stepType: string) => {
+    switch (stepType) {
+      case "Échauffement":
+        return "text-[#CF6361] bg-[#CF6361]/10 border-[#CF6361]/30";
+      case "Course à pied":
+        return "text-[#CF9A61] bg-[#CF9A61]/10 border-[#CF9A61]/30 font-black";
+      case "Récupération":
+        return "text-[#CDCF61] bg-[#CDCF61]/10 border-[#CDCF61]/30";
+      case "Retour au calme":
+        return "text-blue-400 bg-blue-500/10 border-blue-500/30";
+      default:
+        return "text-stone-300 bg-stone-800 border-stone-700";
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-60 font-sans overflow-y-auto">
-      <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[92vh] overflow-y-auto custom-scrollbar">
+    <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-60 font-sans overflow-y-auto">
+      <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-xl w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[94vh] overflow-y-auto custom-scrollbar">
         
         {/* HEADER */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div>
             <span className="text-[10px] font-black text-[#CF9A61] uppercase tracking-widest block">
-              Débrief de la séance
+              Débrief de la séance • Garmin Connect
             </span>
             <h3 className="text-base font-black uppercase text-stone-100">
               {workout.title || workout.sessionName || "Détail de la Sortie"}
@@ -124,7 +126,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </div>
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">FC Moyenne</span>
-            <span className="text-xs font-black text-rose-400">{baseHr} bpm</span>
+            <span className="text-xs font-black text-rose-400">{baseHr ? `${baseHr} bpm` : "-"}</span>
           </div>
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">D+ Total</span>
@@ -132,55 +134,72 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </div>
         </div>
 
-        {/* SECTION 1 : TABLEAU KILOMÈTRE PAR KILOMÈTRE */}
+        {/* SECTION 1 : TABLEAU DES INTERVALLES & ÉTAPES (COMME GARMIN CONNECT) */}
         <div className="space-y-2.5">
           <div className="flex justify-between items-center px-1">
             <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
-              ⏱️ Découpage Kilométrique (Bips Montre)
+              📊 Intervalles & Étapes de la Séance
             </span>
             <span className="text-[9px] font-bold text-stone-500">
-              {laps.length} tour(s)
+              {intervals.length > 0 ? `${intervals.length} étape(s)` : "En attente"}
             </span>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-stone-800 bg-stone-950">
-            <table className="w-full text-left border-collapse text-[10px]">
-              <thead>
-                <tr className="bg-stone-900/80 text-stone-400 border-b border-stone-800 uppercase font-bold text-[8.5px] tracking-wider">
-                  <th className="py-2 px-3">Km</th>
-                  <th className="py-2 px-3">Allure</th>
-                  <th className="py-2 px-3">FC Moy / Max</th>
-                  <th className="py-2 px-3">D+</th>
-                  <th className="py-2 px-3 text-right">Cadence</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-800/60 font-mono">
-                {laps.map((lap) => (
-                  <tr key={lap.km} className="hover:bg-stone-900/40 transition">
-                    <td className="py-2 px-3 font-black text-stone-300">
-                      Km {lap.km}
-                    </td>
-                    <td className="py-2 px-3 font-black text-[#CF9A61]">
-                      {lap.pace}
-                    </td>
-                    <td className="py-2 px-3 text-rose-300">
-                      {lap.avgHr ? `${lap.avgHr}` : "-"}
-                      {lap.maxHr ? <span className="text-stone-500 text-[8px]"> / {lap.maxHr}</span> : ""}
-                    </td>
-                    <td className="py-2 px-3 text-emerald-400">
-                      +{lap.elevationGain}m
-                    </td>
-                    <td className="py-2 px-3 text-right text-stone-400">
-                      {lap.cadence ? `${lap.cadence} spm` : "-"}
-                    </td>
+          {intervals.length === 0 ? (
+            <div className="bg-stone-950 p-6 rounded-2xl border border-stone-800 text-center">
+              <p className="text-xs text-stone-400">
+                Aucun intervalle retourné par la montre pour cette activité.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-stone-800 bg-stone-950 shadow-inner">
+              <table className="w-full text-left border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-stone-900/90 text-stone-400 border-b border-stone-800 uppercase font-extrabold text-[8.5px] tracking-wider">
+                    <th className="py-2.5 px-3">Intervalle</th>
+                    <th className="py-2.5 px-3">Type d'étape</th>
+                    <th className="py-2.5 px-3 text-center">Circuit</th>
+                    <th className="py-2.5 px-3">Durée</th>
+                    <th className="py-2.5 px-3">Temps cumulé</th>
+                    <th className="py-2.5 px-3 text-right">Distance</th>
+                    <th className="py-2.5 px-3 text-right">Allure moy.</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-stone-800/60 font-mono">
+                  {intervals.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-stone-900/50 transition">
+                      <td className="py-2 px-3 font-bold text-[#CF9A61]">
+                        {item.intervalNum ? `▶ ${item.intervalNum}` : ""}
+                      </td>
+                      <td className="py-2 px-3 font-sans">
+                        <span className={`px-2 py-0.5 rounded-md border text-[9px] inline-block ${getStepBadgeStyle(item.stepType)}`}>
+                          {item.stepType}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-center text-stone-400 font-bold">
+                        {item.circuit}
+                      </td>
+                      <td className="py-2 px-3 text-stone-200">
+                        {item.durationFormatted}
+                      </td>
+                      <td className="py-2 px-3 text-stone-400">
+                        {item.cumulativeTime}
+                      </td>
+                      <td className="py-2 px-3 text-right font-black text-stone-100">
+                        {item.distanceKm} km
+                      </td>
+                      <td className="py-2 px-3 text-right font-black text-[#CF9A61]">
+                        {item.pace}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* SECTION 2 : GRAPHIQUES D'ÉVOLUTION */}
+        {/* SECTION 2 : GRAPHIQUES D'ÉVOLUTION CONTINUE */}
         <div className="space-y-2.5 pt-1">
           <div className="flex justify-between items-center px-1">
             <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider">
@@ -234,41 +253,47 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 </span>
               </div>
 
-              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
-                <defs>
-                  <linearGradient id="paceGradReal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#CF9A61" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#CF9A61" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+              {paceSamples.length <= 1 ? (
+                <p className="text-center py-6 text-xs text-stone-500">
+                  Trace d'allure non disponible.
+                </p>
+              ) : (
+                <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
+                  <defs>
+                    <linearGradient id="paceGradReal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#CF9A61" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#CF9A61" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
 
-                <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
 
-                {(() => {
-                  const range = maxPaceSec - minPaceSec || 20;
-                  const points = paceSamples.map((p, idx) => {
-                    const x = (idx / Math.max(1, paceSamples.length - 1)) * 400;
-                    const y = 20 + ((p - minPaceSec) / range) * 90;
-                    return `${x},${y}`;
-                  });
+                  {(() => {
+                    const range = maxPaceSec - minPaceSec || 20;
+                    const points = paceSamples.map((p, idx) => {
+                      const x = (idx / Math.max(1, paceSamples.length - 1)) * 400;
+                      const y = 20 + ((p - minPaceSec) / range) * 90;
+                      return `${x},${y}`;
+                    });
 
-                  return (
-                    <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#paceGradReal)" />
-                      <path
-                        d={`M ${points.join(" L ")}`}
-                        fill="none"
-                        stroke="#CF9A61"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </>
-                  );
-                })()}
-              </svg>
+                    return (
+                      <>
+                        <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#paceGradReal)" />
+                        <path
+                          d={`M ${points.join(" L ")}`}
+                          fill="none"
+                          stroke="#CF9A61"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </>
+                    );
+                  })()}
+                </svg>
+              )}
 
               <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
                 <span>0 km</span>
@@ -286,45 +311,51 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 <span className="text-rose-400">Max : {maxHr} bpm • Min : {minHr} bpm</span>
               </div>
 
-              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
-                <defs>
-                  <linearGradient id="hrGradReal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+              {hrSamples.length <= 1 ? (
+                <p className="text-center py-6 text-xs text-stone-500">
+                  Cardio continu non disponible.
+                </p>
+              ) : (
+                <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
+                  <defs>
+                    <linearGradient id="hrGradReal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
 
-                <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
 
-                {(() => {
-                  const range = maxHr - minHr || 20;
-                  const points = hrSamples.map((hr, idx) => {
-                    const x = (idx / Math.max(1, hrSamples.length - 1)) * 400;
-                    const y = 110 - ((hr - minHr) / range) * 90;
-                    return `${x},${y}`;
-                  });
+                  {(() => {
+                    const range = maxHr - minHr || 20;
+                    const points = hrSamples.map((hr, idx) => {
+                      const x = (idx / Math.max(1, hrSamples.length - 1)) * 400;
+                      const y = 110 - ((hr - minHr) / range) * 90;
+                      return `${x},${y}`;
+                    });
 
-                  return (
-                    <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#hrGradReal)" />
-                      <path
-                        d={`M ${points.join(" L ")}`}
-                        fill="none"
-                        stroke="#f43f5e"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </>
-                  );
-                })()}
-              </svg>
+                    return (
+                      <>
+                        <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#hrGradReal)" />
+                        <path
+                          d={`M ${points.join(" L ")}`}
+                          fill="none"
+                          stroke="#f43f5e"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </>
+                    );
+                  })()}
+                </svg>
+              )}
 
               <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
                 <span>Départ</span>
-                <span>Moyenne : {baseHr} bpm</span>
+                <span>Moyenne : {baseHr ? `${baseHr} bpm` : "-"}</span>
                 <span>Arrivée</span>
               </div>
             </div>
@@ -338,41 +369,47 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
                 <span className="text-emerald-400">D+ Total : +{totalElev} m</span>
               </div>
 
-              <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
-                <defs>
-                  <linearGradient id="elevGradReal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+              {elevationSamples.length <= 1 ? (
+                <p className="text-center py-6 text-xs text-stone-500">
+                  Profil altimétrique non disponible.
+                </p>
+              ) : (
+                <svg viewBox="0 0 400 130" className="w-full h-32 overflow-visible">
+                  <defs>
+                    <linearGradient id="elevGradReal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
 
-                <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
-                <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="20" x2="400" y2="20" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="65" x2="400" y2="65" stroke="#292524" strokeDasharray="3,3" />
+                  <line x1="0" y1="110" x2="400" y2="110" stroke="#292524" strokeDasharray="3,3" />
 
-                {(() => {
-                  const range = maxElev - minElev || 20;
-                  const points = elevationSamples.map((alt, idx) => {
-                    const x = (idx / Math.max(1, elevationSamples.length - 1)) * 400;
-                    const y = 110 - ((alt - minElev) / range) * 90;
-                    return `${x},${y}`;
-                  });
+                  {(() => {
+                    const range = maxElev - minElev || 20;
+                    const points = elevationSamples.map((alt, idx) => {
+                      const x = (idx / Math.max(1, elevationSamples.length - 1)) * 400;
+                      const y = 110 - ((alt - minElev) / range) * 90;
+                      return `${x},${y}`;
+                    });
 
-                  return (
-                    <>
-                      <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#elevGradReal)" />
-                      <path
-                        d={`M ${points.join(" L ")}`}
-                        fill="none"
-                        stroke="#10b981"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </>
-                  );
-                })()}
-              </svg>
+                    return (
+                      <>
+                        <path d={`M 0,130 L ${points.join(" L ")} L 400,130 Z`} fill="url(#elevGradReal)" />
+                        <path
+                          d={`M ${points.join(" L ")}`}
+                          fill="none"
+                          stroke="#10b981"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </>
+                    );
+                  })()}
+                </svg>
+              )}
 
               <div className="flex justify-between text-[8px] font-bold text-stone-500 uppercase pt-1">
                 <span>Alt. Min : {minElev}m</span>

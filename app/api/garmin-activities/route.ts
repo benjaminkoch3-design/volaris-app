@@ -3,7 +3,6 @@
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
 
-// Formatage précis des secondes en "M:SS"
 const formatSecondsToPace = (secPerKm: number): string => {
   if (!secPerKm || !isFinite(secPerKm) || secPerKm <= 0 || secPerKm > 1200) return "-";
   const mins = Math.floor(secPerKm / 60);
@@ -11,96 +10,21 @@ const formatSecondsToPace = (secPerKm: number): string => {
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 
-// Parser XML pour extraire les vrais tours et points du TCX Garmin
-function parseGarminTcx(tcxXml: string) {
-  if (!tcxXml || typeof tcxXml !== "string" || !tcxXml.includes("<Lap")) {
-    return null;
-  }
+const formatDurationSec = (totalSeconds: number): string => {
+  if (!totalSeconds || totalSeconds <= 0) return "0:00";
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = (totalSeconds % 60).toFixed(1);
+  return `${mins}:${parseFloat(secs) < 10 ? "0" : ""}${secs}`;
+};
 
-  const laps: any[] = [];
-  const hrSamples: number[] = [];
-  const paceSamples: number[] = [];
-  const elevationProfile: number[] = [];
-
-  // 1. EXTRACTION DES VRAIS LAPS / TOURS (BIPS 1 KM)
-  const lapMatches = tcxXml.match(/<Lap[\s\S]*?<\/Lap>/g) || [];
-  lapMatches.forEach((lapXml, idx) => {
-    const totalTimeSecMatch = lapXml.match(/<TotalTimeSeconds>([\d.]+)<\/TotalTimeSeconds>/);
-    const distanceMetersMatch = lapXml.match(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/);
-    const avgHrMatch = lapXml.match(/<AverageHeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
-    const maxHrMatch = lapXml.match(/<MaximumHeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
-    const cadenceMatch = lapXml.match(/<Cadence>(\d+)<\/Cadence>/);
-
-    const durSec = totalTimeSecMatch ? Math.round(parseFloat(totalTimeSecMatch[1])) : 0;
-    const distM = distanceMetersMatch ? parseFloat(distanceMetersMatch[1]) : 1000;
-    const distKm = Math.round((distM / 1000) * 100) / 100;
-    const secPerKm = distKm > 0 && durSec > 0 ? Math.round(durSec / distKm) : 0;
-
-    // Calcul du D+ dans ce tour précis
-    const altitudeMatches = [...lapXml.matchAll(/<AltitudeMeters>([\d.-]+)<\/AltitudeMeters>/g)];
-    let lapGain = 0;
-    for (let i = 1; i < altitudeMatches.length; i++) {
-      const prev = parseFloat(altitudeMatches[i - 1][1]);
-      const curr = parseFloat(altitudeMatches[i][1]);
-      if (curr > prev) lapGain += (curr - prev);
-    }
-
-    laps.push({
-      km: idx + 1,
-      distanceKm: distKm,
-      durationSec: durSec,
-      pace: formatSecondsToPace(secPerKm),
-      paceSec: secPerKm,
-      avgHr: avgHrMatch ? parseInt(avgHrMatch[1], 10) : null,
-      maxHr: maxHrMatch ? parseInt(maxHrMatch[1], 10) : null,
-      elevationGain: Math.round(lapGain),
-      cadence: cadenceMatch ? parseInt(cadenceMatch[1], 10) : null,
-    });
-  });
-
-  // 2. EXTRACTION DES VRAIS TRACKPOINTS CHRONOLOGIQUES (COURBES)
-  const trackpoints = tcxXml.match(/<Trackpoint>[\s\S]*?<\/Trackpoint>/g) || [];
-  let lastDist = 0;
-  let lastTime: number | null = null;
-
-  const step = Math.max(1, Math.floor(trackpoints.length / 80));
-
-  for (let i = 0; i < trackpoints.length; i += step) {
-    const tp = trackpoints[i];
-    const hrMatch = tp.match(/<HeartRateBpm>[\s\S]*?<Value>(\d+)<\/Value>/);
-    const altMatch = tp.match(/<AltitudeMeters>([\d.-]+)<\/AltitudeMeters>/);
-    const distMatch = tp.match(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/);
-    const timeMatch = tp.match(/<Time>(.*?)<\/Time>/);
-
-    if (hrMatch) hrSamples.push(parseInt(hrMatch[1], 10));
-    if (altMatch) elevationProfile.push(Math.round(parseFloat(altMatch[1])));
-
-    if (distMatch && timeMatch) {
-      const currentDist = parseFloat(distMatch[1]);
-      const currentTime = new Date(timeMatch[1]).getTime() / 1000;
-
-      if (lastTime !== null && currentDist > lastDist) {
-        const deltaDistKm = (currentDist - lastDist) / 1000;
-        const deltaTimeSec = currentTime - lastTime;
-        if (deltaDistKm > 0 && deltaTimeSec > 0) {
-          const instantPace = Math.round(deltaTimeSec / deltaDistKm);
-          if (instantPace >= 120 && instantPace <= 900) {
-            paceSamples.push(instantPace);
-          }
-        }
-      }
-      lastDist = currentDist;
-      lastTime = currentTime;
-    }
-  }
-
-  return {
-    laps: laps.length > 0 ? laps : null,
-    hrSamples: hrSamples.length > 0 ? hrSamples : null,
-    paceSamples: paceSamples.length > 0 ? paceSamples : null,
-    elevationProfile: elevationProfile.length > 0 ? elevationProfile : null,
-  };
-}
+const mapIntensityType = (typeStr: string) => {
+  const t = (typeStr || "").toUpperCase();
+  if (t.includes("WARMUP") || t.includes("WARM_UP")) return "Échauffement";
+  if (t.includes("INTERVAL") || t.includes("ACTIVE")) return "Course à pied";
+  if (t.includes("RECOVERY") || t.includes("REST")) return "Récupération";
+  if (t.includes("COOLDOWN") || t.includes("COOL_DOWN")) return "Retour au calme";
+  return "Étape";
+};
 
 export async function POST(request: Request) {
   try {
@@ -114,42 +38,117 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Fonction de téléchargement du fichier brut TCX
-    const fetchTcxTelemetry = async (actId: string | number) => {
+    const client = gc.client || gc;
+
+    const garminGet = async (url: string) => {
       try {
-        const client = gc.client || gc;
-        let tcxData: string | null = null;
-
-        if (typeof gc.get === "function") {
-          tcxData = await gc.get(`https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/${actId}`);
-        } else if (client.get) {
-          const res = await client.get(`https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/${actId}`);
-          tcxData = res.data || res;
+        if (typeof gc.get === "function") return await gc.get(url);
+        if (client.get) {
+          const res = await client.get(url);
+          return res.data || res;
         }
-
-        if (tcxData && typeof tcxData === "string") {
-          return parseGarminTcx(tcxData);
-        }
-      } catch (err) {
-        console.warn(`Erreur téléchargement TCX (${actId}):`, err);
+      } catch (err: any) {
+        console.warn(`Erreur sur ${url}:`, err?.message);
       }
       return null;
     };
 
-    // 1. Si un ID spécifique est demandé
+    // Extraction des vrais intervalles Garmin (comme sur votre capture d'écran)
+    const extractIntervalsAndTelemetry = async (actId: string | number) => {
+      const splitsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
+      const detailsData = await garminGet(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
+
+      // 1. EXTRACTION DES INTERVALLES & CIRCUITS (STRUCTURE GARMIN CONNECT)
+      const lapDTOs = splitsData?.lapDTOs || splitsData?.splitSummaries || [];
+      let cumulativeTimeSec = 0;
+      let intervalCount = 0;
+
+      const intervals = lapDTOs.map((lap: any, idx: number) => {
+        const durSec = lap.duration || lap.movingDuration || 0;
+        cumulativeTimeSec += durSec;
+
+        const distM = lap.distance || 0;
+        const distKm = Math.round((distM / 1000) * 100) / 100;
+        const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
+        const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
+
+        const stepType = mapIntensityType(lap.intensityType || lap.splitType);
+        
+        let intervalNumber = "";
+        if (stepType === "Course à pied") {
+          intervalCount += 1;
+          intervalNumber = String(intervalCount);
+        }
+
+        return {
+          circuit: lap.lapIndex !== undefined ? lap.lapIndex + 1 : idx + 1,
+          intervalNum: intervalNumber,
+          stepType,
+          durationFormatted: formatDurationSec(durSec),
+          durationSec: durSec,
+          cumulativeTime: formatDurationSec(cumulativeTimeSec),
+          distanceKm: distKm.toFixed(2),
+          pace: formatSecondsToPace(secPerKm),
+          paceSec: secPerKm,
+          avgHr: Math.round(lap.averageHR || lap.avgHR || 0) || null,
+          maxHr: Math.round(lap.maxHR || 0) || null,
+          elevationGain: Math.round(lap.elevationGain || 0),
+          cadence: Math.round(lap.averageRunningCadenceInStepsPerMinute || lap.avgRunCadence || 0) || null,
+        };
+      });
+
+      // 2. EXTRACTION DES POINTS DE COURBE CONTINUE
+      const metricDescriptors = detailsData?.metricDescriptors || [];
+      const findMetricIdx = (keys: string[]) => {
+        const desc = metricDescriptors.find((m: any) => keys.includes(m.key));
+        if (!desc) return -1;
+        return desc.metricsIndex !== undefined ? desc.metricsIndex : metricDescriptors.indexOf(desc);
+      };
+
+      const hrIdx = findMetricIdx(["directHeartRate", "heartRate"]);
+      const speedIdx = findMetricIdx(["directSpeed", "speed"]);
+      const elevIdx = findMetricIdx(["directElevation", "elevation"]);
+
+      const metricsList = detailsData?.activityDetailMetrics || [];
+      const hrSamples: number[] = [];
+      const paceSamples: number[] = [];
+      const elevationProfile: number[] = [];
+
+      const step = Math.max(1, Math.floor(metricsList.length / 80));
+      for (let i = 0; i < metricsList.length; i += step) {
+        const row = metricsList[i]?.metrics;
+        if (row) {
+          if (hrIdx !== -1 && row[hrIdx] > 30) hrSamples.push(Math.round(row[hrIdx]));
+          if (speedIdx !== -1 && row[speedIdx] > 0.4) {
+            paceSamples.push(Math.round(1000 / row[speedIdx]));
+          }
+          if (elevIdx !== -1 && row[elevIdx] !== undefined) {
+            elevationProfile.push(Math.round(row[elevIdx]));
+          }
+        }
+      }
+
+      return {
+        intervals: intervals.length > 0 ? intervals : null,
+        laps: intervals.length > 0 ? intervals : null,
+        hrSamples: hrSamples.length > 0 ? hrSamples : null,
+        paceSamples: paceSamples.length > 0 ? paceSamples : null,
+        elevationProfile: elevationProfile.length > 0 ? elevationProfile : null,
+      };
+    };
+
     if (activityId) {
-      const telemetry = await fetchTcxTelemetry(activityId);
+      const telemetry = await extractIntervalsAndTelemetry(activityId);
       return NextResponse.json({ success: true, telemetry });
     }
 
-    // 2. Récupération des activités de course
+    // Récupération de la liste des activités
     let rawActivities: any[] = [];
     if (typeof gc.getActivities === "function") {
       rawActivities = await gc.getActivities(0, limit);
     } else {
-      const client = gc.client || gc;
-      const res = await client.get(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
-      rawActivities = res.data || res || [];
+      const res = await garminGet(`https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`);
+      rawActivities = res || [];
     }
 
     const runningActivities = (rawActivities || []).filter((act: any) => {
@@ -166,7 +165,6 @@ export async function POST(request: Request) {
       );
     });
 
-    // 3. Téléchargement et parsing du vrai TCX pour les activités
     const formattedActivities = await Promise.all(
       runningActivities.slice(0, 3).map(async (act: any) => {
         const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
@@ -174,8 +172,7 @@ export async function POST(request: Request) {
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);
 
-        // Vraies données natives Garmin
-        const telemetry = await fetchTcxTelemetry(act.activityId);
+        const telemetry = await extractIntervalsAndTelemetry(act.activityId);
 
         return {
           id: String(act.activityId),
@@ -195,10 +192,7 @@ export async function POST(request: Request) {
       })
     );
 
-    return NextResponse.json({
-      success: true,
-      activities: formattedActivities,
-    });
+    return NextResponse.json({ success: true, activities: formattedActivities });
   } catch (error: any) {
     console.error("Garmin API Error:", error);
     return NextResponse.json(
