@@ -342,6 +342,7 @@ export default function Home() {
     });
   };
 
+  // Messages de discussion & Handlers synchronisés Supabase
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
@@ -993,7 +994,63 @@ export default function Home() {
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
-  // SAUVEGARDE SÉCURISÉE AVEC .UPDATE() (PAS D'ERREUR NOT-NULL SUR EMAIL)
+  // Récupération sécurisée des séances du jour pour tous les athlètes du coach
+  const getCoachDailySessionsForDate = (dateStr: string): AthleteDailySession[] => {
+    const sessions: AthleteDailySession[] = [];
+    if (!managedAthletes || managedAthletes.length === 0) return sessions;
+
+    managedAthletes.forEach((athlete) => {
+      const activePlanForAthlete = allCoachAthletesPlans.find((p: any) => {
+        const planUserId = p.userId || p.user_id;
+        const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
+        const isPlanArchived = p.isArchived !== undefined ? p.isArchived : (p.is_archived === true);
+        return planUserId === athlete.id && isPlanActive && !isPlanArchived;
+      });
+
+      if (!activePlanForAthlete) return;
+
+      const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
+        const wUserId = w.userId || w.user_id;
+        const wPlanId = w.planId || w.plan_id;
+        return wUserId === athlete.id && wPlanId === activePlanForAthlete.id;
+      });
+
+      const planStart = activePlanForAthlete.startDate || (activePlanForAthlete as any).start_date;
+      if (!planStart || typeof planStart !== "string") return;
+
+      athleteWorkouts.forEach((w: any) => {
+        try {
+          const [sY, sM, sD] = planStart.split("-").map(Number);
+          if (!sY || !sM || !sD) return;
+
+          const wDate = new Date(sY, sM - 1, sD);
+          const wNum = Number(w.weekNumber ?? w.week_number ?? 1);
+          const dIdx = Number(w.dayIndex ?? w.day_index ?? 0);
+
+          wDate.setDate(wDate.getDate() + ((wNum - 1) * 7 + dIdx));
+
+          const y = wDate.getFullYear();
+          const m = String(wDate.getMonth() + 1).padStart(2, "0");
+          const d = String(wDate.getDate()).padStart(2, "0");
+          const matchDate = `${y}-${m}-${d}`;
+
+          if (matchDate === dateStr) {
+            sessions.push({
+              athlete,
+              plan: activePlanForAthlete,
+              workout: w,
+            });
+          }
+        } catch (e) {
+          console.warn("Erreur calcul date séance coach:", e);
+        }
+      });
+    });
+
+    return sessions;
+  };
+
+  // SAUVEGARDE STRICTE ET PERSISTANTE DU PROFIL DANS SUPABASE (AVEC .UPDATE)
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -1040,6 +1097,7 @@ export default function Home() {
     }
   };
 
+  // HANDLERS COURSES
   const handleAddRace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isCoachInspecting || !session?.user || !newRace.name || !newRace.time) return;
@@ -1076,6 +1134,7 @@ export default function Home() {
     await supabase.from("races").delete().eq("id", id);
   };
 
+  // HANDLERS CHAUSSURES
   const handleAddShoe = async (newShoe: Shoe) => {
     if (isCoachInspecting || !session?.user) return;
 
@@ -1116,6 +1175,7 @@ export default function Home() {
     await supabase.from("shoes").update({ is_active: nextState }).eq("id", id);
   };
 
+  // HANDLERS AJOUT ET SUPPRESSION DE SORTIE MANUELLE
   const handleAddCompletedRun = async (run: CompletedRun) => {
     if (isCoachInspecting || !session?.user) return;
 
@@ -1146,6 +1206,7 @@ export default function Home() {
     }
   };
 
+  // Accordéons de semaines
   const [openWeeks, setOpenWeeks] = useState<Record<number, boolean>>({});
   const [openCreationWeeks, setOpenCreationWeeks] = useState<Record<number, boolean>>({});
 
@@ -1157,6 +1218,7 @@ export default function Home() {
     setOpenCreationWeeks((prev) => ({ ...prev, [wNum]: !prev[wNum] }));
   };
 
+  // Formulaire & Brouillon de Plan
   const [draftWeekTypes, setDraftWeekTypes] = useState<
     Record<number, { type: WeekType; customLabel?: string }>
   >({});
@@ -1184,6 +1246,7 @@ export default function Home() {
     eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   });
 
+  // HANDLERS AUTHENTIFICATION
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1248,6 +1311,7 @@ export default function Home() {
     setScreen("landing");
   };
 
+  // HANDLERS ARCHIVAGE & SUPPRESSION PLAN
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -1274,6 +1338,7 @@ export default function Home() {
     setShowDeletePlanModal(false);
   };
 
+  // HANDLERS CRÉATION / MODIFICATION PLAN AVEC DATES RÉELLES
   const handleStartEmptyWorkoutSetup = (e: React.FormEvent) => {
     e.preventDefault();
     const weeks = calculateWeeks(newPlanForm.startDate, newPlanForm.eventDate);
@@ -1682,6 +1747,7 @@ export default function Home() {
     setDraggedStepPath(null);
   };
 
+  // FINALISATION ET SAUVEGARDE PERSISTANTE DANS SUPABASE
   const handleFinalizePlan = async () => {
     if (!session?.user) return;
 
