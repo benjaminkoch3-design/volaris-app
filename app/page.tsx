@@ -69,9 +69,7 @@ export default function Home() {
   const [loadingAuth, setLoadingAuth] = useState<boolean>(true);
 
   // Navigation & Rôle
-  const [screen, setScreen] = useState<
-    "landing" | "auth" | "profile_creation" | "app"
-  >("landing");
+  const [screen, setScreen] = useState<"landing" | "auth" | "profile_creation" | "app">("landing");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
@@ -164,7 +162,7 @@ export default function Home() {
     checkBothProfiles();
   }, [session, userRole]);
 
-  // Bascule instantanée entre le compte Athlète et le compte Coach (avec création automatique si besoin)
+  // Bascule instantanée entre le compte Athlète et le compte Coach
   const handleSwitchRole = async () => {
     if (!session?.user?.email) return;
 
@@ -222,18 +220,13 @@ export default function Home() {
     setLoadingAuth(false);
   };
 
-  // Affichage de la bibliothèque personnelle pour l'athlète
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
-
-  // Inspection Coach & Liste des vrais athlètes
   const [inspectingAthleteId, setInspectingAthleteId] = useState<string | null>(null);
   const [managedAthletes, setManagedAthletes] = useState<AthleteProfile[]>([]);
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
 
-  // Étape de création de profil
   const [profileStep, setProfileStep] = useState<1 | 2 | 3>(1);
 
-  // Modales & Sélection
   const [showDeletePlanModal, setShowDeletePlanModal] = useState(false);
   const [editingWorkoutId, setEditingWorkoutId] = useState<string | null>(null);
   const [debriefWorkout, setDebriefWorkout] = useState<Workout | null>(null);
@@ -241,13 +234,11 @@ export default function Home() {
   const [selectedWorkoutDetail, setSelectedWorkoutDetail] = useState<Workout | null>(null);
   const [draggedStepPath, setDraggedStepPath] = useState<string[] | null>(null);
 
-  // Utilisateur
   const [athleteName, setAthleteName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Métriques
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [vma, setVma] = useState("");
@@ -255,7 +246,6 @@ export default function Home() {
   const [fcRest, setFcRest] = useState("");
   const [fcMax, setFcMax] = useState("");
 
-  // Records, Palmarès & Chaussures
   const [records, setRecords] = useState<Record<string, string>>({});
   const [races, setRaces] = useState<Race[]>([]);
   const [shoes, setShoes] = useState<Shoe[]>([]);
@@ -276,7 +266,6 @@ export default function Home() {
     utmbIndex: "",
   });
 
-  // Appareils Connectés
   const [connectedDevices, setConnectedDevices] = useState<Record<string, boolean>>({
     garmin: false,
     coros: false,
@@ -290,27 +279,21 @@ export default function Home() {
     setConnectedDevices((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // CATÉGORIES ET BIBLIOTHÈQUE DE SÉANCES
   const [customCategories, setCustomCategories] = useState<LibraryCategory[]>([]);
   const [libraryWorkouts, setLibraryWorkouts] = useState<LibraryWorkout[]>([]);
 
-  // HANDLERS BIBLIOTHÈQUE SYNCHRONISÉS SUR SUPABASE
   const handleAddCategory = async (label: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
     const newCat = { id: catId, label };
     setCustomCategories((prev) => [...prev, newCat]);
-
-    await supabase.from("library_categories").insert([
-      { id: catId, user_id: session.user.id, label }
-    ]);
+    await supabase.from("library_categories").insert([{ id: catId, user_id: session.user.id, label }]);
   };
 
   const handleDeleteCategory = async (catId: string) => {
     if (!session?.user) return;
     setCustomCategories((prev) => prev.filter((c) => c.id !== catId));
     setLibraryWorkouts((prev) => prev.filter((w) => w.categoryId !== catId));
-
     await supabase.from("library_categories").delete().eq("id", catId);
     await supabase.from("library_workouts").delete().eq("category_id", catId);
   };
@@ -365,48 +348,61 @@ export default function Home() {
     });
   };
 
-  // Messages de discussion & Handlers synchronisés Supabase
+  // ----------------------------------------------------
+  // GESTION DES MESSAGES AVEC PERSISTANCE ET REALTIME
+  // ----------------------------------------------------
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
-    const targetId = targetAthleteId || inspectingAthleteId || session.user.id;
-    const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    // Détermination de l'ID d'athlète associé à la discussion
+    let targetId = targetAthleteId;
+    if (!targetId) {
+      targetId = userRole === "coach" ? (inspectingAthleteId || managedAthletes[0]?.id) : session.user.id;
+    }
+    if (!targetId) {
+      alert("Aucun destinataire sélectionné.");
+      return;
+    }
+
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const senderName = userRole === "coach"
       ? (session?.user?.user_metadata?.full_name || athleteName || "Coach")
       : (athleteName || "Athlète");
 
-    const newMsg: ChatMessage = {
-      id: msgId,
-      senderRole: userRole,
-      senderName,
-      senderId: session.user.id,
-      senderAvatar: avatarUrl,
-      athleteId: targetId,
-      text,
-      timestamp: timeStr,
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-
+    // Envoi à Supabase
     try {
-      await supabase.from("messages").insert([
+      const { data, error } = await supabase.from("messages").insert([
         {
-          id: msgId,
           athlete_id: targetId,
           sender_id: session.user.id,
           sender_role: userRole,
           sender_name: senderName,
-          sender_avatar: avatarUrl || null,
           text,
           timestamp: timeStr,
         },
-      ]);
-    } catch (err) {
-      console.error("Erreur envoi message Supabase:", err);
+      ]).select().single();
+
+      if (error) {
+        console.error("Erreur envoi message Supabase:", error.message);
+        alert(`Erreur d'envoi : ${error.message}`);
+      } else if (data) {
+        const newMsg: ChatMessage = {
+          id: String(data.id),
+          senderRole: data.sender_role,
+          senderName: data.sender_name,
+          senderId: data.sender_id,
+          senderAvatar: avatarUrl,
+          athleteId: data.athlete_id,
+          text: data.text,
+          timestamp: data.timestamp,
+        };
+        setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
+      }
+    } catch (err: any) {
+      console.error("Exception envoi message:", err);
     }
   };
 
@@ -420,6 +416,60 @@ export default function Home() {
       }
     }
   };
+
+  // ABONNEMENT REALTIME POUR LES MESSAGES (COACH ET ATHLÈTE)
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const messagesChannel = supabase
+      .channel("realtime_messages_channel")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const newRow = payload.new as any;
+          if (!newRow) return;
+
+          const incomingMsg: ChatMessage = {
+            id: String(newRow.id),
+            senderRole: newRow.sender_role,
+            senderName: newRow.sender_name,
+            senderId: newRow.sender_id,
+            athleteId: newRow.athlete_id,
+            text: newRow.text,
+            timestamp: newRow.timestamp,
+          };
+
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === incomingMsg.id)) return prev;
+            return [...prev, incomingMsg];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const oldRow = payload.old as any;
+          if (oldRow?.id) {
+            setMessages((prev) => prev.filter((m) => m.id !== String(oldRow.id)));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messagesChannel);
+    };
+  }, [session]);
 
   // HANDLER : Mise à jour ou suppression de photo de profil
   const handleUpdateAvatar = async (newAvatarUrl: string) => {
@@ -504,7 +554,7 @@ export default function Home() {
       .update({ coach_id: null, custom_coach_name: null })
       .eq("id", session.user.id);
 
-    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif et vous pouvez désormais le modifier librement.");
+    alert("Votre entraîneur a été dissocié. Votre plan d'entraînement reste actif.");
   };
 
   const handleRemoveAthleteByCoach = async (athleteId: string) => {
@@ -584,7 +634,7 @@ export default function Home() {
 
         if (coachMsgsData) {
           setMessages(coachMsgsData.map((m: any) => ({
-            id: m.id,
+            id: String(m.id),
             senderRole: m.sender_role,
             senderName: m.sender_name,
             senderId: m.sender_id,
@@ -708,7 +758,7 @@ export default function Home() {
 
     fetchAthletes();
 
-    // Souscription Realtime pour recevoir les débriefs des athlètes en direct
+    // Souscription Realtime pour les séances
     const workoutsChannel = supabase
       .channel("realtime_coach_workouts_sync")
       .on(
@@ -753,7 +803,7 @@ export default function Home() {
     };
   }, [session, userRole]);
 
-  // CHARGEMENT AUTOMATIQUE INTÉGRAL DEPUIS SUPABASE SANS ERREUR DE JOINTURE
+  // CHARGEMENT DU PROFIL ET DES MESSAGES DE L'ATHLÈTE
   useEffect(() => {
     if (!session?.user) return;
 
@@ -834,7 +884,7 @@ export default function Home() {
 
         if (msgsData) {
           setMessages(msgsData.map((m: any) => ({
-            id: m.id,
+            id: String(m.id),
             senderRole: m.sender_role,
             senderName: m.sender_name,
             senderId: m.sender_id,
@@ -1073,7 +1123,7 @@ export default function Home() {
     return sessions;
   };
 
-  // SAUVEGARDE STRICTE ET PERSISTANTE DU PROFIL DANS SUPABASE (AVEC .UPDATE)
+  // SAUVEGARDE STRICTE ET PERSISTANTE DU PROFIL DANS SUPABASE (AVEC .UPDATE SANS ERREUR NOT-NULL)
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -2409,7 +2459,6 @@ export default function Home() {
                       <span>📊 Évolution Volume & Charge</span>
                     </button>
 
-                    {/* BOUTON NOUVEAU PLAN MASQUÉ SI ATHLÈTE COACHÉ */}
                     {!(userRole === "athlete" && assignedCoachId) && (
                       <button
                         onClick={() => setShowDeletePlanModal(true)}
@@ -2579,15 +2628,7 @@ export default function Home() {
                 setRecords={async (actionOrValue) => {
                   const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
                   setRecords(nextRecords);
-                  await saveProfileToSupabase({
-                    fullName: athleteName,
-                    heightVal: height,
-                    weightVal: weight,
-                    vmaVal: vma,
-                    fcRestVal: fcRest,
-                    fcMaxVal: fcMax,
-                    recordsMap: nextRecords,
-                  });
+                  await saveProfileToSupabase({ recordsMap: nextRecords });
                 }}
                 onSaveFullProfile={async (data) => {
                   setAthleteName(data.name);

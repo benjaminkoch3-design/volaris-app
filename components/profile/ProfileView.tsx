@@ -22,8 +22,8 @@ import {
 interface ProfileViewProps {
   athleteName: string;
   setAthleteName: (val: string) => void;
-  avatarUrl?: string; // 👈 Photo de profil
-  onUpdateAvatar?: (url: string) => void; // 👈 Handler de mise à jour/suppression photo
+  avatarUrl?: string;
+  onUpdateAvatar?: (url: string) => void;
   height: string;
   setHeight: (val: string) => void;
   weight: string;
@@ -340,15 +340,46 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setIsEditingProfile(false);
   };
 
+  // REDIMENSIONNEMENT & COMPRESSION CANVAS DE LA PHOTO (Max 300x300 px, ~25 Ko)
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && onUpdateAvatar) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onUpdateAvatar(reader.result as string);
+    if (!file || !onUpdateAvatar) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_SIZE = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
+          onUpdateAvatar(compressedDataUrl);
+        }
       };
-      reader.readAsDataURL(file);
-    }
+      if (event.target?.result) {
+        img.src = event.target.result as string;
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
@@ -733,7 +764,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL */}
+      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL COMPRESSÉE */}
       <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -749,12 +780,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
 
               {!isReadOnly && (
-                <div className="absolute inset-0 bg-black/70 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition gap-1">
+                <div className="absolute inset-0 bg-black/75 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition gap-1">
                   <label
                     className="cursor-pointer text-[8px] font-black text-[#CF9A61] uppercase hover:underline"
                     title="Changer la photo"
                   >
-                    <span>📷 Changer</span>
+                    <span>📷 Photo</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -2151,4 +2182,4 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       )}
     </div>
   );
-};
+}
