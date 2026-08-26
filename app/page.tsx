@@ -563,6 +563,7 @@ export default function Home() {
               completedTimeMinutes: w.completed_time_minutes,
               completedElevationGain: w.completed_elevation_gain,
               importedActivityName: w.imported_activity_name,
+              activityTelemetry: w.activity_telemetry || null,
             } as any))
           );
         }
@@ -652,6 +653,7 @@ export default function Home() {
                     completedTimeMinutes: updatedWorkout.completed_time_minutes,
                     completedElevationGain: updatedWorkout.completed_elevation_gain,
                     importedActivityName: updatedWorkout.imported_activity_name,
+                    activityTelemetry: updatedWorkout.activity_telemetry || null,
                     completed: Boolean(
                       updatedWorkout.completed_rpe !== null ||
                       updatedWorkout.completed_km !== null ||
@@ -859,6 +861,7 @@ export default function Home() {
               completedTimeMinutes: w.completed_time_minutes,
               completedElevationGain: w.completed_elevation_gain,
               importedActivityName: w.imported_activity_name,
+              activityTelemetry: w.activity_telemetry || null,
             };
           });
         };
@@ -1745,6 +1748,7 @@ export default function Home() {
       completed_time_minutes: w.completedTimeMinutes || null,
       completed_elevation_gain: w.completedElevationGain || null,
       imported_activity_name: w.importedActivityName || null,
+      activity_telemetry: (w as any).activityTelemetry || (w as any).activity_telemetry || null,
     }));
 
     const { error: workoutsError } = await supabase.from("workouts").insert(workoutsPayload);
@@ -1803,6 +1807,7 @@ export default function Home() {
             completedElevationGain: undefined,
             importedActivityName: undefined,
             shoeId: undefined,
+            activityTelemetry: null,
           };
         }
         return w;
@@ -1827,6 +1832,7 @@ export default function Home() {
         completed_time_minutes: null,
         completed_elevation_gain: null,
         imported_activity_name: null,
+        activity_telemetry: null,
       }).eq("id", workoutId);
 
       await supabase.from("completed_runs")
@@ -1840,55 +1846,104 @@ export default function Home() {
 
   // HANDLER POUR SAUVEGARDER LE DÉBRIEFING
   const handleSaveDebrief = async ({
-      workoutId,
-      completedRpe,
-      comment,
-      shoeId,
-      completedKm,
-      completedTimeMinutes,
-      completedElevationGain,
-      importedActivityName,
-      activityTelemetry,
-    }: any) => {
-      // Mise à jour de l'état local du plan
-      if (activePlan) {
-        const updatedWorkouts = activePlan.workouts.map((w) => {
-          if (w.id === workoutId) {
-            return {
-              ...w,
-              completed: true,
-              completedRpe,
-              athleteComment: comment,
-              shoeId,
-              completedKm,
-              completedTimeMinutes,
-              completedElevationGain,
-              importedActivityName,
-              activityTelemetry,
-            };
-          }
-          return w;
-        });
-        setActivePlan({ ...activePlan, workouts: updatedWorkouts });
-      }
+    workoutId,
+    completedRpe,
+    comment,
+    shoeId,
+    completedKm,
+    completedTimeMinutes,
+    completedElevationGain,
+    importedActivityName,
+    activityTelemetry,
+  }: any) => {
+    if (shoeId && completedKm > 0) {
+      setShoes((prevShoes) =>
+        prevShoes.map((shoe) =>
+          shoe.id === shoeId
+            ? { ...shoe, currentKm: shoe.currentKm + completedKm }
+            : shoe
+        )
+      );
+    }
 
-      // Persistance dans Supabase
-      if (session?.user) {
-        await supabase.from("workouts").update({
-          completed_rpe: completedRpe,
-          athlete_comment: comment,
-          shoe_id: shoeId || null,
-          completed_km: completedKm,
-          completed_time_minutes: completedTimeMinutes,
-          completed_elevation_gain: completedElevationGain,
-          imported_activity_name: importedActivityName || null,
-          activity_telemetry: activityTelemetry || null,
-        }).eq("id", workoutId);
-      }
+    // Mise à jour de l'état local du plan
+    if (activePlan) {
+      const updatedWorkouts = activePlan.workouts.map((w) => {
+        if (w.id === workoutId) {
+          return {
+            ...w,
+            completed: true,
+            completedRpe,
+            athleteComment: comment,
+            shoeId,
+            completedKm,
+            completedTimeMinutes,
+            completedElevationGain,
+            importedActivityName,
+            activityTelemetry,
+          };
+        }
+        return w;
+      });
+      setActivePlan({ ...activePlan, workouts: updatedWorkouts });
+    }
 
-      setCompletedWorkouts((prev) => ({ ...prev, [workoutId]: true }));
-      setDebriefWorkout(null);
-    };
+    setCompletedRuns((prev) => prev.filter((r) => !r.id.includes(workoutId)));
+
+    // Persistance dans Supabase
+    if (session?.user) {
+      await supabase.from("completed_runs")
+        .delete()
+        .eq("user_id", session.user.id)
+        .like("id", `%${workoutId}%`);
+
+      await supabase.from("workouts").update({
+        completed_rpe: completedRpe,
+        athlete_comment: comment,
+        shoe_id: shoeId || null,
+        completed_km: completedKm,
+        completed_time_minutes: completedTimeMinutes,
+        completed_elevation_gain: completedElevationGain,
+        imported_activity_name: importedActivityName || null,
+        activity_telemetry: activityTelemetry || null,
+      }).eq("id", workoutId);
+
+      if (completedKm > 0) {
+        const runDate = new Date().toISOString().split("T")[0];
+        const durationHours = completedTimeMinutes / 60;
+        const runId = `debrief_${workoutId}`;
+
+        const newRunObj: CompletedRun = {
+          id: runId,
+          date: runDate,
+          km: completedKm,
+          durationHours,
+          elevation: completedElevationGain,
+        };
+
+        setCompletedRuns((prev) => [newRunObj, ...prev]);
+
+        try {
+          await supabase.from("completed_runs").insert([
+            {
+              id: runId,
+              user_id: session.user.id,
+              date: runDate,
+              km: completedKm,
+              duration_hours: durationHours,
+              elevation: completedElevationGain || 0,
+              race_notes: comment || null,
+            },
+          ]);
+        } catch (err) {
+          console.error("Erreur sauvegarde débriefing Supabase:", err);
+        }
+      }
+    }
+
+    setCompletedWorkouts((prev) => ({ ...prev, [workoutId]: true }));
+    setDebriefWorkout(null);
+  };
 
   const getTodayWorkouts = (plan: Plan | null) => {
     if (!plan) return [];
@@ -2064,17 +2119,18 @@ export default function Home() {
   }
 
   if (selectedWorkoutDetail && activePlan) {
-      return (
-        <WorkoutDetail
-          workout={selectedWorkoutDetail}
-          plan={activePlan}
-          completedWorkouts={completedWorkouts}
-          onClose={() => setSelectedWorkoutDetail(null)}
-          onOpenDebrief={(workout) => setDebriefWorkout(workout)}
-          userRole={userRole}
-        />
-      );
-    }
+    return (
+      <WorkoutDetail
+        workout={selectedWorkoutDetail}
+        plan={activePlan}
+        completedWorkouts={completedWorkouts}
+        onClose={() => setSelectedWorkoutDetail(null)}
+        onOpenDebrief={(workout) => setDebriefWorkout(workout)}
+        onDeleteImport={handleDeleteWorkoutImport}
+        userRole={userRole}
+      />
+    );
+  }
 
   // ÉCRAN PRINCIPAL DE L'APPLICATION
   return (

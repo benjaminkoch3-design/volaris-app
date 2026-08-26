@@ -22,39 +22,49 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // 1. Récupération des détails télémétriques complets (Splits et métriques point par point)
+    // 1. EXTRACTION DES VRAIS SPLITS & ÉCHANTILLONS D'UNE ACTIVITÉ
     if (activityId) {
       let splitsData: any = null;
       let detailsData: any = null;
 
       try {
-        if (typeof gc.get === "function") {
-          splitsData = await gc.get(
+        splitsData = await gc.get(
+          `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/splits`
+        );
+      } catch {
+        try {
+          const res = await gc.client.get(
             `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/splits`
           );
-          detailsData = await gc.get(
-            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
-          );
-        } else if (gc.client?.get) {
-          const sRes = await gc.client.get(
-            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/splits`
-          );
-          splitsData = sRes.data;
-          const dRes = await gc.client.get(
-            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
-          );
-          detailsData = dRes.data;
+          splitsData = res.data;
+        } catch (e) {
+          console.warn("Splits non trouvés:", e);
         }
-      } catch (e) {
-        console.warn("Détails Garmin non disponibles:", e);
       }
 
-      // Vrais tours / Splits au km
-      const rawLaps = splitsData?.lapDTOs || splitsData?.lapList || [];
+      try {
+        detailsData = await gc.get(
+          `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
+        );
+      } catch {
+        try {
+          const res = await gc.client.get(
+            `https://connect.garmin.com/modern/proxy/activity-service/activity/${activityId}/details`
+          );
+          detailsData = res.data;
+        } catch (e) {
+          console.warn("Details non trouvés:", e);
+        }
+      }
+
+      // VRAIS LAPS / KILOMÈTRES
+      const rawLaps = splitsData?.lapDTOs || splitsData?.splitSummaries || [];
       const laps = rawLaps.map((lap: any, idx: number) => {
         const distM = lap.distance || 1000;
         const distKm = Math.round((distM / 1000) * 100) / 100;
         const durSec = Math.round(lap.duration || lap.movingDuration || 0);
+        
+        // Vitesse réelle en m/s du tour
         const speedMs = lap.averageSpeed || (distM > 0 && durSec > 0 ? distM / durSec : 0);
         const secPerKm = speedMs > 0 ? Math.round(1000 / speedMs) : 0;
 
@@ -71,7 +81,7 @@ export async function POST(request: Request) {
         };
       });
 
-      // Échantillons de courbes point par point réels Garmin
+      // VRAIS ÉCHANTILLONS DE COURBES (CARDIO, ALLURE, ALTITUDE)
       const metricDescriptors = detailsData?.metricDescriptors || [];
       const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate");
       const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed");
@@ -82,17 +92,17 @@ export async function POST(request: Request) {
       const paceSamples: number[] = [];
       const elevationProfile: number[] = [];
 
-      // Sous-échantillonnage fluide
-      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 50));
-      for (let i = 0; i < activityDetailMetrics.length; i += step) {
-        const metrics = activityDetailMetrics[i]?.metrics;
-        if (metrics) {
-          if (hrIndex !== -1 && metrics[hrIndex] !== undefined) hrSamples.push(Math.round(metrics[hrIndex]));
-          if (speedIndex !== -1 && metrics[speedIndex] > 0) {
-            paceSamples.push(Math.round(1000 / metrics[speedIndex]));
+      // Échantillonnage sur ~60 points
+      const samplingStep = Math.max(1, Math.floor(activityDetailMetrics.length / 60));
+      for (let i = 0; i < activityDetailMetrics.length; i += samplingStep) {
+        const row = activityDetailMetrics[i]?.metrics;
+        if (row) {
+          if (hrIndex !== -1 && row[hrIndex] > 30) hrSamples.push(Math.round(row[hrIndex]));
+          if (speedIndex !== -1 && row[speedIndex] > 0.5) {
+            paceSamples.push(Math.round(1000 / row[speedIndex]));
           }
-          if (elevIndex !== -1 && metrics[elevIndex] !== undefined) {
-            elevationProfile.push(Math.round(metrics[elevIndex]));
+          if (elevIndex !== -1 && row[elevIndex] !== undefined) {
+            elevationProfile.push(Math.round(row[elevIndex]));
           }
         }
       }
@@ -100,15 +110,15 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         telemetry: {
-          laps,
-          hrSamples,
-          paceSamples,
-          elevationProfile,
+          laps: laps.length > 0 ? laps : undefined,
+          hrSamples: hrSamples.length > 0 ? hrSamples : undefined,
+          paceSamples: paceSamples.length > 0 ? paceSamples : undefined,
+          elevationProfile: elevationProfile.length > 0 ? elevationProfile : undefined,
         },
       });
     }
 
-    // 2. Récupération des dernières activités
+    // 2. RÉCUPÉRATION DE LA LISTE RÉCENTE DES SORTIES
     let activities: any[] = [];
     if (typeof gc.getActivities === "function") {
       activities = await gc.getActivities(0, limit);
@@ -134,41 +144,28 @@ export async function POST(request: Request) {
         );
       })
       .map((act: any) => {
-        const distKm = act.distance
-          ? Math.round((act.distance / 1000) * 100) / 100
-          : 0;
-
-        // Vitesse moyenne en m/s calculée par la montre
+        const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
         const avgSpeedMs = act.averageSpeed || (act.distance && act.duration ? act.distance / act.duration : 0);
         const secPerKm = avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : 0;
         const durationSec = Math.round(act.movingDuration || act.duration || act.elapsedDuration || 0);
-        const durationMin = Math.round(durationSec / 60);
-
-        const startDateRaw = act.startTimeLocal || act.startTimeGMT || "";
-        const dateStr = startDateRaw.split(" ")[0] || startDateRaw.split("T")[0] || "";
 
         return {
           id: String(act.activityId),
           title: act.activityName || "Course à pied Garmin",
-          date: dateStr,
+          date: (act.startTimeLocal || act.startTimeGMT || "").split(" ")[0] || "",
           distanceKm: distKm,
-          durationMinutes: durationMin,
+          durationMinutes: Math.round(durationSec / 60),
           durationSeconds: durationSec,
           avgPace: formatSecondsToPace(secPerKm),
           avgPaceSec: secPerKm,
           avgHr: Math.round(act.averageHR || act.avgHR || 0) || null,
           maxHr: Math.round(act.maxHR || 0) || null,
-          elevationGain: Math.round(act.elevationGain || 0) || 0,
-          elevationLoss: Math.round(act.elevationLoss || 0) || 0,
-          calories: Math.round(act.calories || 0) || null,
+          elevationGain: Math.round(act.elevationGain || 0),
           avgCadence: Math.round(act.averageRunningCadenceInStepsPerMinute || act.avgRunCadence || 0) || null,
         };
       });
 
-    return NextResponse.json({
-      success: true,
-      activities: runningActivities,
-    });
+    return NextResponse.json({ success: true, activities: runningActivities });
   } catch (error: any) {
     console.error("Garmin Activities Error:", error);
     return NextResponse.json(

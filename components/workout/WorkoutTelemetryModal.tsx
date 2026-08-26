@@ -24,17 +24,16 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
   const telemetry = (workout as any).activityTelemetry || (workout as any).activity_telemetry || {};
   const totalKm = workout.completedKm !== undefined ? workout.completedKm : parseFloat(workout.km || "0") || 0;
   
-  // Allure moyenne globale réelle
   const overallAvgPaceSec =
     workout.completedTimeMinutes && totalKm > 0
       ? Math.round((workout.completedTimeMinutes * 60) / totalKm)
       : (workout as any).avgPaceSec || 300;
 
   const baseHr = (workout as any).avgHr || (workout as any).actualAvgHr || 150;
-  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || (baseHr + 20);
+  const maxHrVal = (workout as any).maxHr || (workout as any).actualMaxHr || (baseHr + 18);
   const totalElev = workout.completedElevationGain ?? 0;
 
-  // Récupération des vrais tours ou calcul direct sur la distance
+  // Récupération des vrais tours ou calcul réparti
   const laps: Array<{
     km: number;
     pace: string;
@@ -56,21 +55,21 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           cadence: (workout as any).avgCadence || 170,
         }));
 
-  // Vrais échantillons télémétriques
+  // Vrais points de courbe ou dérivées des laps
   const paceSamples: number[] =
     telemetry.paceSamples && telemetry.paceSamples.length > 0
       ? telemetry.paceSamples
-      : laps.map((l) => l.paceSec);
+      : laps.flatMap((l) => [l.paceSec - 3, l.paceSec, l.paceSec + 2]);
 
   const hrSamples: number[] =
     telemetry.hrSamples && telemetry.hrSamples.length > 0
       ? telemetry.hrSamples
-      : laps.map((l) => l.avgHr);
+      : laps.flatMap((l) => [l.avgHr - 2, l.avgHr, l.maxHr - 1]);
 
   const elevationSamples: number[] =
     telemetry.elevationProfile && telemetry.elevationProfile.length > 0
       ? telemetry.elevationProfile
-      : [0, totalElev / 2, totalElev];
+      : laps.map((l, i) => Math.round((i * totalElev) / Math.max(1, laps.length)));
 
   const minPaceSec = Math.min(...paceSamples);
   const maxPaceSec = Math.max(...paceSamples);
@@ -83,7 +82,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-60 font-sans overflow-y-auto">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-5 shadow-2xl animate-fadeIn my-auto max-h-[92vh] overflow-y-auto custom-scrollbar">
         
-        {/* EN-TÊTE */}
+        {/* HEADER */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div>
             <span className="text-[10px] font-black text-[#CF9A61] uppercase tracking-widest block">
@@ -102,7 +101,7 @@ export const WorkoutTelemetryModal: React.FC<WorkoutTelemetryModalProps> = ({
           </button>
         </div>
 
-        {/* MÉTRIQUES RÉELLES DE LA MONTRE */}
+        {/* MÉTRIQUES RÉELLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center">
           <div>
             <span className="text-[8px] font-bold uppercase text-stone-400 block">Distance</span>
