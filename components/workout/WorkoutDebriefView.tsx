@@ -155,7 +155,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       }
 
       if (data.activities.length === 1) {
-        await applyActivity(data.activities[0], platform);
+        applyActivity(data.activities[0], platform);
       } else {
         setActivitiesList(data.activities.map((a: any) => ({ ...a, platform })));
         setShowActivityPicker(true);
@@ -167,8 +167,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     }
   };
 
-  // Application de l'activité avec chargement des vrais splits et courbes
-  const applyActivity = async (act: any, platformName?: string) => {
+  // Application de l'activité avec conservation de la télémétrie complète
+  const applyActivity = (act: any, platformName?: string) => {
     const dist = parseFloat(String(act.distanceKm)) || 0;
     const dur = parseInt(String(act.durationMinutes), 10) || 0;
     const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
@@ -181,32 +181,15 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setAvgHeartRate(hr);
     setMaxHeartRate(maxHr);
 
+    if (act.activityTelemetry) {
+      setActivityTelemetry(act.activityTelemetry);
+    }
+
     const platform = (platformName || act.platform || "Montre").toUpperCase();
     const label = `${act.title || "Course"} (${platform} • ${act.date || ""})`;
     setImportedActivityName(label);
     setIsActivityImported(true);
     setShowActivityPicker(false);
-
-    // RÉCUPÉRATION IMMÉDIATE DES VRAIS LAPS ET COURBES DÉTAILLÉES DE LA MONTRE
-    if (act.id && (platformName === "garmin" || act.platform === "garmin")) {
-      const email = localStorage.getItem("volaris_garmin_email");
-      const password = localStorage.getItem("volaris_garmin_pwd");
-      if (email && password) {
-        try {
-          const detailRes = await fetch("/api/garmin-activities", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, activityId: act.id }),
-          });
-          const detailData = await detailRes.json();
-          if (detailData.success && detailData.telemetry) {
-            setActivityTelemetry(detailData.telemetry);
-          }
-        } catch (e) {
-          console.warn("Impossible de récupérer la télémétrie complète:", e);
-        }
-      }
-    }
   };
 
   const handleCancelDebrief = (e: React.MouseEvent) => {
@@ -258,6 +241,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               completedKm,
               completedTimeMinutes,
               completedElevationGain,
+              avgHr: avgHeartRate,
+              maxHr: maxHeartRate,
               actualAvgHr: avgHeartRate ? String(avgHeartRate) : undefined,
               actualMaxHr: maxHeartRate ? String(maxHeartRate) : undefined,
               title: importedActivityName || workout.title,

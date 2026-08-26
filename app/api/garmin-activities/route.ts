@@ -22,27 +22,39 @@ export async function POST(request: Request) {
     const gc = new GarminConnect({ username: email, password: password });
     await gc.login();
 
-    // Fonction d'extraction des vrais splits & métriques
+    // Fonction d'extraction complète avec gestion de tous les types de clients internes GarminConnect
     const fetchFullTelemetry = async (actId: string | number) => {
       let splitsData: any = null;
       let detailsData: any = null;
 
+      const client = gc.client || gc;
+
+      // 1. Récupération des Splits / Laps
       try {
-        if (typeof gc.get === "function") {
-          splitsData = await gc.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
-          detailsData = await gc.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
-        } else if (gc.client?.get) {
-          const sRes = await gc.client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
-          splitsData = sRes.data;
-          const dRes = await gc.client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
-          detailsData = dRes.data;
+        if (typeof gc.getActivitySplits === "function") {
+          splitsData = await gc.getActivitySplits(actId);
+        } else if (client.get) {
+          const res = await client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/splits`);
+          splitsData = res.data || res;
         }
       } catch (e) {
-        console.warn("Détails non récupérés:", e);
+        console.warn("Splits non accessibles via endpoint 1, tentative alternative:", e);
       }
 
-      // VRAIS LAPS / KILOMÈTRES
-      const rawLaps = splitsData?.lapDTOs || splitsData?.splitSummaries || [];
+      // 2. Récupération des Détails Point par Point (Graphiques)
+      try {
+        if (typeof gc.getActivityDetails === "function") {
+          detailsData = await gc.getActivityDetails(actId);
+        } else if (client.get) {
+          const res = await client.get(`https://connect.garmin.com/modern/proxy/activity-service/activity/${actId}/details`);
+          detailsData = res.data || res;
+        }
+      } catch (e) {
+        console.warn("Details non accessibles via endpoint 1:", e);
+      }
+
+      // Formatage des LAPS / SPLITS
+      const rawLaps = splitsData?.lapDTOs || splitsData?.splitSummaries || splitsData?.lapList || [];
       const laps = rawLaps.map((lap: any, idx: number) => {
         const distM = lap.distance || 1000;
         const distKm = Math.round((distM / 1000) * 100) / 100;
@@ -56,30 +68,30 @@ export async function POST(request: Request) {
           durationSec: durSec,
           pace: formatSecondsToPace(secPerKm),
           paceSec: secPerKm,
-          avgHr: Math.round(lap.averageHR || lap.avgHR || 0) || null,
-          maxHr: Math.round(lap.maxHR || 0) || null,
-          elevationGain: Math.round(lap.elevationGain || 0),
-          cadence: Math.round(lap.averageRunningCadenceInStepsPerMinute || lap.avgRunCadence || 0) || null,
+          avgHr: Math.round(lap.averageHR || lap.avgHR || lap.averageHeartRate || 0) || null,
+          maxHr: Math.round(lap.maxHR || lap.maxHeartRate || 0) || null,
+          elevationGain: Math.round(lap.elevationGain || lap.gain || 0),
+          cadence: Math.round(lap.averageRunningCadenceInStepsPerMinute || lap.avgRunCadence || lap.averageCadence || 0) || null,
         };
       });
 
-      // VRAIS ÉCHANTILLONS COURBES
+      // Formatage des ÉCHANTILLONS COURBES (Cardio, Allure, Altitude)
       const metricDescriptors = detailsData?.metricDescriptors || [];
-      const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate");
-      const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed");
-      const elevIndex = metricDescriptors.findIndex((m: any) => m.key === "directElevation");
+      const hrIndex = metricDescriptors.findIndex((m: any) => m.key === "directHeartRate" || m.key === "heartRate");
+      const speedIndex = metricDescriptors.findIndex((m: any) => m.key === "directSpeed" || m.key === "speed");
+      const elevIndex = metricDescriptors.findIndex((m: any) => m.key === "directElevation" || m.key === "elevation");
 
       const activityDetailMetrics = detailsData?.activityDetailMetrics || [];
       const hrSamples: number[] = [];
       const paceSamples: number[] = [];
       const elevationProfile: number[] = [];
 
-      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 80));
+      const step = Math.max(1, Math.floor(activityDetailMetrics.length / 60));
       for (let i = 0; i < activityDetailMetrics.length; i += step) {
         const row = activityDetailMetrics[i]?.metrics;
         if (row) {
           if (hrIndex !== -1 && row[hrIndex] > 30) hrSamples.push(Math.round(row[hrIndex]));
-          if (speedIndex !== -1 && row[speedIndex] > 0.5) {
+          if (speedIndex !== -1 && row[speedIndex] > 0.3) {
             paceSamples.push(Math.round(1000 / row[speedIndex]));
           }
           if (elevIndex !== -1 && row[elevIndex] !== undefined) {
@@ -96,24 +108,24 @@ export async function POST(request: Request) {
       };
     };
 
-    // Si on demande une activité spécifique
+    // Si on demande les détails d'une activité spécifique
     if (activityId) {
       const telemetry = await fetchFullTelemetry(activityId);
       return NextResponse.json({ success: true, telemetry });
     }
 
-    // Récupération de la liste
+    // Récupération de la liste des activités
     let activities: any[] = [];
     if (typeof gc.getActivities === "function") {
       activities = await gc.getActivities(0, limit);
     } else {
-      const res = await gc.client.get(
+      const res = await (gc.client || gc).get(
         `https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?start=0&limit=${limit}`
       );
-      activities = res.data;
+      activities = res.data || res;
     }
 
-    const runningActivities = activities.filter((act: any) => {
+    const runningActivities = (activities || []).filter((act: any) => {
       const typeKey =
         act.activityType?.typeKey ||
         act.activityTypeDTO?.typeKey ||
@@ -127,7 +139,7 @@ export async function POST(request: Request) {
       );
     });
 
-    // Chargement complet des données pour les 3 premières courses
+    // Chargement automatique de la télémétrie pour les 3 dernières courses
     const formattedActivities = await Promise.all(
       runningActivities.slice(0, 3).map(async (act: any) => {
         const distKm = act.distance ? Math.round((act.distance / 1000) * 100) / 100 : 0;
