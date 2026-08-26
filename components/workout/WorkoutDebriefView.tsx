@@ -7,7 +7,7 @@ import { WorkoutTelemetryModal } from "./WorkoutTelemetryModal";
 
 interface WorkoutDebriefViewProps {
   workout: Workout;
-  shoes: Shoe[];
+  shoes?: Shoe[];
   onClose: () => void;
   onSaveDebrief: (data: {
     workoutId: string;
@@ -33,56 +33,53 @@ const getRpeTheme = (rpe: number) => {
 
 export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   workout,
-  shoes,
+  shoes = [],
   onClose,
   onSaveDebrief,
   onDeleteImport,
 }) => {
-  const targetKm = parseFloat(String(workout.km || "0")) || 0;
+  const safeShoes = Array.isArray(shoes) ? shoes : [];
+  const targetKm = parseFloat(String(workout?.km || "0")) || 0;
+  
   const initialTotalMinutes =
-    workout.completedTimeMinutes !== undefined
-      ? workout.completedTimeMinutes
+    workout?.completedTimeMinutes !== undefined && !isNaN(Number(workout.completedTimeMinutes))
+      ? Number(workout.completedTimeMinutes)
       : Math.round(targetKm > 0 ? targetKm * 5.2 : 45);
 
-  // État de saisie des métriques
   const [distanceKm, setDistanceKm] = useState<number>(
-    workout.completedKm !== undefined ? workout.completedKm : targetKm
+    workout?.completedKm !== undefined && !isNaN(Number(workout.completedKm))
+      ? Number(workout.completedKm)
+      : targetKm
   );
 
-  // Décomposition du temps en Heures, Minutes, Secondes
-  const [hours, setHours] = useState<number>(Math.floor(initialTotalMinutes / 60));
-  const [minutes, setMinutes] = useState<number>(Math.floor(initialTotalMinutes % 60));
+  const [hours, setHours] = useState<number>(Math.floor(initialTotalMinutes / 60) || 0);
+  const [minutes, setMinutes] = useState<number>(Math.floor(initialTotalMinutes % 60) || 0);
   const [seconds, setSeconds] = useState<number>(0);
 
   const [elevationGain, setElevationGain] = useState<number>(
-    workout.completedElevationGain ?? 0
+    workout?.completedElevationGain ?? 0
   );
   const [avgHeartRate, setAvgHeartRate] = useState<string>(
-    (workout as any).avgHr ? String((workout as any).avgHr) : ""
-  );
-  const [maxHeartRate, setMaxHeartRate] = useState<string>(
-    (workout as any).maxHr ? String((workout as any).maxHr) : ""
+    (workout as any)?.avgHr ? String((workout as any).avgHr) : ""
   );
 
-  // RPE & Ressenti
   const [completedRpe, setCompletedRpe] = useState<number>(
-    workout.completedRpe ?? (workout.rpe ? parseInt(String(workout.rpe), 10) : 5)
+    workout?.completedRpe ?? (workout?.rpe ? parseInt(String(workout.rpe), 10) || 5 : 5)
   );
-  const [comment, setComment] = useState<string>(workout.athleteComment || "");
+  const [comment, setComment] = useState<string>(workout?.athleteComment || "");
   const [selectedShoeId, setSelectedShoeId] = useState<string>(
-    workout.shoeId || shoes.find((s) => s.isActive)?.id || ""
+    workout?.shoeId || safeShoes.find((s) => s.isActive)?.id || ""
   );
 
-  // Synchronisation Montre / Import
   const [activeTabMode, setActiveTabMode] = useState<"manual" | "watch">("manual");
   const [importedActivityName, setImportedActivityName] = useState<string>(
-    workout.importedActivityName || ""
+    workout?.importedActivityName || ""
   );
   const [isActivityImported, setIsActivityImported] = useState<boolean>(
-    Boolean(workout.importedActivityName)
+    Boolean(workout?.importedActivityName)
   );
   const [activityTelemetry, setActivityTelemetry] = useState<any>(
-    (workout as any).activityTelemetry || (workout as any).activity_telemetry || null
+    (workout as any)?.activityTelemetry || (workout as any)?.activity_telemetry || null
   );
   const [showTelemetryModal, setShowTelemetryModal] = useState<boolean>(false);
 
@@ -98,7 +95,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   const [showActivityPicker, setShowActivityPicker] = useState<boolean>(false);
 
   const isAlreadyDebriefed = Boolean(
-    workout.completed || workout.completedKm !== undefined || workout.completedRpe !== undefined
+    workout?.completed || workout?.completedKm !== undefined || workout?.completedRpe !== undefined
   );
 
   useEffect(() => {
@@ -112,7 +109,10 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   }, []);
 
   const totalTimeSeconds = useMemo(() => {
-    return (hours * 3600) + (minutes * 60) + (seconds || 0);
+    const h = Number(hours) || 0;
+    const m = Number(minutes) || 0;
+    const s = Number(seconds) || 0;
+    return (h * 3600) + (m * 60) + s;
   }, [hours, minutes, seconds]);
 
   const calculatedPace = useMemo(() => {
@@ -127,7 +127,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     };
   }, [distanceKm, totalTimeSeconds]);
 
-  // Récupération des activités de la montre
   const handleFetchActivities = async (platform: "garmin" | "coros" | "strava") => {
     setFetchLoading(platform);
     setSyncError(null);
@@ -177,9 +176,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   };
 
   const applyActivity = (act: any, platformName?: string) => {
-    const dist = parseFloat(String(act.distanceKm)) || 0;
-    const durSec = act.durationSeconds || ((act.durationMinutes || 0) * 60);
-    const elev = parseInt(String(act.elevationGain || 0), 10) || 0;
+    const dist = parseFloat(String(act?.distanceKm)) || 0;
+    const durSec = act?.durationSeconds || ((act?.durationMinutes || 0) * 60);
+    const elev = parseInt(String(act?.elevationGain || 0), 10) || 0;
 
     setDistanceKm(dist);
     setHours(Math.floor(durSec / 3600));
@@ -187,12 +186,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     setSeconds(Math.round(durSec % 60));
     setElevationGain(elev);
 
-    if (act.avgHr) setAvgHeartRate(String(act.avgHr));
-    if (act.maxHr) setMaxHeartRate(String(act.maxHr));
-    if (act.activityTelemetry) setActivityTelemetry(act.activityTelemetry);
+    if (act?.avgHr) setAvgHeartRate(String(act.avgHr));
+    if (act?.activityTelemetry) setActivityTelemetry(act.activityTelemetry);
 
-    const platform = (platformName || act.platform || "Montre").toUpperCase();
-    setImportedActivityName(`${act.title || "Course"} (${platform} • ${act.date || ""})`);
+    const platform = (platformName || act?.platform || "Montre").toUpperCase();
+    setImportedActivityName(`${act?.title || "Course"} (${platform} • ${act?.date || ""})`);
     setIsActivityImported(true);
     setShowActivityPicker(false);
   };
@@ -207,9 +205,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       completedRpe,
       comment,
       shoeId: selectedShoeId,
-      completedKm: distanceKm,
-      completedTimeMinutes: completedTotalMinutes,
-      completedElevationGain: elevationGain,
+      completedKm: Number(distanceKm) || 0,
+      completedTimeMinutes: completedTotalMinutes || 0,
+      completedElevationGain: Number(elevationGain) || 0,
       importedActivityName: isActivityImported ? importedActivityName : undefined,
       activityTelemetry: isActivityImported ? activityTelemetry : undefined,
     });
@@ -232,22 +230,21 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               completedTimeMinutes: totalTimeSeconds / 60,
               completedElevationGain: elevationGain,
               actualAvgHr: avgHeartRate || undefined,
-              actualMaxHr: maxHeartRate || undefined,
-              title: importedActivityName || workout.title,
+              title: importedActivityName || workout?.title,
               activityTelemetry,
             } as any}
             onClose={() => setShowTelemetryModal(false)}
           />
         )}
 
-        {/* HEADER */}
+        {/* EN-TÊTE */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div>
             <span className="text-[10px] font-black text-[#CF9A61] uppercase tracking-widest block">
               Débriefing de la séance
             </span>
             <h3 className="text-base font-black uppercase text-stone-100">
-              {workout.title || workout.sessionName || "Séance terminée"}
+              {workout?.title || workout?.sessionName || "Séance terminée"}
             </h3>
             {targetKm > 0 && (
               <p className="text-[11px] text-stone-400 font-semibold mt-0.5">
@@ -264,7 +261,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SÉLECTEUR DE MODE : MANUEL / MONTRE */}
+        {/* SÉLECTEUR DE MODE */}
         <div className="flex bg-stone-950 p-1 rounded-2xl border border-stone-800 gap-1">
           <button
             type="button"
@@ -293,17 +290,17 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SECTION 1 : SAISIE MANUELLE ERGONOMIQUE */}
+        {/* SAISIE MANUELLE */}
         {activeTabMode === "manual" && (
           <div className="space-y-4 animate-fadeIn">
-            {/* 1. CARTE DISTANCE */}
+            {/* DISTANCE */}
             <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2.5">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold uppercase text-stone-400">
                   Distance Parcourue
                 </span>
                 <span className="text-xs font-black text-[#CF9A61]">
-                  {distanceKm.toFixed(2)} km
+                  {(Number(distanceKm) || 0).toFixed(2)} km
                 </span>
               </div>
 
@@ -312,7 +309,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   type="number"
                   step="0.01"
                   min="0"
-                  value={distanceKm || ""}
+                  value={distanceKm !== undefined ? distanceKm : ""}
                   onChange={(e) => setDistanceKm(Math.max(0, parseFloat(e.target.value) || 0))}
                   placeholder="0.00"
                   className="flex-1 bg-stone-900 border border-stone-700 rounded-xl px-4 py-2.5 text-lg font-black font-mono text-stone-100 focus:outline-none focus:border-[#CF9A61]"
@@ -320,13 +317,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 <span className="text-sm font-bold text-stone-400">km</span>
               </div>
 
-              {/* Raccourcis d'incrémentation rapide */}
               <div className="flex gap-1.5 pt-1">
                 {[+0.5, +1, +2, +5].map((delta) => (
                   <button
                     key={delta}
                     type="button"
-                    onClick={() => setDistanceKm((prev) => Math.max(0, Math.round((prev + delta) * 100) / 100))}
+                    onClick={() => setDistanceKm((prev) => Math.max(0, Math.round(((Number(prev) || 0) + delta) * 100) / 100))}
                     className="flex-1 py-1 bg-stone-900 hover:bg-stone-800 border border-stone-800 text-[10px] font-bold text-stone-300 rounded-lg transition cursor-pointer"
                   >
                     +{delta} km
@@ -335,7 +331,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </div>
             </div>
 
-            {/* 2. CARTE TEMPS (HEURES / MINUTES / SECONDES) */}
+            {/* TEMPS */}
             <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2.5">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold uppercase text-stone-400">
@@ -349,14 +345,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                {/* Heures */}
                 <div className="space-y-1">
                   <div className="flex items-center bg-stone-900 border border-stone-700 rounded-xl px-2 py-2">
                     <input
                       type="number"
                       min="0"
                       max="23"
-                      value={hours || ""}
+                      value={hours !== undefined ? hours : ""}
                       onChange={(e) => setHours(Math.max(0, parseInt(e.target.value, 10) || 0))}
                       placeholder="0"
                       className="w-full text-center text-base font-black font-mono text-stone-100 bg-transparent focus:outline-none"
@@ -366,14 +361,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   <span className="text-[8px] uppercase font-bold text-stone-400">Heures</span>
                 </div>
 
-                {/* Minutes */}
                 <div className="space-y-1">
                   <div className="flex items-center bg-stone-900 border border-stone-700 rounded-xl px-2 py-2">
                     <input
                       type="number"
                       min="0"
                       max="59"
-                      value={minutes || ""}
+                      value={minutes !== undefined ? minutes : ""}
                       onChange={(e) => setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
                       placeholder="00"
                       className="w-full text-center text-base font-black font-mono text-stone-100 bg-transparent focus:outline-none"
@@ -383,14 +377,13 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   <span className="text-[8px] uppercase font-bold text-stone-400">Minutes</span>
                 </div>
 
-                {/* Secondes */}
                 <div className="space-y-1">
                   <div className="flex items-center bg-stone-900 border border-stone-700 rounded-xl px-2 py-2">
                     <input
                       type="number"
                       min="0"
                       max="59"
-                      value={seconds || ""}
+                      value={seconds !== undefined ? seconds : ""}
                       onChange={(e) => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
                       placeholder="00"
                       className="w-full text-center text-base font-black font-mono text-stone-100 bg-transparent focus:outline-none"
@@ -402,40 +395,26 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </div>
             </div>
 
-            {/* 3. DÉNIVELÉ & CARDIO (OPTIONNELS) */}
+            {/* DÉNIVELÉ & CARDIO */}
             <div className="grid grid-cols-2 gap-3">
-              {/* D+ */}
               <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-1.5">
                 <span className="text-[9px] font-bold uppercase text-stone-400 block">
-                  ⛰️ Dénivelé Positif (D+)
+                  ⛰️ Dénivelé (D+)
                 </span>
                 <div className="flex items-center bg-stone-900 border border-stone-700 rounded-xl px-3 py-1.5">
                   <input
                     type="number"
                     min="0"
                     step="5"
-                    value={elevationGain || ""}
+                    value={elevationGain !== undefined ? elevationGain : ""}
                     onChange={(e) => setElevationGain(Math.max(0, parseInt(e.target.value, 10) || 0))}
                     placeholder="0"
                     className="w-full text-sm font-black font-mono text-emerald-400 bg-transparent focus:outline-none"
                   />
                   <span className="text-[10px] font-bold text-stone-400">m</span>
                 </div>
-                <div className="flex gap-1 pt-0.5">
-                  {[+20, +50, +100].map((delta) => (
-                    <button
-                      key={delta}
-                      type="button"
-                      onClick={() => setElevationGain((prev) => prev + delta)}
-                      className="flex-1 py-0.5 bg-stone-900 hover:bg-stone-800 border border-stone-800 text-[9px] font-bold text-stone-300 rounded transition cursor-pointer"
-                    >
-                      +{delta}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Fréquence Cardiaque */}
               <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-1.5">
                 <span className="text-[9px] font-bold uppercase text-stone-400 block">
                   ❤️ Cardio Moyen
@@ -447,7 +426,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     max="230"
                     value={avgHeartRate}
                     onChange={(e) => setAvgHeartRate(e.target.value)}
-                    placeholder="ex: 145"
+                    placeholder="145"
                     className="w-full text-sm font-black font-mono text-rose-400 bg-transparent focus:outline-none"
                   />
                   <span className="text-[10px] font-bold text-stone-400">bpm</span>
@@ -457,32 +436,30 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
         )}
 
-        {/* SECTION 2 : IMPORT MONTRE */}
+        {/* IMPORT MONTRE */}
         {activeTabMode === "watch" && (
           <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3 animate-fadeIn">
             <span className="text-xs font-black uppercase text-stone-200 block">
-              Synchronisation avec votre application
+              Synchronisation montre
             </span>
 
             {isActivityImported && importedActivityName ? (
-              <div className="space-y-2">
-                <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
-                  <div>
-                    <span className="text-[9px] font-bold uppercase text-emerald-400 block">
-                      ✓ Activité importée
-                    </span>
-                    <p className="text-xs font-bold text-stone-200 truncate">
-                      {importedActivityName}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowTelemetryModal(true)}
-                    className="text-[10px] font-black uppercase text-[#CDCF61] bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800 hover:border-stone-700 transition cursor-pointer shrink-0"
-                  >
-                    📊 Analyser
-                  </button>
+              <div className="bg-stone-900 border border-stone-800 rounded-xl p-3 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[9px] font-bold uppercase text-emerald-400 block">
+                    ✓ Activité liée
+                  </span>
+                  <p className="text-xs font-bold text-stone-200 truncate">
+                    {importedActivityName}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTelemetryModal(true)}
+                  className="text-[10px] font-black uppercase text-[#CDCF61] bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800 hover:border-stone-700 transition cursor-pointer shrink-0"
+                >
+                  📊 Analyser
+                </button>
               </div>
             ) : (
               <div className="space-y-2">
@@ -524,7 +501,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
 
                 {fetchLoading && (
                   <p className="text-[10px] text-center font-bold text-[#CF9A61] animate-pulse">
-                    Récupération de vos sorties en cours...
+                    Récupération de vos sorties...
                   </p>
                 )}
               </div>
@@ -539,7 +516,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             {showActivityPicker && (
               <div className="bg-stone-900 p-3 rounded-xl border border-stone-800 space-y-2">
                 <span className="text-[9px] font-bold text-stone-400 uppercase block">
-                  Sélectionnez la course réalisée :
+                  Sélectionnez la course :
                 </span>
                 <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                   {activitiesList.map((act) => (
@@ -565,7 +542,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
         )}
 
-        {/* SECTION 3 : RPE, CHAUSSURES & COMMENTAIRES */}
+        {/* FORMULAIRE DÉBRIEFING */}
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Chaussures */}
           <div className="space-y-1">
@@ -578,19 +555,19 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
             >
               <option value="">-- Aucune paire spécifique --</option>
-              {shoes.map((shoe) => (
+              {safeShoes.map((shoe) => (
                 <option key={shoe.id} value={shoe.id}>
-                  {shoe.brand} {shoe.name} ({shoe.currentKm.toFixed(0)} / {shoe.maxKm} km)
+                  {shoe.brand} {shoe.name} ({Number(shoe.currentKm || 0).toFixed(0)} / {shoe.maxKm} km)
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Effort ressenti (RPE) */}
+          {/* RPE */}
           <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
             <div className="flex justify-between items-center">
               <label className="block text-[10px] uppercase font-bold text-stone-400">
-                Effort Réellement Ressenti (RPE)
+                Effort Ressenti (RPE)
               </label>
               <span className="text-xs font-black" style={{ color: rpeTheme.text }}>
                 {completedRpe}/10 • {rpeTheme.label}
@@ -613,7 +590,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </div>
           </div>
 
-          {/* Commentaires */}
+          {/* Commentaire */}
           <div className="space-y-1">
             <label className="block text-[10px] uppercase font-bold text-stone-400">
               Commentaires & Sensations (Optionnel)
@@ -622,7 +599,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               rows={2}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Ex : Bonnes sensations, cardio stable, un peu de fatigue en fin de séance..."
+              placeholder="Sensations, météo, fatigue..."
               className="w-full bg-stone-950 border border-stone-800 rounded-xl p-3 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] resize-none custom-scrollbar"
             />
           </div>
