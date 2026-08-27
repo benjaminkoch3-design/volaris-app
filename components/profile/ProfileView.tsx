@@ -1,6 +1,6 @@
 // src/components/profile/ProfileView.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Race, Plan, Shoe } from "../../types";
 import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 import {
@@ -130,6 +130,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcMax, setEditFcMax] = useState(fcMax);
   const [editRecords, setEditRecords] = useState({ ...records });
 
+  // Modale de recadrage / recentrage d'avatar
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   // 1. GARMIN
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
@@ -154,7 +163,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [stravaStatusMsg, setStravaStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    // Garmin
     const savedGarminEmail = localStorage.getItem("volaris_garmin_email");
     const savedGarminPwd = localStorage.getItem("volaris_garmin_pwd");
     if (savedGarminEmail && savedGarminPwd) {
@@ -162,7 +170,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setIsGarminLinked(true);
     }
 
-    // COROS
     const savedCorosEmail = localStorage.getItem("volaris_coros_email");
     const savedCorosPwd = localStorage.getItem("volaris_coros_pwd");
     if (savedCorosEmail && savedCorosPwd) {
@@ -170,7 +177,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setIsCorosLinked(true);
     }
 
-    // Strava
     const savedStravaEmail = localStorage.getItem("volaris_strava_email");
     const savedStrava = localStorage.getItem("volaris_strava_connected") === "true";
     if (savedStrava) {
@@ -340,46 +346,48 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setIsEditingProfile(false);
   };
 
-  // REDIMENSIONNEMENT & COMPRESSION CANVAS DE LA PHOTO (Max 300x300 px, ~25 Ko)
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Chargement du fichier photo pour ouverture du modal de recadrage
+  const handleAvatarFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !onUpdateAvatar) return;
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_SIZE = 300;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round((height * MAX_SIZE) / width);
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width = Math.round((width * MAX_SIZE) / height);
-            height = MAX_SIZE;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75);
-          onUpdateAvatar(compressedDataUrl);
-        }
-      };
-      if (event.target?.result) {
-        img.src = event.target.result as string;
-      }
+      setCropImageSrc(event.target?.result as string);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      setCropModalOpen(true);
     };
     reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // Validation du recadrage : export Canvas compressé en JPEG
+  const handleApplyCroppedAvatar = () => {
+    if (!cropImageSrc || !onUpdateAvatar) return;
+
+    const img = new Image();
+    img.onload = () => {
+      const outputSize = 250;
+      const canvas = document.createElement("canvas");
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const scale = Math.max(outputSize / img.width, outputSize / img.height) * zoom;
+      const drawWidth = img.width * scale;
+      const drawHeight = img.height * scale;
+      const drawX = (outputSize - drawWidth) / 2 + pan.x;
+      const drawY = (outputSize - drawHeight) / 2 + pan.y;
+
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+      const finalBase64 = canvas.toDataURL("image/jpeg", 0.8);
+      onUpdateAvatar(finalBase64);
+      setCropModalOpen(false);
+      setCropImageSrc(null);
+    };
+    img.src = cropImageSrc;
   };
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
@@ -454,6 +462,108 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-2xl mx-auto font-sans">
+      
+      {/* MODALE DE RECENTRAGE & ZOOM PHOTO DE PROFIL */}
+      {cropModalOpen && cropImageSrc && (
+        <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-70 animate-fadeIn">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-stone-800 pb-2.5">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-[#CF9A61] block">
+                  Ajustement
+                </span>
+                <h4 className="text-xs font-black uppercase text-stone-100">
+                  Recentrer ma photo
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCropModalOpen(false)}
+                className="text-stone-400 hover:text-stone-200 text-xs font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* ZONE DE PRÉVISUALISATION CIRCULAIRE AVEC DRAG */}
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <div
+                className="w-48 h-48 rounded-full border-4 border-[#CF9A61] overflow-hidden relative cursor-grab active:cursor-grabbing shadow-2xl bg-stone-950 select-none"
+                onMouseDown={(e) => {
+                  setIsDragging(true);
+                  setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+                }}
+                onMouseMove={(e) => {
+                  if (!isDragging) return;
+                  setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                }}
+                onMouseUp={() => setIsDragging(false)}
+                onMouseLeave={() => setIsDragging(false)}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  setIsDragging(true);
+                  setDragStart({ x: touch.clientX - pan.x, y: touch.clientY - pan.y });
+                }}
+                onTouchMove={(e) => {
+                  if (!isDragging) return;
+                  const touch = e.touches[0];
+                  setPan({ x: touch.clientX - dragStart.x, y: touch.clientY - dragStart.y });
+                }}
+                onTouchEnd={() => setIsDragging(false)}
+              >
+                <img
+                  src={cropImageSrc}
+                  alt="Aperçu recadrage"
+                  style={{
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: "center center",
+                  }}
+                  className="w-full h-full object-cover pointer-events-none transition-transform duration-75"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400 font-bold">
+                👆 Glisse pour recentrer l'image
+              </p>
+            </div>
+
+            {/* CONTRÔLE DE ZOOM */}
+            <div className="space-y-1.5 bg-stone-950 p-3 rounded-2xl border border-stone-800">
+              <div className="flex justify-between text-[9px] font-bold uppercase text-stone-400">
+                <span>Zoom</span>
+                <span className="text-[#CF9A61] font-mono">{zoom.toFixed(1)}x</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.05"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-full accent-[#CF9A61] cursor-pointer"
+              />
+            </div>
+
+            {/* ACTIONS MODALE */}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCropModalOpen(false)}
+                className="flex-1 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyCroppedAvatar}
+                className="flex-1 py-2.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl shadow-lg transition cursor-pointer"
+              >
+                Valider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. MODALE GARMIN CONNECT */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
@@ -764,12 +874,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL COMPRESSÉE */}
+      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL CIRCULAIRE */}
       <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
             
-            {/* PHOTO DE PROFIL AVEC UPLOAD ET SUPPRESSION */}
+            {/* PHOTO DE PROFIL CIRCULAIRE AVEC MODALE DE RECENTRAGE */}
             <div className="relative group">
               <div className="w-16 h-16 bg-stone-800 border-2 border-[#CF9A61]/60 rounded-full flex items-center justify-center text-xl font-black text-stone-200 overflow-hidden shadow-md">
                 {avatarUrl ? (
@@ -783,14 +893,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <div className="absolute inset-0 bg-black/75 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition gap-1">
                   <label
                     className="cursor-pointer text-[8px] font-black text-[#CF9A61] uppercase hover:underline"
-                    title="Changer la photo"
+                    title="Changer et recentrer la photo"
                   >
-                    <span>📷 Photo</span>
+                    <span>📷 Changer</span>
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleAvatarFileChange}
+                      onChange={handleAvatarFileSelected}
                     />
                   </label>
 
@@ -1879,7 +1989,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          {/* 7. ACCORDÉON APPAREILS & COMPTES CONNECTÉS (GARMIN / COROS / STRAVA) */}
+          {/* 7. ACCORDÉON APPAREILS CONNECTÉS */}
           <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
             <button
               type="button"
@@ -1896,7 +2006,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {openDevicesSection && (
               <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                {/* 1. GARMIN CONNECT */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
@@ -1934,7 +2043,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* 2. COROS APP */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
@@ -1972,7 +2080,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* 3. STRAVA */}
                 <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
@@ -2182,4 +2289,4 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       )}
     </div>
   );
-}
+};
