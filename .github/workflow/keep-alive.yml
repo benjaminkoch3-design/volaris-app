@@ -1,0 +1,25 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # S'exécute automatiquement tous les 3 jours à 04h00 UTC
+    - cron: '0 4 */3 * *'
+  workflow_dispatch: # Permet aussi de le tester manuellement en 1 clic
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Supabase a répondu avec le statut HTTP: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Base de données réveillée et active avec succès !"
+          else
+            echo "Attention, réponse inattendue: $STATUS"
+            exit 1
+          fi
