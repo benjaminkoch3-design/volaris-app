@@ -357,7 +357,6 @@ export default function Home() {
       ? (session?.user?.user_metadata?.full_name || athleteName || "Coach")
       : (athleteName || "Athlète");
 
-    // Génération UUID v4
     const validUuid = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -2247,7 +2246,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans pb-20">
+    <main className="min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans pb-20 md:pb-8 md:pl-64 transition-all">
       <Header
         userRole={userRole}
         athleteName={session?.user?.user_metadata?.full_name || athleteName || (userRole === "coach" ? "Coach" : "Athlète")}
@@ -2619,7 +2618,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* NAVIGATION BASSE */}
+      {/* NAVIGATION (Mobile en bas / Desktop à gauche) */}
       <BottomNav
         userRole={userRole}
         activeTab={activeTab}
