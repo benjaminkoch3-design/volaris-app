@@ -84,14 +84,16 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
       </div>
 
       <div className="flex gap-2 items-stretch">
-        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80">
+        {/* Axe Y (Allures) */}
+        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80 shrink-0">
           <span>{formatPaceFromSec(minPace)}</span>
           <span>{formatPaceFromSec(minPace + paceRange / 2)}</span>
           <span>{formatPaceFromSec(maxPace)}</span>
         </div>
 
-        <div className="flex-1 space-y-1">
-          <div className="h-24 w-full bg-stone-900/60 rounded-xl p-2 flex items-end gap-1.5 relative overflow-hidden border border-stone-800/60">
+        {/* Zone graphique : flex avec w-full pour garantir que 100 % des barres rentrent toujours dans le cadre */}
+        <div className="flex-1 min-w-0">
+          <div className="h-24 w-full bg-stone-900/60 rounded-xl p-2 flex items-end relative overflow-hidden border border-stone-800/60">
             {profile.map((point, i) => {
               const widthPct = (point.durationSec / totalTimeSec) * 100;
               const normalizedHeight =
@@ -103,13 +105,15 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
                 <div
                   key={i}
                   style={{
-                    width: `${Math.max(widthPct, 4)}%`,
+                    width: `${widthPct}%`,
+                    minWidth: "2px",
                     height: `${normalizedHeight}%`,
                     backgroundColor: getColor(point.type),
                   }}
-                  className="rounded-t-sm transition-all relative group cursor-pointer hover:brightness-125 flex flex-col justify-end items-center"
+                  className="rounded-t-sm transition-all relative group cursor-pointer hover:brightness-125 flex flex-col justify-end items-center shrink-0 border-r border-stone-950/20"
                 >
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                  {/* Tooltip au survol affichant les détails sans encombrer l'axe X */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
                     <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
                       <div>{point.label}</div>
                       <div className="text-[#CF9A61]">{point.paceFormatted}</div>
@@ -119,29 +123,10 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
               );
             })}
           </div>
-
-          <div className="flex gap-1.5 px-2">
-            {profile.map((point, i) => {
-              const widthPct = (point.durationSec / totalTimeSec) * 100;
-              return (
-                <div
-                  key={i}
-                  style={{ width: `${Math.max(widthPct, 4)}%` }}
-                  className="text-center overflow-hidden"
-                >
-                  <span className="block text-[8px] font-bold text-[#CDCF61] truncate">
-                    {point.paceFormatted}
-                  </span>
-                  <span className="block text-[7px] font-semibold text-stone-500 truncate">
-                    {point.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </div>
 
+      {/* Légende en bas */}
       <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
