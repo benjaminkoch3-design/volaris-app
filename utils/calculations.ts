@@ -261,7 +261,13 @@ export const formatPaceFromSpeed = (speedKmH: number): string => {
 export function parsePaceToSeconds(paceStr?: string): number {
   if (!paceStr) return 300;
 
-  const clean = paceStr.toString().toLowerCase().replace("min/km", "").replace("/km", "").trim();
+  const clean = paceStr
+    .toString()
+    .toLowerCase()
+    .replace("min/km", "")
+    .replace("/km", "")
+    .replace(",", ".")
+    .trim();
 
   const rangeMatch = clean.match(/(\d{1,2})[':](\d{2})\s*(?:-|à|to|\/)\s*(\d{1,2})[':](\d{2})/);
   if (rangeMatch) {
@@ -295,14 +301,14 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
 
   switch (step.type) {
     case "echauffement":
-      return 340; // 5:40/km
+      return 340; // 5:40 /km
     case "recup":
     case "retour_calme":
-      return 360; // 6:00/km
+      return 360; // 6:00 /km
     case "corps":
-      return 270; // 4:30/km
+      return 270; // 4:30 /km
     default:
-      return 300;
+      return 300; // 5:00 /km
   }
 }
 
@@ -313,20 +319,24 @@ export function parseStepMetricsValues(
 ): { km: number; seconds: number; hasParsed: boolean } {
   if (!rawVal) return { km: 0, seconds: 0, hasParsed: false };
 
-  const str = rawVal.trim().toLowerCase();
+  const str = rawVal.trim().toLowerCase().replace(",", ".");
   const numMatch = str.match(/[\d.]+/);
   const num = numMatch ? parseFloat(numMatch[0]) : 0;
 
   if (isNaN(num) || num <= 0) return { km: 0, seconds: 0, hasParsed: false };
 
-  const isDist = endCondition === "distance" || str.includes("km") || (str.includes("m") && !str.includes("min"));
+  const isDist =
+    endCondition === "distance" ||
+    str.includes("km") ||
+    (str.includes("m") && !str.includes("min") && !str.includes("sec") && !str.includes("s"));
 
   if (isDist) {
     let km = 0;
     if (str.includes("km")) {
       km = num;
     } else {
-      km = num >= 50 ? num / 1000 : num; // Détecte mètres vs km si unité implicite
+      // Détection automatique : si >= 50, valeur en mètres (ex: 400m -> 0.4km), sinon kilomètres
+      km = num >= 50 ? num / 1000 : num;
     }
     return { km, seconds: 0, hasParsed: true };
   } else {
@@ -346,65 +356,6 @@ export function parseStepMetricsValues(
 // VOLUME & STATS CALCULATIONS
 // ==========================================
 
-export const calculateWeeklyPlannedKm = (
-  workouts: Workout[],
-  weekNum: number
-): number => {
-  return workouts
-    .filter((w) => w.weekNumber === weekNum && !w.isRest)
-    .reduce((acc, w) => {
-      let kmVal = 0;
-      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
-        kmVal = parseFloat(String(w.km));
-      } else if (w.steps && w.steps.length > 0) {
-        kmVal = calculateStepMetrics(w.steps).totalKm;
-      }
-      return acc + (isNaN(kmVal) ? 0 : kmVal);
-    }, 0);
-};
-
-export const calculateWeeklyCompletedKm = (
-  workouts: Workout[],
-  weekNum: number,
-  completedMap: Record<string, boolean>
-): number => {
-  return workouts
-    .filter((w) => w.weekNumber === weekNum && !w.isRest && (completedMap[w.id] || w.completed))
-    .reduce((acc, w) => {
-      const kmVal =
-        w.completedKm !== undefined && w.completedKm !== null
-          ? parseFloat(String(w.completedKm))
-          : parseFloat(String(w.km || "0"));
-      return acc + (isNaN(kmVal) ? 0 : kmVal);
-    }, 0);
-};
-
-export const calculateWeeklyCompletedKmDeduplicated = (
-  workouts: Workout[],
-  weekNum: number,
-  completedMap: Record<string, boolean>
-): number => {
-  const seenActivities = new Set<string>();
-
-  return workouts
-    .filter((w) => w.weekNumber === weekNum && !w.isRest && (completedMap[w.id] || w.completed))
-    .reduce((acc, w) => {
-      if (w.importedActivityName) {
-        if (seenActivities.has(w.importedActivityName)) {
-          return acc;
-        }
-        seenActivities.add(w.importedActivityName);
-      }
-
-      const kmVal =
-        w.completedKm !== undefined && w.completedKm !== null
-          ? parseFloat(String(w.completedKm))
-          : parseFloat(String(w.km || "0"));
-
-      return acc + (isNaN(kmVal) ? 0 : kmVal);
-    }, 0);
-};
-
 export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; totalMinutes: number } {
   let totalKm = 0;
   let totalSeconds = 0;
@@ -415,23 +366,23 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
 
   const computeStepsRecursive = (stepList: WorkoutStep[], parentReps = 1) => {
     stepList.forEach((step) => {
-      const reps = (step.type === "repeat" ? (step.reps || 1) : 1) * parentReps;
+      const currentReps = (step.type === "repeat" ? (step.reps || 1) : 1) * parentReps;
 
       if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        computeStepsRecursive(step.nestedSteps, reps);
-      } else {
+        computeStepsRecursive(step.nestedSteps, currentReps);
+      } else if (step.type !== "repeat") {
         const paceSec = getStepPaceInSeconds(step);
         const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
 
         if (hasParsed) {
           if (km > 0) {
-            const stepKm = km * reps;
-            const stepSec = (km * paceSec) * reps;
+            const stepKm = km * currentReps;
+            const stepSec = km * paceSec * currentReps;
             totalKm += stepKm;
             totalSeconds += stepSec;
           } else if (seconds > 0) {
-            const stepSec = seconds * reps;
-            const stepKm = paceSec > 0 ? (stepSec / paceSec) : 0;
+            const stepSec = seconds * currentReps;
+            const stepKm = paceSec > 0 ? stepSec / paceSec : 0;
             totalKm += stepKm;
             totalSeconds += stepSec;
           }
@@ -448,6 +399,65 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
   };
 }
 
+export const calculateWeeklyPlannedKm = (
+  workouts: Workout[],
+  weekNum: number
+): number => {
+  return workouts
+    .filter((w) => Number(w.weekNumber) === Number(weekNum) && !w.isRest)
+    .reduce((acc, w) => {
+      let kmVal = 0;
+      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+        kmVal = parseFloat(String(w.km).replace(",", "."));
+      } else if (w.steps && w.steps.length > 0) {
+        kmVal = calculateStepMetrics(w.steps).totalKm;
+      }
+      return acc + (isNaN(kmVal) ? 0 : kmVal);
+    }, 0);
+};
+
+export const calculateWeeklyCompletedKm = (
+  workouts: Workout[],
+  weekNum: number,
+  completedMap: Record<string, boolean>
+): number => {
+  return workouts
+    .filter((w) => Number(w.weekNumber) === Number(weekNum) && !w.isRest && (completedMap[w.id] || w.completed))
+    .reduce((acc, w) => {
+      const kmVal =
+        w.completedKm !== undefined && w.completedKm !== null
+          ? parseFloat(String(w.completedKm).replace(",", "."))
+          : parseFloat(String(w.km || "0").replace(",", "."));
+      return acc + (isNaN(kmVal) ? 0 : kmVal);
+    }, 0);
+};
+
+export const calculateWeeklyCompletedKmDeduplicated = (
+  workouts: Workout[],
+  weekNum: number,
+  completedMap: Record<string, boolean>
+): number => {
+  const seenActivities = new Set<string>();
+
+  return workouts
+    .filter((w) => Number(w.weekNumber) === Number(weekNum) && !w.isRest && (completedMap[w.id] || w.completed))
+    .reduce((acc, w) => {
+      if (w.importedActivityName) {
+        if (seenActivities.has(w.importedActivityName)) {
+          return acc;
+        }
+        seenActivities.add(w.importedActivityName);
+      }
+
+      const kmVal =
+        w.completedKm !== undefined && w.completedKm !== null
+          ? parseFloat(String(w.completedKm).replace(",", "."))
+          : parseFloat(String(w.km || "0").replace(",", "."));
+
+      return acc + (isNaN(kmVal) ? 0 : kmVal);
+    }, 0);
+};
+
 // ==========================================
 // PHYSIOLOGICAL THRESHOLDS (LT1 / LT2)
 // ==========================================
@@ -457,7 +467,7 @@ export const calculateThresholds = (
   r10kRecord: string,
   rSemiRecord: string
 ) => {
-  const vmaNum = parseFloat(vma);
+  const vmaNum = parseFloat(vma.replace(",", "."));
   if (!vmaNum || isNaN(vmaNum) || vmaNum <= 0) return null;
 
   const t10 = parseTimeToHours(r10kRecord);
@@ -530,15 +540,21 @@ export interface PaceProfilePoint {
 export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
   if (!steps || steps.length === 0) return [];
 
-  let profile: PaceProfilePoint[] = [];
+  const profile: PaceProfilePoint[] = [];
 
   const processStep = (step: WorkoutStep, repetitions = 1) => {
     for (let r = 0; r < repetitions; r++) {
       if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        step.nestedSteps.forEach((nested) => processStep(nested, 1));
-      } else {
+        step.nestedSteps.forEach((nested) => {
+          const nestedReps = nested.type === "repeat" ? (nested.reps || 1) : 1;
+          processStep(nested, nestedReps);
+        });
+      } else if (step.type !== "repeat") {
         const paceSec = getStepPaceInSeconds(step);
-        const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
+        const { km, seconds, hasParsed } = parseStepMetricsValues(
+          step.durationOrDist || "",
+          step.endCondition
+        );
 
         let durSec = 60;
         if (hasParsed) {
@@ -554,7 +570,7 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
         const paceFormatted = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
         profile.push({
-          label: step.durationOrDist || step.type,
+          label: step.durationOrDist || getStepTypeLabel(step.type),
           durationSec: durSec > 0 ? Math.round(durSec) : 60,
           paceSecPerKm: paceSec,
           paceFormatted,

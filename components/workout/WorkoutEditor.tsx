@@ -44,8 +44,8 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
 
   if (!profile || profile.length === 0) return null;
 
-  const totalTimeSec = profile.reduce((acc, p) => acc + p.durationSec, 0);
-  if (totalTimeSec === 0) return null;
+  const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
+  if (totalTimeSec <= 0) return null;
 
   const minPace = Math.min(...profile.map((p) => p.paceSecPerKm));
   const maxPace = Math.max(...profile.map((p) => p.paceSecPerKm));
@@ -72,8 +72,34 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
     }
   };
 
+  // Calcul des coordonnées x et largeurs cumulées proportionnelles sur une base 1000
+  let currentX = 0;
+  const bars = profile.map((point) => {
+    const barWidth = ((point.durationSec || 0) / totalTimeSec) * 1000;
+    const x = currentX;
+    currentX += barWidth;
+
+    // Hauteur proportionnelle à l'allure (plus c'est rapide, plus c'est haut)
+    const normalizedHeightPct =
+      paceRange === 0
+        ? 60
+        : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
+
+    // Sur SVG de hauteur 100 : y = 100 - height
+    const height = Math.max(8, normalizedHeightPct);
+    const y = 100 - height;
+
+    return {
+      ...point,
+      x,
+      barWidth,
+      y,
+      height,
+    };
+  });
+
   return (
-    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
+    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans w-full overflow-hidden">
       <div className="flex justify-between items-center">
         <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
           Profil d'allure de la séance
@@ -83,7 +109,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
         </span>
       </div>
 
-      <div className="flex gap-2 items-stretch">
+      <div className="flex gap-2 items-stretch w-full">
         {/* Axe Y (Allures) */}
         <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80 shrink-0">
           <span>{formatPaceFromSec(minPace)}</span>
@@ -91,42 +117,33 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
           <span>{formatPaceFromSec(maxPace)}</span>
         </div>
 
-        {/* Zone graphique : flex avec w-full pour garantir que 100 % des barres rentrent toujours dans le cadre */}
-        <div className="flex-1 min-w-0">
-          <div className="h-24 w-full bg-stone-900/60 rounded-xl p-2 flex items-end relative overflow-hidden border border-stone-800/60">
-            {profile.map((point, i) => {
-              const widthPct = (point.durationSec / totalTimeSec) * 100;
-              const normalizedHeight =
-                paceRange === 0
-                  ? 60
-                  : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
-
-              return (
-                <div
-                  key={i}
-                  style={{
-                    width: `${widthPct}%`,
-                    minWidth: "2px",
-                    height: `${normalizedHeight}%`,
-                    backgroundColor: getColor(point.type),
-                  }}
-                  className="rounded-t-sm transition-all relative group cursor-pointer hover:brightness-125 flex flex-col justify-end items-center shrink-0 border-r border-stone-950/20"
+        {/* Graphique SVG vectoriel : garanti sans dépassement et 100% fidèle aux durées */}
+        <div className="flex-1 min-w-0 bg-stone-900/60 rounded-xl p-2 border border-stone-800/60 h-24 flex items-end">
+          <svg
+            viewBox="0 0 1000 100"
+            preserveAspectRatio="none"
+            className="w-full h-full overflow-visible"
+          >
+            {bars.map((bar, i) => (
+              <g key={i} className="group cursor-pointer">
+                <rect
+                  x={bar.x}
+                  y={bar.y}
+                  width={Math.max(bar.barWidth, 1.5)}
+                  height={bar.height}
+                  fill={getColor(bar.type)}
+                  rx="1.5"
+                  className="transition-all hover:opacity-80"
                 >
-                  {/* Tooltip au survol affichant les détails sans encombrer l'axe X */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-30 pointer-events-none">
-                    <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                      <div>{point.label}</div>
-                      <div className="text-[#CF9A61]">{point.paceFormatted}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  <title>{`${bar.label} - ${bar.paceFormatted} (${Math.round((bar.durationSec || 0) / 60)} min)`}</title>
+                </rect>
+              </g>
+            ))}
+          </svg>
         </div>
       </div>
 
-      {/* Légende en bas */}
+      {/* Légende */}
       <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
