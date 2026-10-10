@@ -2273,7 +2273,7 @@ export default function Home() {
         />
       )}
 
-      <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-5">
+      <div className="flex-1 p-4 max-w-md md:max-w-4xl lg:max-w-5xl mx-auto w-full space-y-5">
         {userRole === "coach" && !inspectingAthleteId && activeTab === "today" && (
           <CoachDailyWorkoutsView
             selectedDateStr={selectedCalendarDate}
