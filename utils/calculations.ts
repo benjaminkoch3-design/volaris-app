@@ -48,7 +48,6 @@ export const getStepTypeLabel = (type: string) => {
 // DATE & CALENDAR CALCULATIONS
 // ==========================================
 
-// Liste standard des jours de la semaine (0 = Dimanche en JS)
 export const DAYS_LIST_FR = [
   "Dimanche",
   "Lundi",
@@ -59,7 +58,6 @@ export const DAYS_LIST_FR = [
   "Samedi",
 ];
 
-// Ordre d'affichage standard de référence
 export const DAYS_ORDER_FR = [
   "Lundi",
   "Mardi",
@@ -78,9 +76,6 @@ export const getDayOrderIndex = (dayName: string): number => {
   return idx !== -1 ? idx : 0;
 };
 
-/**
- * Renvoie l'objet Date exact pour une séance du plan
- */
 export const getDateObjectForWorkout = (
   startDateStr: string,
   weekNumber: number,
@@ -94,9 +89,6 @@ export const getDateObjectForWorkout = (
   return dateObj;
 };
 
-/**
- * Renvoie le nom exact du jour (ex: "Samedi") en fonction de la date de départ
- */
 export const getExactDayName = (
   startDateStr: string,
   weekNumber: number,
@@ -106,9 +98,6 @@ export const getExactDayName = (
   return DAYS_LIST_FR[dateObj.getDay()] || "Lundi";
 };
 
-/**
- * Renvoie le nom du jour pour une chaîne YYYY-MM-DD
- */
 export const getDayNameFromDate = (dateStr: string): string => {
   if (!dateStr) return "Lundi";
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -117,9 +106,6 @@ export const getDayNameFromDate = (dateStr: string): string => {
   return DAYS_LIST_FR[dayIndex] || "Lundi";
 };
 
-/**
- * Renvoie la date exacte au format ISO YYYY-MM-DD
- */
 export const getDateForWorkout = (
   startDateStr: string,
   weekNumber: number,
@@ -132,9 +118,6 @@ export const getDateForWorkout = (
   return `${year}-${month}-${day}`;
 };
 
-/**
- * Renvoie la date affichée (ex: "22/08/26")
- */
 export const getExactDayDate = (
   startDateStr: string,
   weekNumber: number,
@@ -147,9 +130,6 @@ export const getExactDayDate = (
   return `${day}/${month}/${yearShort}`;
 };
 
-/**
- * Renvoie la plage de dates d'une semaine (ex: "Du 22/08/26 au 28/08/26")
- */
 export const getWeekDateRange = (startDateStr: string, weekNum: number): string => {
   if (!startDateStr) return "";
   const start = getDateObjectForWorkout(startDateStr, weekNum, 0);
@@ -165,9 +145,6 @@ export const getWeekDateRange = (startDateStr: string, weekNum: number): string 
   return `Du ${formatDate(start)} au ${formatDate(end)}`;
 };
 
-/**
- * Trie les séances dans l'ordre chronologique de chaque semaine (jour 0 -> jour 6)
- */
 export const sortWorkoutsByDay = (workouts: Workout[]): Workout[] => {
   return [...workouts].sort((a, b) => {
     if (a.weekNumber !== b.weekNumber) {
@@ -281,11 +258,8 @@ export const formatPaceFromSpeed = (speedKmH: number): string => {
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 
-/**
- * Convertit une allure ou une fourchette d'allure en secondes par km
- */
 export function parsePaceToSeconds(paceStr?: string): number {
-  if (!paceStr) return 300; // 5:00 min/km par défaut
+  if (!paceStr) return 300;
 
   const clean = paceStr.toString().toLowerCase().replace("min/km", "").replace("/km", "").trim();
 
@@ -307,17 +281,15 @@ export function parsePaceToSeconds(paceStr?: string): number {
   return !isNaN(val) && val > 0 ? Math.round(val * 60) : 300;
 }
 
-/**
- * Récupère l'allure représentative en secondes pour une étape
- */
 export function getStepPaceInSeconds(step: WorkoutStep): number {
-  if (step.paceMin && step.paceMax) {
-    const s1 = parsePaceToSeconds(step.paceMin);
-    const s2 = parsePaceToSeconds(step.paceMax);
-    return Math.round((s1 + s2) / 2);
+  const pMin = step.paceMin ? parsePaceToSeconds(step.paceMin) : null;
+  const pMax = step.paceMax ? parsePaceToSeconds(step.paceMax) : null;
+
+  if (pMin !== null && pMax !== null) {
+    return Math.round((pMin + pMax) / 2);
   }
-  if (step.paceMin) return parsePaceToSeconds(step.paceMin);
-  if (step.paceMax) return parsePaceToSeconds(step.paceMax);
+  if (pMin !== null) return pMin;
+  if (pMax !== null) return pMax;
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
@@ -334,6 +306,42 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
   }
 }
 
+// Convertisseur précis durée / distance
+export function parseStepMetricsValues(
+  rawVal: string,
+  endCondition?: "distance" | "temps" | string
+): { km: number; seconds: number; hasParsed: boolean } {
+  if (!rawVal) return { km: 0, seconds: 0, hasParsed: false };
+
+  const str = rawVal.trim().toLowerCase();
+  const numMatch = str.match(/[\d.]+/);
+  const num = numMatch ? parseFloat(numMatch[0]) : 0;
+
+  if (isNaN(num) || num <= 0) return { km: 0, seconds: 0, hasParsed: false };
+
+  const isDist = endCondition === "distance" || str.includes("km") || (str.includes("m") && !str.includes("min"));
+
+  if (isDist) {
+    let km = 0;
+    if (str.includes("km")) {
+      km = num;
+    } else {
+      km = num >= 50 ? num / 1000 : num; // Détecte mètres vs km si unité implicite
+    }
+    return { km, seconds: 0, hasParsed: true };
+  } else {
+    let seconds = 0;
+    if (str.endsWith("s") || str.endsWith("sec")) {
+      seconds = num;
+    } else if (str.endsWith("h")) {
+      seconds = num * 3600;
+    } else {
+      seconds = num * 60; // Minutes par défaut
+    }
+    return { km: 0, seconds, hasParsed: true };
+  }
+}
+
 // ==========================================
 // VOLUME & STATS CALCULATIONS
 // ==========================================
@@ -345,7 +353,12 @@ export const calculateWeeklyPlannedKm = (
   return workouts
     .filter((w) => w.weekNumber === weekNum && !w.isRest)
     .reduce((acc, w) => {
-      const kmVal = w.km !== undefined && w.km !== null ? parseFloat(String(w.km)) : 0;
+      let kmVal = 0;
+      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+        kmVal = parseFloat(String(w.km));
+      } else if (w.steps && w.steps.length > 0) {
+        kmVal = calculateStepMetrics(w.steps).totalKm;
+      }
       return acc + (isNaN(kmVal) ? 0 : kmVal);
     }, 0);
 };
@@ -366,9 +379,6 @@ export const calculateWeeklyCompletedKm = (
     }, 0);
 };
 
-/**
- * Calcule le kilométrage réalisé sans compter plusieurs fois la même activité Garmin importée
- */
 export const calculateWeeklyCompletedKmDeduplicated = (
   workouts: Workout[],
   weekNum: number,
@@ -403,33 +413,34 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
     return { totalKm: 0, totalMinutes: 0 };
   }
 
-  steps.forEach((step) => {
-    const reps = step.type === "repeat" ? step.reps || 1 : 1;
-    let stepKm = 0;
-    let stepSec = 0;
+  const computeStepsRecursive = (stepList: WorkoutStep[], parentReps = 1) => {
+    stepList.forEach((step) => {
+      const reps = (step.type === "repeat" ? (step.reps || 1) : 1) * parentReps;
 
-    if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-      const nested = calculateStepMetrics(step.nestedSteps);
-      stepKm = nested.totalKm * reps;
-      stepSec = nested.totalMinutes * 60 * reps;
-    } else {
-      const rawVal = step.durationOrDist || "";
-      const valueNum = parseFloat(rawVal) || 0;
-      const paceSec = getStepPaceInSeconds(step);
-
-      if (step.endCondition === "distance") {
-        const isMeters = rawVal.toLowerCase().includes("m") && !rawVal.toLowerCase().includes("km");
-        stepKm = isMeters ? valueNum / 1000 : valueNum;
-        stepSec = stepKm * paceSec;
+      if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
+        computeStepsRecursive(step.nestedSteps, reps);
       } else {
-        stepSec = valueNum * 60;
-        stepKm = paceSec > 0 ? stepSec / paceSec : 0;
-      }
-    }
+        const paceSec = getStepPaceInSeconds(step);
+        const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
 
-    totalKm += stepKm;
-    totalSeconds += stepSec;
-  });
+        if (hasParsed) {
+          if (km > 0) {
+            const stepKm = km * reps;
+            const stepSec = (km * paceSec) * reps;
+            totalKm += stepKm;
+            totalSeconds += stepSec;
+          } else if (seconds > 0) {
+            const stepSec = seconds * reps;
+            const stepKm = paceSec > 0 ? (stepSec / paceSec) : 0;
+            totalKm += stepKm;
+            totalSeconds += stepSec;
+          }
+        }
+      }
+    });
+  };
+
+  computeStepsRecursive(steps);
 
   return {
     totalKm: Math.round(totalKm * 10) / 10,
@@ -521,24 +532,21 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
 
   let profile: PaceProfilePoint[] = [];
 
-  steps.forEach((step) => {
-    const reps = step.type === "repeat" ? step.reps || 1 : 1;
-
-    for (let r = 0; r < reps; r++) {
+  const processStep = (step: WorkoutStep, repetitions = 1) => {
+    for (let r = 0; r < repetitions; r++) {
       if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        profile = profile.concat(generatePaceProfile(step.nestedSteps));
+        step.nestedSteps.forEach((nested) => processStep(nested, 1));
       } else {
-        const rawVal = step.durationOrDist || "";
-        const valueNum = parseFloat(rawVal) || 0;
         const paceSec = getStepPaceInSeconds(step);
+        const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
 
-        let durSec = 0;
-        if (step.endCondition === "distance") {
-          const isMeters = rawVal.toLowerCase().includes("m") && !rawVal.toLowerCase().includes("km");
-          const km = isMeters ? valueNum / 1000 : valueNum;
-          durSec = km * paceSec;
-        } else {
-          durSec = valueNum * 60;
+        let durSec = 60;
+        if (hasParsed) {
+          if (km > 0) {
+            durSec = km * paceSec;
+          } else if (seconds > 0) {
+            durSec = seconds;
+          }
         }
 
         const mins = Math.floor(paceSec / 60);
@@ -547,13 +555,18 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
 
         profile.push({
           label: step.durationOrDist || step.type,
-          durationSec: durSec > 0 ? durSec : 60,
+          durationSec: durSec > 0 ? Math.round(durSec) : 60,
           paceSecPerKm: paceSec,
           paceFormatted,
           type: step.type,
         });
       }
     }
+  };
+
+  steps.forEach((step) => {
+    const reps = step.type === "repeat" ? (step.reps || 1) : 1;
+    processStep(step, reps);
   });
 
   return profile;

@@ -199,15 +199,19 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   };
 
   const handleSaveAndClose = () => {
-    if (!workout.steps || workout.steps.length === 0) {
-      setErrorMsg(
-        "Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
-      );
-      return;
-    }
-    setErrorMsg(null);
-    onClose();
-  };
+      if (!workout.steps || workout.steps.length === 0) {
+        setErrorMsg(
+          "Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
+        );
+        return;
+      }
+      setErrorMsg(null);
+      // Met à jour la distance du workout avec le total calculé
+      if (metrics.totalKm && Number(metrics.totalKm) > 0) {
+        onUpdateWorkout(workout.id, "km", metrics.totalKm.toString());
+      }
+      onClose();
+    };
 
   const parseStepDurationOrDist = (raw?: string, endCondition?: string) => {
     if (!raw) return { val: "", unit: endCondition === "distance" ? "m" : "min" };
