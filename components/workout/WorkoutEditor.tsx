@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
-import { calculateStepMetrics, generatePaceProfile, getWorkoutTypeConfig } from "../../utils/calculations";
+import { calculateStepMetrics, getWorkoutTypeConfig } from "../../utils/calculations";
+import { PaceProfileChart } from "./PaceProfileChart";
 
 interface WorkoutEditorProps {
   workout: Workout;
@@ -37,131 +38,6 @@ const getRpeColor = (rpe: number) => {
   if (rpe <= 5) return "#f59e0b";
   if (rpe <= 7) return "#f97316";
   return "#ef4444";
-};
-
-export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
-  const profile = generatePaceProfile(steps);
-
-  if (!profile || profile.length === 0) return null;
-
-  const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
-  if (totalTimeSec <= 0) return null;
-
-  const minPace = Math.min(...profile.map((p) => p.paceSecPerKm));
-  const maxPace = Math.max(...profile.map((p) => p.paceSecPerKm));
-  const paceRange = maxPace - minPace || 60;
-
-  const formatPaceFromSec = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const getColor = (type: string) => {
-    switch (type) {
-      case "echauffement":
-        return "#CF6361";
-      case "corps":
-        return "#CF9A61";
-      case "recup":
-        return "#CDCF61";
-      case "retour_calme":
-        return "#3b82f6";
-      default:
-        return "#10b981";
-    }
-  };
-
-  // Calcul des coordonnées x et largeurs cumulées proportionnelles sur une base 1000
-  let currentX = 0;
-  const bars = profile.map((point) => {
-    const barWidth = ((point.durationSec || 0) / totalTimeSec) * 1000;
-    const x = currentX;
-    currentX += barWidth;
-
-    // Hauteur proportionnelle à l'allure (plus c'est rapide, plus c'est haut)
-    const normalizedHeightPct =
-      paceRange === 0
-        ? 60
-        : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
-
-    // Sur SVG de hauteur 100 : y = 100 - height
-    const height = Math.max(8, normalizedHeightPct);
-    const y = 100 - height;
-
-    return {
-      ...point,
-      x,
-      barWidth,
-      y,
-      height,
-    };
-  });
-
-  return (
-    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans w-full overflow-hidden">
-      <div className="flex justify-between items-center">
-        <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
-          Profil d'allure de la séance
-        </span>
-        <span className="text-[9px] font-semibold text-stone-400">
-          Total : {Math.round(totalTimeSec / 60)} min
-        </span>
-      </div>
-
-      <div className="flex gap-2 items-stretch w-full">
-        {/* Axe Y (Allures) */}
-        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80 shrink-0">
-          <span>{formatPaceFromSec(minPace)}</span>
-          <span>{formatPaceFromSec(minPace + paceRange / 2)}</span>
-          <span>{formatPaceFromSec(maxPace)}</span>
-        </div>
-
-        {/* Graphique SVG vectoriel : garanti sans dépassement et 100% fidèle aux durées */}
-        <div className="flex-1 min-w-0 bg-stone-900/60 rounded-xl p-2 border border-stone-800/60 h-24 flex items-end">
-          <svg
-            viewBox="0 0 1000 100"
-            preserveAspectRatio="none"
-            className="w-full h-full overflow-visible"
-          >
-            {bars.map((bar, i) => (
-              <g key={i} className="group cursor-pointer">
-                <rect
-                  x={bar.x}
-                  y={bar.y}
-                  width={Math.max(bar.barWidth, 1.5)}
-                  height={bar.height}
-                  fill={getColor(bar.type)}
-                  rx="1.5"
-                  className="transition-all hover:opacity-80"
-                >
-                  <title>{`${bar.label} - ${bar.paceFormatted} (${Math.round((bar.durationSec || 0) / 60)} min)`}</title>
-                </rect>
-              </g>
-            ))}
-          </svg>
-        </div>
-      </div>
-
-      {/* Légende */}
-      <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF6361] inline-block"></span> Échauff.
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF9A61] inline-block"></span> Course
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CDCF61] inline-block"></span> Récup.
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span> Retour au calme
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
@@ -201,19 +77,18 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   };
 
   const handleSaveAndClose = () => {
-      if (!workout.steps || workout.steps.length === 0) {
-        setErrorMsg(
-          "Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
-        );
-        return;
-      }
-      setErrorMsg(null);
-      // Met à jour la distance du workout avec le total calculé
-      if (metrics.totalKm && Number(metrics.totalKm) > 0) {
-        onUpdateWorkout(workout.id, "km", metrics.totalKm.toString());
-      }
-      onClose();
-    };
+    if (!workout.steps || workout.steps.length === 0) {
+      setErrorMsg(
+        "Vous devez ajouter au moins un bloc d'entraînement pour valider et enregistrer cette séance."
+      );
+      return;
+    }
+    setErrorMsg(null);
+    if (metrics.totalKm && Number(metrics.totalKm) > 0) {
+      onUpdateWorkout(workout.id, "km", metrics.totalKm.toString());
+    }
+    onClose();
+  };
 
   const parseStepDurationOrDist = (raw?: string, endCondition?: string) => {
     if (!raw) return { val: "", unit: endCondition === "distance" ? "m" : "min" };
@@ -430,7 +305,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) SANS PRÉ-REMPLISSAGE */}
+              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) */}
               <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
                 <div>
                   <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
@@ -638,6 +513,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
+        {/* PROFIL D'ALLURE CHRONOLOGIQUE (Importé depuis PaceProfileChart.tsx) */}
         <PaceProfileChart steps={workout.steps} />
 
         {/* PARAMÈTRES GÉNÉRAUX */}

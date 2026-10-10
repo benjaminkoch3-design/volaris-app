@@ -6,7 +6,6 @@ import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import {
   calculateStepMetrics,
   getStepTypeLabel,
-  generatePaceProfile,
 } from "../../utils/calculations";
 import {
   GarminLogo,
@@ -14,6 +13,7 @@ import {
   StravaLogo,
 } from "../common/BrandLogos";
 import { WorkoutTelemetryModal } from "./WorkoutTelemetryModal";
+import { PaceProfileChart } from "./PaceProfileChart";
 
 interface WorkoutDetailProps {
   workout: Workout;
@@ -29,117 +29,6 @@ const getRpeColor = (rpe: number): { text: string; bg: string; border: string } 
   if (rpe <= 5) return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" };
   if (rpe <= 7) return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" };
   return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" };
-};
-
-export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
-  const profile = generatePaceProfile(steps);
-  if (!profile || profile.length === 0) return null;
-
-  const totalTimeSec = profile.reduce((acc, p) => acc + p.durationSec, 0);
-  if (totalTimeSec === 0) return null;
-
-  const minPace = Math.min(...profile.map((p) => p.paceSecPerKm));
-  const maxPace = Math.max(...profile.map((p) => p.paceSecPerKm));
-  const paceRange = maxPace - minPace || 60;
-
-  const formatPaceFromSec = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const getColor = (type: string) => {
-    switch (type) {
-      case "echauffement": return "#CF6361";
-      case "corps": return "#CF9A61";
-      case "recup": return "#CDCF61";
-      case "retour_calme": return "#3b82f6";
-      default: return "#10b981";
-    }
-  };
-
-  return (
-    <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2 font-sans">
-      <div className="flex justify-between items-center">
-        <span className="text-[10px] font-bold uppercase text-stone-400 tracking-wider">
-          Profil d'allure de la séance
-        </span>
-        <span className="text-[9px] font-semibold text-stone-400">
-          Total : {Math.round(totalTimeSec / 60)} min
-        </span>
-      </div>
-
-      <div className="flex gap-2 items-stretch">
-        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-400 py-1 select-none pr-1 border-r border-stone-800/80">
-          <span>{formatPaceFromSec(minPace)}</span>
-          <span>{formatPaceFromSec(minPace + paceRange / 2)}</span>
-          <span>{formatPaceFromSec(maxPace)}</span>
-        </div>
-
-        <div className="flex-1 space-y-1">
-          <div className="h-24 w-full bg-stone-900/60 rounded-xl p-2 flex items-end gap-1.5 relative overflow-hidden border border-stone-800/60">
-            {profile.map((point, i) => {
-              const widthPct = (point.durationSec / totalTimeSec) * 100;
-              const normalizedHeight =
-                paceRange === 0 ? 60 : 25 + ((maxPace - point.paceSecPerKm) / paceRange) * 65;
-
-              return (
-                <div
-                  key={i}
-                  style={{
-                    width: `${Math.max(widthPct, 4)}%`,
-                    height: `${normalizedHeight}%`,
-                    backgroundColor: getColor(point.type),
-                  }}
-                  className="rounded-t-sm transition-all relative group cursor-pointer hover:brightness-125 flex flex-col justify-end items-center"
-                >
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
-                    <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
-                      <div>{point.label}</div>
-                      <div className="text-[#CF9A61]">{point.paceFormatted}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-1.5 px-2">
-            {profile.map((point, i) => {
-              const widthPct = (point.durationSec / totalTimeSec) * 100;
-              return (
-                <div key={i} style={{ width: `${Math.max(widthPct, 4)}%` }} className="text-center overflow-hidden">
-                  <span className="block text-[8px] font-bold text-[#CDCF61] truncate">
-                    {point.paceFormatted}
-                  </span>
-                  <span className="block text-[7px] font-semibold text-stone-500 truncate">
-                    {point.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF6361] inline-block"></span> Échauff.
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF9A61] inline-block"></span> Course
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CDCF61] inline-block"></span> Récup.
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span> Retour au calme
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
@@ -581,7 +470,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         )}
 
-        {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
+        {/* PROFIL D'ALLURE CHRONOLOGIQUE (Composant SVG unifié) */}
         <PaceProfileChart steps={workout.steps} />
 
         {/* DESCRIPTION */}
