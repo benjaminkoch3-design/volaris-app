@@ -40,7 +40,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const daysInMonth = lastDayOfMonth.getDate();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Vérification stricte du débriefing réel de l'athlète
+  // Détection stricte d'une séance débriefée par l'athlète
   const isWorkoutDebriefed = (w: any): boolean => {
     const hasExplicitFlag = w.completed === true || w.isCompleted === true;
     const hasRealRpe =
@@ -151,7 +151,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
         <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: startDayIndex }).map((_, i) => (
-            <div key={`empty_${i}`} className="min-h-[85px] bg-stone-50/50 dark:bg-stone-950/20 rounded-2xl border border-transparent" />
+            <div key={`empty_${i}`} className="min-h-[90px] bg-stone-50/50 dark:bg-stone-950/20 rounded-2xl border border-transparent" />
           ))}
 
           {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -161,13 +161,11 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             const isPast = dateStr < todayStr;
             const daySessions = sessionsByDate[dateStr] || [];
 
-            const debriefedCount = daySessions.filter((s) => isWorkoutDebriefed(s.workout)).length;
-
             return (
               <div
                 key={dateStr}
                 onClick={() => onSelectDate(dateStr)}
-                className={`min-h-[85px] p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
+                className={`min-h-[95px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-start group ${
                   isToday
                     ? "bg-[#CDCF61]/15 border-[#CDCF61]/70 shadow-md"
                     : daySessions.length > 0
@@ -175,10 +173,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     : "bg-stone-50/40 dark:bg-stone-950/40 border-stone-200/60 dark:border-stone-800/50 hover:border-stone-300 dark:hover:border-stone-700"
                 }`}
               >
-                {/* EN-TÊTE DU JOUR */}
-                <div className="flex justify-between items-center">
+                {/* EN-TÊTE DU JOUR (SEULEMENT LE NUMÉRO) */}
+                <div className="flex items-center justify-between mb-1">
                   <span
-                    className={`text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center ${
+                    className={`text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center ${
                       isToday
                         ? "bg-[#CDCF61] text-stone-950 font-extrabold"
                         : "text-stone-700 dark:text-stone-300"
@@ -186,29 +184,15 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   >
                     {dayNum}
                   </span>
-
-                  {daySessions.length > 0 && (
-                    <span
-                      className={`text-[8px] font-black px-1.5 py-0.5 rounded-md border ${
-                        debriefedCount === daySessions.length
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                          : debriefedCount > 0
-                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                          : "bg-stone-200 dark:bg-[#CDCF61]/20 text-stone-700 dark:text-[#CDCF61] border-stone-300 dark:border-[#CDCF61]/30"
-                      }`}
-                    >
-                      {debriefedCount > 0 ? `✓ ${debriefedCount}/${daySessions.length}` : daySessions.length}
-                    </span>
-                  )}
                 </div>
 
-                {/* LISTE DES PASTILLES SÉANCES DU JOUR */}
-                <div className="space-y-1 mt-1.5">
-                  {daySessions.slice(0, 3).map((s, idx) => {
+                {/* LISTE DES SÉANCES EN FORMAT ULTRA-COMPACT */}
+                <div className="space-y-1 w-full overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
+                  {daySessions.map((s, idx) => {
                     const w = s.workout as any;
                     const isDone = isWorkoutDebriefed(w);
 
-                    // Couleur exacte issue du plan ou repli sécurisé
+                    // Couleur exacte issue du plan ou fallback calculé
                     const fallbackConfig = getWorkoutTypeConfig(w.type);
                     const workoutColor: string =
                       w.color ||
@@ -216,48 +200,48 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       (fallbackConfig as any)?.color ||
                       "#CF9A61";
 
-                    // Titre réel de la séance
+                    // Titre exact de la séance
                     const workoutTitle = w.title || (fallbackConfig as any)?.label || "Séance";
-                    const firstName = (s.athlete.name || "Athlète").split(" ")[0];
+                    const initialLetter = (s.athlete.name || "A").trim().charAt(0).toUpperCase();
 
                     return (
                       <div
                         key={idx}
                         style={{
-                          backgroundColor: `${workoutColor}28`,
-                          borderColor: `${workoutColor}60`,
+                          backgroundColor: workoutColor,
+                          borderColor: `${workoutColor}cc`,
                         }}
-                        className="text-[8px] font-bold px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-xs"
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs text-stone-950 w-full"
                         title={`${s.athlete.name} • ${workoutTitle} ${
                           isDone
-                            ? "(Réalisée ✓)"
+                            ? "(Validée ✓)"
                             : isPast
-                            ? "(Non réalisée ✕)"
-                            : "(À venir)"
+                            ? "(Non débriefée ✕)"
+                            : "(Prévue)"
                         }`}
                       >
-                        {/* Athlète + Titre de la séance */}
-                        <div className="flex items-center gap-1 min-w-0 truncate">
-                          <span className="font-black text-stone-950 dark:text-stone-100 truncate">
-                            {firstName}
+                        {/* Initiale de l'athlète + Titre de la séance */}
+                        <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
+                          <span className="w-3.5 h-3.5 rounded-full bg-stone-950/20 flex items-center justify-center text-[7.5px] font-black shrink-0 text-stone-950">
+                            {initialLetter}
                           </span>
-                          <span className="text-[7.5px] font-medium text-stone-700 dark:text-stone-300 truncate">
-                            • {workoutTitle}
+                          <span className="truncate tracking-tight font-extrabold">
+                            {workoutTitle}
                           </span>
                         </div>
 
-                        {/* Statut d'exécution conditionnel */}
+                        {/* Statut d'exécution (✓ Fait / ✕ Passé non fait / Rien si futur) */}
                         {isDone ? (
                           <span
-                            className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 shrink-0"
-                            title="Séance validée"
+                            className="text-[8.5px] font-black text-emerald-950 bg-emerald-400/80 px-1 rounded shrink-0 leading-none py-0.5"
+                            title="Validée"
                           >
                             ✓
                           </span>
                         ) : isPast ? (
                           <span
-                            className="text-[9px] font-black text-rose-600 dark:text-rose-400 shrink-0"
-                            title="Séance non réalisée"
+                            className="text-[8px] font-black text-white bg-rose-600/90 px-1 rounded shrink-0 leading-none py-0.5"
+                            title="Non débriefée"
                           >
                             ✕
                           </span>
@@ -265,12 +249,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       </div>
                     );
                   })}
-
-                  {daySessions.length > 3 && (
-                    <span className="text-[7.5px] font-black text-stone-500 block text-right">
-                      +{daySessions.length - 3} autre(s)
-                    </span>
-                  )}
                 </div>
               </div>
             );
