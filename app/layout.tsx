@@ -36,7 +36,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased transition-colors duration-200">
+      <body className="min-h-screen bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased transition-colors duration-200 selection:bg-[#CDCF61]/30 selection:text-stone-900 dark:selection:text-stone-100">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

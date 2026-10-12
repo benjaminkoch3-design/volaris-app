@@ -66,7 +66,7 @@
 }
 
 /* ========================================================
-   4. RÈGLES GLOBALES DE LISIBILITÉ
+   4. RÈGLES GLOBALES DE LISIBILITÉ & SÉCURITÉ
    ======================================================== */
 body {
   background-color: var(--background);
@@ -82,7 +82,53 @@ select {
   color: var(--foreground);
 }
 
-/* Style de barre de défilement discrète */
+/* ========================================================
+   5. FILET DE SÉCURITÉ : TEXTES EN MODE CLAIR & CHAT
+   ======================================================== */
+/* En mode clair, toute classe "text-white" non portée par un bouton/badge coloré
+   devient sombre pour rester lisible (règle le nom du coach dans le chat, titres, etc.) */
+:root:not(.dark) :where(
+  h1.text-white,
+  h2.text-white,
+  h3.text-white,
+  h4.text-white,
+  p.text-white,
+  span.text-white:not([class*="bg-"]),
+  div.text-white:not([class*="bg-"])
+) {
+  color: var(--color-stone-100) !important;
+}
+
+/* En-tête et noms dans les pages de discussion / messagerie */
+:root:not(.dark) [class*="chat"] h1,
+:root:not(.dark) [class*="chat"] h2,
+:root:not(.dark) [class*="chat"] h3,
+:root:not(.dark) [class*="chat"] [class*="title"],
+:root:not(.dark) [class*="chat"] [class*="name"] {
+  color: var(--color-stone-100);
+}
+
+/* ========================================================
+   6. VERROUILLAGE DU LOGO : DOIT RESTER TOUJOURS FONCÉ
+   ======================================================== */
+/* Empêche le logo de devenir blanc ou d'inverser ses couleurs */
+.logo,
+[data-logo],
+header img[alt*="logo" i],
+header img[alt*="volaris" i],
+header svg[data-logo] {
+  filter: none !important;
+}
+
+/* Si le logo utilise du texte dans le header */
+header .logo-text,
+header [data-logo-text] {
+  color: #0c0a09 !important;
+}
+
+/* ========================================================
+   7. BARRE DE DÉFILEMENT
+   ======================================================== */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
   height: 4px;
