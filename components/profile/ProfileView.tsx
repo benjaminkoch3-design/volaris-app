@@ -461,7 +461,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn max-w-2xl mx-auto font-sans">
+      <div className="space-y-6 animate-fadeIn w-full font-sans">
       
       {/* MODALE DE RECENTRAGE & ZOOM PHOTO DE PROFIL */}
       {cropModalOpen && cropImageSrc && (
@@ -1059,8 +1059,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         ) : null}
       </div>
 
-      {!isEditingProfile || isReadOnly ? (
-        <div className="space-y-6">
+{!isEditingProfile || isReadOnly ? (
+        <div className="space-y-6 w-full">
+          {/* PLEINE LARGEUR : BOUTON BIBLIOTHÈQUE DE SÉANCES */}
           {onOpenAthleteLibrary && (
             <button
               type="button"
@@ -1084,1040 +1085,1049 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* 1. ACCORDÉON VMA */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenVmaSection(!openVmaSection)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                ⚡ VMA, Allures & Seuils
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openVmaSection ? "▲" : "▼"}
-              </span>
-            </button>
+          {/* GRILLE 2 COLONNES SUR ORDINATEUR */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {/* ====== COLONNE GAUCHE : PHYSIOLOGIE & PERFORMANCES ====== */}
+            <div className="space-y-5">
+              {/* 1. ACCORDÉON VMA */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenVmaSection(!openVmaSection)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    ⚡ VMA, Allures & Seuils
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openVmaSection ? "▲" : "▼"}
+                  </span>
+                </button>
 
-            {openVmaSection && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-5">
-                {(() => {
-                  const thresh = calculateThresholds(
-                    vma,
-                    records.r10k || "",
-                    records.rSemi || ""
-                  );
-
-                  return (
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                          Estimation des Seuils
-                        </span>
-                        {thresh && thresh.isFallback && (
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded border text-[#CF9A61] bg-[#CF9A61]/10 border-[#CF9A61]/30">
-                            Estimé via VMA
-                          </span>
-                        )}
-                      </div>
-
-                      {thresh ? (
-                        <div className="space-y-2">
-                          <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-black uppercase text-[#B34D4D]">
-                                Seuil Anaérobie
-                              </span>
-                              <span className="text-[10px] font-extrabold bg-[#B34D4D]/20 text-[#B34D4D] px-2 py-0.5 rounded border border-[#B34D4D]/30">
-                                {thresh.lt2Pct} % VMA
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs pt-1">
-                              <span className="text-stone-100 font-bold">
-                                {thresh.lt2Speed} km/h
-                              </span>
-                              <span className="text-stone-100 font-extrabold">
-                                {thresh.lt2Pace} min/km
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-black uppercase text-[#4DB380]">
-                                Seuil Aérobie
-                              </span>
-                              <span className="text-[10px] font-extrabold bg-[#4DB380]/20 text-[#4DB380] px-2 py-0.5 rounded border border-[#4DB380]/30">
-                                {thresh.lt1Pct} % VMA
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs pt-1">
-                              <span className="text-stone-100 font-bold">
-                                {thresh.lt1Speed} km/h
-                              </span>
-                              <span className="text-stone-100 font-extrabold">
-                                {thresh.lt1Pace} min/km
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })()}
-
-                <div className="pt-3 border-t border-stone-800/80 space-y-4">
-                  <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
-                    <span className="text-stone-400 font-medium">VMA Renseignée</span>
-                    <span className="font-bold text-stone-100 text-xs">
-                      {unknownVma
-                        ? "Non définie"
-                        : vma && parseFloat(vma) > 0
-                        ? `${vma} km/h • ${formatPaceFromSpeed(
-                            parseFloat(vma)
-                          )} min/km`
-                        : "-"}
-                    </span>
-                  </div>
-
-                  {vma && !unknownVma && parseFloat(vma) > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                          Pourcentages de VMA & Records associés
-                        </span>
-                      </div>
-
-                      <div className="flex overflow-x-auto gap-2.5 pb-2 custom-scrollbar">
-                        {[60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120].map(
-                          (pct) => {
-                            const speed = (parseFloat(vma) * pct) / 100;
-                            const pace = formatPaceFromSpeed(speed);
-
-                            const matchingRecords = recordVmaPcts.filter(
-                              (r) => Math.abs(r.pct - pct) < 2.5
-                            );
-
-                            return (
-                              <div
-                                key={pct}
-                                className={`p-2.5 rounded-2xl border flex-shrink-0 text-center min-w-[90px] space-y-1 transition ${
-                                  matchingRecords.length > 0
-                                    ? "bg-[#CF9A61]/10 border-[#CF9A61]/60 shadow-lg"
-                                    : "bg-stone-950 border-stone-800"
-                                }`}
-                              >
-                                <div className="text-[10px] font-black text-[#CF9A61]">
-                                  {pct}% VMA
-                                </div>
-                                <div className="text-xs font-bold text-stone-100">
-                                  {pace}{" "}
-                                  <span className="text-[8px] font-normal text-stone-400">
-                                    min/km
-                                  </span>
-                                </div>
-
-                                {matchingRecords.length > 0 && (
-                                  <div className="pt-1 border-t border-[#CF9A61]/30 space-y-1">
-                                    {matchingRecords.map((rec) => (
-                                      <div
-                                        key={rec.key}
-                                        className="bg-[#CF9A61] text-stone-950 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md shadow-sm"
-                                        title={`Record : ${rec.label} (${rec.pct}%)`}
-                                      >
-                                        {rec.label}
-                                        <div className="text-[7.5px] font-extrabold opacity-90">
-                                          {rec.pct}%
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 2. ACCORDÉON CARDIO */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenCardioSection(!openCardioSection)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                ❤️ Fréquence Cardiaque & Zones FC
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openCardioSection ? "▲" : "▼"}
-              </span>
-            </button>
-
-            {openCardioSection && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
-                    <span className="text-stone-400">FC Repos</span>
-                    <span className="font-bold text-stone-100">
-                      {fcRest ? `${fcRest} bpm` : "-"}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-1.5 text-xs">
-                    <span className="text-stone-400">FC Max</span>
-                    <span className="font-bold text-stone-100">
-                      {fcMax ? `${fcMax} bpm` : "-"}
-                    </span>
-                  </div>
-                </div>
-
-                {(() => {
-                  const restNum = parseInt(fcRest, 10);
-                  const maxNum = parseInt(fcMax, 10);
-                  if (!restNum || !maxNum || maxNum <= restNum) {
-                    return (
-                      <div className="text-[10px] text-stone-400 italic bg-stone-950/80 p-3 rounded-xl border border-stone-800">
-                        Veuillez renseigner votre FC de repos et votre FC max pour calculer les zones de FC.
-                      </div>
-                    );
-                  }
-
-                  const rfc = maxNum - restNum;
-                  const zones = [
-                    {
-                      zone: "Z1",
-                      pct: "50–60 %",
-                      min: Math.round(restNum + 0.5 * rfc),
-                      max: Math.round(restNum + 0.6 * rfc),
-                      intensity: "Très facile",
-                      usage: "Échauffement, récupération",
-                      badge: "bg-[#007CC3]/20 text-[#007CC3] border-[#007CC3]/40",
-                    },
-                    {
-                      zone: "Z2",
-                      pct: "60–70 %",
-                      min: Math.round(restNum + 0.6 * rfc),
-                      max: Math.round(restNum + 0.7 * rfc),
-                      intensity: "Facile",
-                      usage: "Endurance fondamentale",
-                      badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
-                    },
-                    {
-                      zone: "Z3",
-                      pct: "70–80 %",
-                      min: Math.round(restNum + 0.7 * rfc),
-                      max: Math.round(restNum + 0.8 * rfc),
-                      intensity: "Modérée",
-                      usage: "Endurance active, allure marathon",
-                      badge: "bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40",
-                    },
-                    {
-                      zone: "Z4",
-                      pct: "80–90 %",
-                      min: Math.round(restNum + 0.8 * rfc),
-                      max: Math.round(restNum + 0.9 * rfc),
-                      intensity: "Soutenue",
-                      usage: "Seuil, allure 10 km",
-                      badge: "bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40",
-                    },
-                    {
-                      zone: "Z5",
-                      pct: "90–100 %",
-                      min: Math.round(restNum + 0.9 * rfc),
-                      max: Math.round(restNum + 1.0 * rfc),
-                      intensity: "Très intense",
-                      usage: "VO₂max, intervalles courts",
-                      badge: "bg-[#F8283B]/20 text-[#F8283B] border-[#F8283B]/40",
-                    },
-                  ];
-
-                  return (
-                    <div className="pt-2 border-t border-stone-800/80 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                          Tableau des Zones FC (Karvonen)
-                        </span>
-                        <span className="text-[9px] font-bold text-stone-400 bg-stone-950 px-2 py-0.5 rounded border border-stone-800">
-                          RFC = {rfc} bpm
-                        </span>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-2xl border border-stone-800">
-                        <table className="w-full text-left border-collapse text-[10px]">
-                          <thead>
-                            <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 uppercase font-bold text-[9px] tracking-wider">
-                              <th className="py-2.5 px-2.5">Zone (% RFC)</th>
-                              <th className="py-2.5 px-2.5">FC Cible</th>
-                              <th className="py-2.5 px-2.5">Intensité</th>
-                              <th className="py-2.5 px-2.5">Utilisation</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-stone-800/60 bg-stone-950/60">
-                            {zones.map((z) => (
-                              <tr key={z.zone} className="hover:bg-stone-900/40 transition">
-                                <td className="py-2 px-2.5 font-black whitespace-nowrap">
-                                  <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] border font-extrabold ${z.badge}`}>
-                                    {z.zone} ({z.pct})
-                                  </span>
-                                </td>
-                                <td className="py-2 px-2.5 font-bold text-stone-100 whitespace-nowrap">
-                                  {z.min} - {z.max}{" "}
-                                  <span className="text-[8px] text-[#CF9A61]/90 font-bold">bpm</span>
-                                </td>
-                                <td className="py-2 px-2.5 font-semibold text-stone-300 whitespace-nowrap">
-                                  {z.intensity}
-                                </td>
-                                <td className="py-2 px-2.5 text-stone-400 text-[9.5px]">
-                                  {z.usage}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* 3. ACCORDÉON RECORDS */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenRecords(!openRecords)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                🏆 Records Personnels ({Object.keys(records).length})
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openRecords ? "▲" : "▼"}
-              </span>
-            </button>
-
-            {openRecords && (
-              <div className="p-5 pt-2 border-t border-stone-800/60 space-y-3">
-                <p className="text-[10px] text-stone-400 italic">
-                  Chaque record inclut le VDOT (Jack Daniels), le Running Score et le % de VMA maintenu.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {Object.entries(RECORD_DISTANCES_METERS).map(([key, info]) => {
-                    const timeStr = records[key] || "";
-                    const score = getPerformanceScoreForRecord(key, timeStr);
-                    const vmaPct = calculateRecordVmaPercentage(key, timeStr, vmaNum);
-
-                    return (
-                      <div
-                        key={key}
-                        className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2"
-                      >
-                        <div className="flex justify-between items-center border-b border-stone-800/80 pb-1">
-                          <span className="text-xs font-black text-[#CF9A61] uppercase">
-                            {info.label}
-                          </span>
-                          <span className="text-xs font-black text-stone-100">
-                            {timeStr || "-"}
-                          </span>
-                        </div>
-
-                        {score ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="font-bold text-stone-400">
-                                VDOT: <strong className="text-stone-200">{score.vdot}</strong>
-                              </span>
-                              <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30">
-                                Score: {score.runningScore}
-                              </span>
-                            </div>
-
-                            {vmaPct !== null ? (
-                              <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-stone-800/40">
-                                <span className="text-stone-400 font-medium">Maintien VMA :</span>
-                                <span className="font-black text-stone-100">{vmaPct}% VMA</span>
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="text-[9px] text-stone-500 italic block">
-                            Aucun chrono valide
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 4. ACCORDÉON PALMARÈS DE COURSES */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenPalmares(!openPalmares)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                🥇 Mon Palmarès de Course ({races.length})
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openPalmares ? "▲" : "▼"}
-              </span>
-            </button>
-
-            {openPalmares && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                <div className="space-y-2.5">
-                  {races.length === 0 ? (
-                    <p className="text-[11px] text-stone-500 text-center py-2 italic">
-                      Aucune course enregistrée.
-                    </p>
-                  ) : (
-                    races.map((race) => {
-                      const cat = race.category || "route";
-                      const isRoadOrTrack = cat === "route" || cat === "piste";
-
-                      const distMeters = parseDistanceTextToMeters(race.distance);
-                      const score =
-                        isRoadOrTrack && distMeters > 0
-                          ? getPerformanceScoreForRecord(distMeters, race.time)
-                          : null;
-                      const vmaPct =
-                        isRoadOrTrack && distMeters > 0 && vmaNum > 0
-                          ? calculateRecordVmaPercentage(distMeters, race.time, vmaNum)
-                          : null;
-
-                      const categoryConfig = {
-                        route: { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
-                        piste: { label: "Piste", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
-                        trail: { label: "Trail", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
-                        nature: { label: "Course Nature", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
-                      }[cat] || { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" };
+                {openVmaSection && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-5">
+                    {(() => {
+                      const thresh = calculateThresholds(
+                        vma,
+                        records.r10k || "",
+                        records.rSemi || ""
+                      );
 
                       return (
-                        <div
-                          key={race.id}
-                          className="p-3.5 bg-stone-950 rounded-2xl border border-stone-800 space-y-2"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-stone-100 text-xs uppercase">
-                                  {race.name}
-                                </h4>
-                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${categoryConfig.badge}`}>
-                                  {categoryConfig.label}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-stone-400 mt-0.5">
-                                {race.distance}
-                                {race.elevationGain ? ` • ${race.elevationGain}m D+` : ""}
-                                {" "}• Chrono :{" "}
-                                <span className="text-[#CF9A61] font-bold">
-                                  {race.time}
-                                </span>
-                              </div>
-                            </div>
-
-                            {!isReadOnly && (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteRace(race.id)}
-                                className="text-stone-500 hover:text-[#B34D4D] text-xs px-1 transition cursor-pointer"
-                              >
-                                ✕
-                              </button>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
+                              Estimation des Seuils
+                            </span>
+                            {thresh && thresh.isFallback && (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded border text-[#CF9A61] bg-[#CF9A61]/10 border-[#CF9A61]/30">
+                                Estimé via VMA
+                              </span>
                             )}
                           </div>
 
-                          {isRoadOrTrack && score ? (
-                            <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80 flex-wrap gap-2 pt-1.5">
-                              <span className="text-stone-300 font-semibold">
-                                VDOT : <strong className="text-stone-100">{score.vdot}</strong>
-                              </span>
-                              <span className="text-stone-300 font-semibold">
-                                Score : <strong className="text-[#B34D4D]">{score.runningScore}</strong>
-                              </span>
-                              {vmaPct !== null && (
-                                <span className="text-stone-300 font-semibold">
-                                  % VMA : <strong className="text-stone-100">{vmaPct}%</strong>
-                                </span>
-                              )}
-                            </div>
-                          ) : null}
+                          {thresh ? (
+                            <div className="space-y-2">
+                              <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs font-black uppercase text-[#B34D4D]">
+                                    Seuil Anaérobie
+                                  </span>
+                                  <span className="text-[10px] font-extrabold bg-[#B34D4D]/20 text-[#B34D4D] px-2 py-0.5 rounded border border-[#B34D4D]/30">
+                                    {thresh.lt2Pct} % VMA
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs pt-1">
+                                  <span className="text-stone-100 font-bold">
+                                    {thresh.lt2Speed} km/h
+                                  </span>
+                                  <span className="text-stone-100 font-extrabold">
+                                    {thresh.lt2Pace} min/km
+                                  </span>
+                                </div>
+                              </div>
 
-                          {cat === "trail" && race.utmbIndex ? (
-                            <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80">
-                              <span className="text-stone-300 font-semibold">
-                                UTMB Index attribué :
-                              </span>
-                              <span className="font-black text-[#4DB380] bg-[#4DB380]/10 px-2 py-0.5 rounded border border-[#4DB380]/30">
-                                {race.utmbIndex} pts
-                              </span>
+                              <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs font-black uppercase text-[#4DB380]">
+                                    Seuil Aérobie
+                                  </span>
+                                  <span className="text-[10px] font-extrabold bg-[#4DB380]/20 text-[#4DB380] px-2 py-0.5 rounded border border-[#4DB380]/30">
+                                    {thresh.lt1Pct} % VMA
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs pt-1">
+                                  <span className="text-stone-100 font-bold">
+                                    {thresh.lt1Speed} km/h
+                                  </span>
+                                  <span className="text-stone-100 font-extrabold">
+                                    {thresh.lt1Pace} min/km
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           ) : null}
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })()}
 
-                {/* FORMULAIRE AJOUT COURSE */}
-                {!isReadOnly && (
-                  <div className="pt-2 border-t border-stone-800/60 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddRaceForm(!showAddRaceForm)}
-                      className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#CF9A61] font-bold text-xs flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        ➕ Ajouter une nouvelle course
-                      </span>
-                      <span className="text-stone-400 text-xs">
-                        {showAddRaceForm ? "▲" : "▼"}
-                      </span>
-                    </button>
+                    <div className="pt-3 border-t border-stone-800/80 space-y-4">
+                      <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
+                        <span className="text-stone-400 font-medium">VMA Renseignée</span>
+                        <span className="font-bold text-stone-100 text-xs">
+                          {unknownVma
+                            ? "Non définie"
+                            : vma && parseFloat(vma) > 0
+                            ? `${vma} km/h • ${formatPaceFromSpeed(
+                                parseFloat(vma)
+                              )} min/km`
+                            : "-"}
+                        </span>
+                      </div>
 
-                    {showAddRaceForm && (
-                      <form
-                        onSubmit={(e) => {
-                          onAddRace(e);
-                          setShowAddRaceForm(false);
-                        }}
-                        className="bg-stone-950/60 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2"
-                      >
+                      {vma && !unknownVma && parseFloat(vma) > 0 && (
                         <div className="space-y-2">
-                          <input
-                            type="text"
-                            required
-                            placeholder="Nom de la course (Ex: Semi de Paris, UTMB)"
-                            value={newRace.name}
-                            onChange={(e) =>
-                              setNewRace({ ...newRace, name: e.target.value })
-                            }
-                            className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                          />
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
+                              Pourcentages de VMA & Records associés
+                            </span>
+                          </div>
 
-                          <div>
-                            <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
-                              Nature de la course
-                            </label>
-                            <select
-                              value={newRace.category || "route"}
-                              onChange={(e) =>
-                                setNewRace({
-                                  ...newRace,
-                                  category: e.target.value as any,
-                                })
+                          <div className="flex overflow-x-auto gap-2.5 pb-2 custom-scrollbar">
+                            {[60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120].map(
+                              (pct) => {
+                                const speed = (parseFloat(vma) * pct) / 100;
+                                const pace = formatPaceFromSpeed(speed);
+
+                                const matchingRecords = recordVmaPcts.filter(
+                                  (r) => Math.abs(r.pct - pct) < 2.5
+                                );
+
+                                return (
+                                  <div
+                                    key={pct}
+                                    className={`p-2.5 rounded-2xl border flex-shrink-0 text-center min-w-[90px] space-y-1 transition ${
+                                      matchingRecords.length > 0
+                                        ? "bg-[#CF9A61]/10 border-[#CF9A61]/60 shadow-lg"
+                                        : "bg-stone-950 border-stone-800"
+                                    }`}
+                                  >
+                                    <div className="text-[10px] font-black text-[#CF9A61]">
+                                      {pct}% VMA
+                                    </div>
+                                    <div className="text-xs font-bold text-stone-100">
+                                      {pace}{" "}
+                                      <span className="text-[8px] font-normal text-stone-400">
+                                        min/km
+                                      </span>
+                                    </div>
+
+                                    {matchingRecords.length > 0 && (
+                                      <div className="pt-1 border-t border-[#CF9A61]/30 space-y-1">
+                                        {matchingRecords.map((rec) => (
+                                          <div
+                                            key={rec.key}
+                                            className="bg-[#CF9A61] text-stone-950 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md shadow-sm"
+                                            title={`Record : ${rec.label} (${rec.pct}%)`}
+                                          >
+                                            {rec.label}
+                                            <div className="text-[7.5px] font-extrabold opacity-90">
+                                              {rec.pct}%
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
                               }
-                              className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61] cursor-pointer font-bold"
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. ACCORDÉON CARDIO */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenCardioSection(!openCardioSection)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    ❤️ Fréquence Cardiaque & Zones FC
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openCardioSection ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {openCardioSection && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
+                        <span className="text-stone-400">FC Repos</span>
+                        <span className="font-bold text-stone-100">
+                          {fcRest ? `${fcRest} bpm` : "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center py-1.5 text-xs">
+                        <span className="text-stone-400">FC Max</span>
+                        <span className="font-bold text-stone-100">
+                          {fcMax ? `${fcMax} bpm` : "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const restNum = parseInt(fcRest, 10);
+                      const maxNum = parseInt(fcMax, 10);
+                      if (!restNum || !maxNum || maxNum <= restNum) {
+                        return (
+                          <div className="text-[10px] text-stone-400 italic bg-stone-950/80 p-3 rounded-xl border border-stone-800">
+                            Veuillez renseigner votre FC de repos et votre FC max pour calculer les zones de FC.
+                          </div>
+                        );
+                      }
+
+                      const rfc = maxNum - restNum;
+                      const zones = [
+                        {
+                          zone: "Z1",
+                          pct: "50–60 %",
+                          min: Math.round(restNum + 0.5 * rfc),
+                          max: Math.round(restNum + 0.6 * rfc),
+                          intensity: "Très facile",
+                          usage: "Échauffement, récupération",
+                          badge: "bg-[#007CC3]/20 text-[#007CC3] border-[#007CC3]/40",
+                        },
+                        {
+                          zone: "Z2",
+                          pct: "60–70 %",
+                          min: Math.round(restNum + 0.6 * rfc),
+                          max: Math.round(restNum + 0.7 * rfc),
+                          intensity: "Facile",
+                          usage: "Endurance fondamentale",
+                          badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
+                        },
+                        {
+                          zone: "Z3",
+                          pct: "70–80 %",
+                          min: Math.round(restNum + 0.7 * rfc),
+                          max: Math.round(restNum + 0.8 * rfc),
+                          intensity: "Modérée",
+                          usage: "Endurance active, allure marathon",
+                          badge: "bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40",
+                        },
+                        {
+                          zone: "Z4",
+                          pct: "80–90 %",
+                          min: Math.round(restNum + 0.8 * rfc),
+                          max: Math.round(restNum + 0.9 * rfc),
+                          intensity: "Soutenue",
+                          usage: "Seuil, allure 10 km",
+                          badge: "bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40",
+                        },
+                        {
+                          zone: "Z5",
+                          pct: "90–100 %",
+                          min: Math.round(restNum + 0.9 * rfc),
+                          max: Math.round(restNum + 1.0 * rfc),
+                          intensity: "Très intense",
+                          usage: "VO₂max, intervalles courts",
+                          badge: "bg-[#F8283B]/20 text-[#F8283B] border-[#F8283B]/40",
+                        },
+                      ];
+
+                      return (
+                        <div className="pt-2 border-t border-stone-800/80 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
+                              Tableau des Zones FC (Karvonen)
+                            </span>
+                            <span className="text-[9px] font-bold text-stone-400 bg-stone-950 px-2 py-0.5 rounded border border-stone-800">
+                              RFC = {rfc} bpm
+                            </span>
+                          </div>
+
+                          <div className="overflow-x-auto rounded-2xl border border-stone-800">
+                            <table className="w-full text-left border-collapse text-[10px]">
+                              <thead>
+                                <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 uppercase font-bold text-[9px] tracking-wider">
+                                  <th className="py-2.5 px-2.5">Zone (% RFC)</th>
+                                  <th className="py-2.5 px-2.5">FC Cible</th>
+                                  <th className="py-2.5 px-2.5">Intensité</th>
+                                  <th className="py-2.5 px-2.5">Utilisation</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-stone-800/60 bg-stone-950/60">
+                                {zones.map((z) => (
+                                  <tr key={z.zone} className="hover:bg-stone-900/40 transition">
+                                    <td className="py-2 px-2.5 font-black whitespace-nowrap">
+                                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] border font-extrabold ${z.badge}`}>
+                                        {z.zone} ({z.pct})
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-2.5 font-bold text-stone-100 whitespace-nowrap">
+                                      {z.min} - {z.max}{" "}
+                                      <span className="text-[8px] text-[#CF9A61]/90 font-bold">bpm</span>
+                                    </td>
+                                    <td className="py-2 px-2.5 font-semibold text-stone-300 whitespace-nowrap">
+                                      {z.intensity}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-stone-400 text-[9.5px]">
+                                      {z.usage}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. ACCORDÉON RECORDS */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenRecords(!openRecords)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    🏆 Records Personnels ({Object.keys(records).length})
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openRecords ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {openRecords && (
+                  <div className="p-5 pt-2 border-t border-stone-800/60 space-y-3">
+                    <p className="text-[10px] text-stone-400 italic">
+                      Chaque record inclut le VDOT (Jack Daniels), le Running Score et le % de VMA maintenu.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      {Object.entries(RECORD_DISTANCES_METERS).map(([key, info]) => {
+                        const timeStr = records[key] || "";
+                        const score = getPerformanceScoreForRecord(key, timeStr);
+                        const vmaPct = calculateRecordVmaPercentage(key, timeStr, vmaNum);
+
+                        return (
+                          <div
+                            key={key}
+                            className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2"
+                          >
+                            <div className="flex justify-between items-center border-b border-stone-800/80 pb-1">
+                              <span className="text-xs font-black text-[#CF9A61] uppercase">
+                                {info.label}
+                              </span>
+                              <span className="text-xs font-black text-stone-100">
+                                {timeStr || "-"}
+                              </span>
+                            </div>
+
+                            {score ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="font-bold text-stone-400">
+                                    VDOT: <strong className="text-stone-200">{score.vdot}</strong>
+                                  </span>
+                                  <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30">
+                                    Score: {score.runningScore}
+                                  </span>
+                                </div>
+
+                                {vmaPct !== null ? (
+                                  <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-stone-800/40">
+                                    <span className="text-stone-400 font-medium">Maintien VMA :</span>
+                                    <span className="font-black text-stone-100">{vmaPct}% VMA</span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-[9px] text-stone-500 italic block">
+                                Aucun chrono valide
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. ACCORDÉON PALMARÈS DE COURSES */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenPalmares(!openPalmares)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    🥇 Mon Palmarès de Course ({races.length})
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openPalmares ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {openPalmares && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
+                    <div className="space-y-2.5">
+                      {races.length === 0 ? (
+                        <p className="text-[11px] text-stone-500 text-center py-2 italic">
+                          Aucune course enregistrée.
+                        </p>
+                      ) : (
+                        races.map((race) => {
+                          const cat = race.category || "route";
+                          const isRoadOrTrack = cat === "route" || cat === "piste";
+
+                          const distMeters = parseDistanceTextToMeters(race.distance);
+                          const score =
+                            isRoadOrTrack && distMeters > 0
+                              ? getPerformanceScoreForRecord(distMeters, race.time)
+                              : null;
+                          const vmaPct =
+                            isRoadOrTrack && distMeters > 0 && vmaNum > 0
+                              ? calculateRecordVmaPercentage(distMeters, race.time, vmaNum)
+                              : null;
+
+                          const categoryConfig = {
+                            route: { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
+                            piste: { label: "Piste", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
+                            trail: { label: "Trail", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
+                            nature: { label: "Course Nature", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
+                          }[cat] || { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" };
+
+                          return (
+                            <div
+                              key={race.id}
+                              className="p-3.5 bg-stone-950 rounded-2xl border border-stone-800 space-y-2"
                             >
-                              <option value="route">Route</option>
-                              <option value="piste">Piste</option>
-                              <option value="trail">Trail</option>
-                              <option value="nature">Course Nature</option>
-                            </select>
-                          </div>
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-bold text-stone-100 text-xs uppercase">
+                                      {race.name}
+                                    </h4>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${categoryConfig.badge}`}>
+                                      {categoryConfig.label}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-stone-400 mt-0.5">
+                                    {race.distance}
+                                    {race.elevationGain ? ` • ${race.elevationGain}m D+` : ""}
+                                    {" "}• Chrono :{" "}
+                                    <span className="text-[#CF9A61] font-bold">
+                                      {race.time}
+                                    </span>
+                                  </div>
+                                </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              type="text"
-                              required
-                              placeholder="Distance (Ex: 21.1 km, 10 km)"
-                              value={newRace.distance}
-                              onChange={(e) =>
-                                setNewRace({
-                                  ...newRace,
-                                  distance: e.target.value,
-                                })
-                              }
-                              className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                            />
-                            <input
-                              type="text"
-                              required
-                              placeholder="Chrono (Ex: 1:32:00)"
-                              value={newRace.time}
-                              onChange={(e) =>
-                                setNewRace({ ...newRace, time: e.target.value })
-                              }
-                              className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                            />
-                          </div>
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteRace(race.id)}
+                                    className="text-stone-500 hover:text-[#B34D4D] text-xs px-1 transition cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
 
-                          {(newRace.category === "trail" ||
-                            newRace.category === "nature") && (
-                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              {isRoadOrTrack && score ? (
+                                <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80 flex-wrap gap-2 pt-1.5">
+                                  <span className="text-stone-300 font-semibold">
+                                    VDOT : <strong className="text-stone-100">{score.vdot}</strong>
+                                  </span>
+                                  <span className="text-stone-300 font-semibold">
+                                    Score : <strong className="text-[#B34D4D]">{score.runningScore}</strong>
+                                  </span>
+                                  {vmaPct !== null && (
+                                    <span className="text-stone-300 font-semibold">
+                                      % VMA : <strong className="text-stone-100">{vmaPct}%</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+
+                              {cat === "trail" && race.utmbIndex ? (
+                                <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80">
+                                  <span className="text-stone-300 font-semibold">
+                                    UTMB Index attribué :
+                                  </span>
+                                  <span className="font-black text-[#4DB380] bg-[#4DB380]/10 px-2 py-0.5 rounded border border-[#4DB380]/30">
+                                    {race.utmbIndex} pts
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* FORMULAIRE AJOUT COURSE */}
+                    {!isReadOnly && (
+                      <div className="pt-2 border-t border-stone-800/60 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddRaceForm(!showAddRaceForm)}
+                          className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#CF9A61] font-bold text-xs flex items-center justify-between transition cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            ➕ Ajouter une nouvelle course
+                          </span>
+                          <span className="text-stone-400 text-xs">
+                            {showAddRaceForm ? "▲" : "▼"}
+                          </span>
+                        </button>
+
+                        {showAddRaceForm && (
+                          <form
+                            onSubmit={(e) => {
+                              onAddRace(e);
+                              setShowAddRaceForm(false);
+                            }}
+                            className="bg-stone-950/60 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2"
+                          >
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                required
+                                placeholder="Nom de la course (Ex: Semi de Paris, UTMB)"
+                                value={newRace.name}
+                                onChange={(e) =>
+                                  setNewRace({ ...newRace, name: e.target.value })
+                                }
+                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
+                              />
+
                               <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                                  Dénivelé (m D+)
+                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
+                                  Nature de la course
                                 </label>
-                                <input
-                                  type="number"
-                                  placeholder="Ex: 1200"
-                                  value={newRace.elevationGain || ""}
+                                <select
+                                  value={newRace.category || "route"}
                                   onChange={(e) =>
                                     setNewRace({
                                       ...newRace,
-                                      elevationGain: e.target.value,
+                                      category: e.target.value as any,
                                     })
+                                  }
+                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61] cursor-pointer font-bold"
+                                >
+                                  <option value="route">Route</option>
+                                  <option value="piste">Piste</option>
+                                  <option value="trail">Trail</option>
+                                  <option value="nature">Course Nature</option>
+                                </select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Distance (Ex: 21.1 km, 10 km)"
+                                  value={newRace.distance}
+                                  onChange={(e) =>
+                                    setNewRace({
+                                      ...newRace,
+                                      distance: e.target.value,
+                                    })
+                                  }
+                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
+                                />
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Chrono (Ex: 1:32:00)"
+                                  value={newRace.time}
+                                  onChange={(e) =>
+                                    setNewRace({ ...newRace, time: e.target.value })
                                   }
                                   className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
                                 />
                               </div>
 
-                              {newRace.category === "trail" && (
-                                <div>
-                                  <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                                    UTMB Index
-                                  </label>
-                                  <input
-                                    type="number"
-                                    placeholder="Ex: 580"
-                                    value={newRace.utmbIndex || ""}
-                                    onChange={(e) =>
-                                      setNewRace({
-                                        ...newRace,
-                                        utmbIndex: e.target.value,
-                                      })
-                                    }
-                                    className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                  />
+                              {(newRace.category === "trail" ||
+                                newRace.category === "nature") && (
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                  <div>
+                                    <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
+                                      Dénivelé (m D+)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      placeholder="Ex: 1200"
+                                      value={newRace.elevationGain || ""}
+                                      onChange={(e) =>
+                                        setNewRace({
+                                          ...newRace,
+                                          elevationGain: e.target.value,
+                                        })
+                                      }
+                                      className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
+                                    />
+                                  </div>
+
+                                  {newRace.category === "trail" && (
+                                    <div>
+                                      <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
+                                        UTMB Index
+                                      </label>
+                                      <input
+                                        type="number"
+                                        placeholder="Ex: 580"
+                                        value={newRace.utmbIndex || ""}
+                                        onChange={(e) =>
+                                          setNewRace({
+                                            ...newRace,
+                                            utmbIndex: e.target.value,
+                                          })
+                                        }
+                                        className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
-                          )}
-                        </div>
 
-                        <button
-                          type="submit"
-                          className="w-full py-2 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
-                        >
-                          Enregistrer la course
-                        </button>
-                      </form>
+                            <button
+                              type="submit"
+                              className="w-full py-2 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Enregistrer la course
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* 5. ACCORDÉON PLANS ARCHIVÉS */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenArchivedPlans(!openArchivedPlans)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                📁 Plans d'entraînement archivés ({archivedPlans.length})
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openArchivedPlans ? "▲" : "▼"}
-              </span>
-            </button>
+            {/* ====== COLONNE DROITE : MATÉRIEL & SERVICES ====== */}
+            <div className="space-y-5">
+              {/* 5. ACCORDÉON PLANS ARCHIVÉS */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenArchivedPlans(!openArchivedPlans)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    📁 Plans d'entraînement archivés ({archivedPlans.length})
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openArchivedPlans ? "▲" : "▼"}
+                  </span>
+                </button>
 
-            {openArchivedPlans && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                {archivedPlans.length === 0 ? (
-                  <p className="text-xs text-stone-500 italic text-center py-2">
-                    Aucun plan archivé pour le moment.
-                  </p>
-                ) : (
-                  archivedPlans.map((plan) => (
-                    <div
-                      key={plan.id}
-                      onClick={() => setSelectedArchivedPlan(plan)}
-                      className="p-3.5 bg-stone-950 hover:bg-stone-900/80 rounded-2xl border border-stone-800 space-y-1 cursor-pointer transition shadow-md group"
-                    >
-                      <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-black text-stone-100 uppercase group-hover:text-[#CF9A61]">
-                          {plan.name}
-                        </h4>
-                        <span className="text-[9px] font-bold bg-[#CF9A61]/20 text-[#CF9A61] border border-[#CF9A61]/30 px-2 py-0.5 rounded">
-                          {plan.targetDistance} ➔
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-stone-400">
-                        Période : Du {safeFormatDateFr(plan.startDate)} au{" "}
-                        {safeFormatDateFr(plan.eventDate)} ({plan.durationWeeks}{" "}
-                        sem.)
+                {openArchivedPlans && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
+                    {archivedPlans.length === 0 ? (
+                      <p className="text-xs text-stone-500 italic text-center py-2">
+                        Aucun plan archivé pour le moment.
                       </p>
-                    </div>
-                  ))
+                    ) : (
+                      archivedPlans.map((plan) => (
+                        <div
+                          key={plan.id}
+                          onClick={() => setSelectedArchivedPlan(plan)}
+                          className="p-3.5 bg-stone-950 hover:bg-stone-900/80 rounded-2xl border border-stone-800 space-y-1 cursor-pointer transition shadow-md group"
+                        >
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-xs font-black text-stone-100 uppercase group-hover:text-[#CF9A61]">
+                              {plan.name}
+                            </h4>
+                            <span className="text-[9px] font-bold bg-[#CF9A61]/20 text-[#CF9A61] border border-[#CF9A61]/30 px-2 py-0.5 rounded">
+                              {plan.targetDistance} ➔
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-stone-400">
+                            Période : Du {safeFormatDateFr(plan.startDate)} au{" "}
+                            {safeFormatDateFr(plan.eventDate)} ({plan.durationWeeks}{" "}
+                            sem.)
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* 6. ACCORDÉON CHAUSSURES */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenShoesSection(!openShoesSection)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                👟 Mes Chaussures ({activeShoes.length} active{activeShoes.length > 1 ? "s" : ""})
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openShoesSection ? "▲" : "▼"}
-              </span>
-            </button>
+              {/* 6. ACCORDÉON CHAUSSURES */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenShoesSection(!openShoesSection)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    👟 Mes Chaussures ({activeShoes.length} active{activeShoes.length > 1 ? "s" : ""})
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openShoesSection ? "▲" : "▼"}
+                  </span>
+                </button>
 
-            {openShoesSection && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                <div className="space-y-3">
-                  {activeShoes.length === 0 ? (
-                    <p className="text-xs text-stone-500 italic text-center py-2">
-                      Aucune paire active enregistrée.
-                    </p>
-                  ) : (
-                    activeShoes.map((shoe) => {
-                      const pctUsed = Math.min(
-                        100,
-                        Math.round((shoe.currentKm / shoe.maxKm) * 100)
-                      );
-                      const isAlert = pctUsed >= 80;
+                {openShoesSection && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
+                    <div className="space-y-3">
+                      {activeShoes.length === 0 ? (
+                        <p className="text-xs text-stone-500 italic text-center py-2">
+                          Aucune paire active enregistrée.
+                        </p>
+                      ) : (
+                        activeShoes.map((shoe) => {
+                          const pctUsed = Math.min(
+                            100,
+                            Math.round((shoe.currentKm / shoe.maxKm) * 100)
+                          );
+                          const isAlert = pctUsed >= 80;
 
-                      return (
-                        <div
-                          key={shoe.id}
-                          className="p-4 rounded-2xl border space-y-2.5 bg-stone-950 border-[#4DB380]/40 shadow-lg transition"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-xs font-black text-stone-100 uppercase">
-                                  {shoe.brand} {shoe.name}
-                                </h4>
-                                <span className="text-[8px] font-black uppercase bg-[#4DB380]/20 text-[#4DB380] border border-[#4DB380]/40 px-2 py-0.5 rounded-full">
-                                  Paire Active
-                                </span>
+                          return (
+                            <div
+                              key={shoe.id}
+                              className="p-4 rounded-2xl border space-y-2.5 bg-stone-950 border-[#4DB380]/40 shadow-lg transition"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-black text-stone-100 uppercase">
+                                      {shoe.brand} {shoe.name}
+                                    </h4>
+                                    <span className="text-[8px] font-black uppercase bg-[#4DB380]/20 text-[#4DB380] border border-[#4DB380]/40 px-2 py-0.5 rounded-full">
+                                      Paire Active
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-stone-400 font-semibold">
+                                    {shoe.currentKm.toFixed(1)} km parcourus sur{" "}
+                                    {shoe.maxKm} km max
+                                  </span>
+                                </div>
+
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onToggleActiveShoe(shoe.id)}
+                                    className="text-[10px] font-bold text-stone-400 hover:text-amber-400 bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-xl transition cursor-pointer"
+                                    title="Mettre cette paire au placard"
+                                  >
+                                    Mettre au placard
+                                  </button>
+                                )}
                               </div>
-                              <span className="text-[10px] text-stone-400 font-semibold">
-                                {shoe.currentKm.toFixed(1)} km parcourus sur{" "}
-                                {shoe.maxKm} km max
-                              </span>
+
+                              <div className="space-y-1">
+                                <div className="w-full h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
+                                  <div
+                                    style={{ width: `${pctUsed}%` }}
+                                    className={`h-full rounded-full transition-all ${
+                                      isAlert ? "bg-[#B34D4D]" : "bg-[#4DB380]"
+                                    }`}
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[8px] font-bold text-stone-500">
+                                  <span>0 km</span>
+                                  <span
+                                    className={
+                                      isAlert ? "text-[#B34D4D] font-black" : "text-[#4DB380]"
+                                    }
+                                  >
+                                    Usure : {pctUsed}%
+                                  </span>
+                                  <span>{shoe.maxKm} km</span>
+                                </div>
+                              </div>
                             </div>
+                          );
+                        })
+                      )}
+                    </div>
 
-                            {!isReadOnly && (
-                              <button
-                                type="button"
-                                onClick={() => onToggleActiveShoe(shoe.id)}
-                                className="text-[10px] font-bold text-stone-400 hover:text-amber-400 bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-xl transition cursor-pointer"
-                                title="Mettre cette paire au placard"
-                              >
-                                Mettre au placard
-                              </button>
-                            )}
-                          </div>
+                    {closetShoes.length > 0 && (
+                      <div className="pt-2 border-t border-stone-800/60">
+                        <button
+                          type="button"
+                          onClick={() => setShowShoeCloset(!showShoeCloset)}
+                          className="w-full py-2 px-3 bg-stone-950 hover:bg-stone-900 border border-stone-800 text-stone-400 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-between"
+                        >
+                          <span>
+                            Accéder au placard ({closetShoes.length} paire
+                            {closetShoes.length > 1 ? "s" : ""})
+                          </span>
+                          <span>{showShoeCloset ? "▲" : "▼"}</span>
+                        </button>
 
-                          <div className="space-y-1">
-                            <div className="w-full h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
+                        {showShoeCloset && (
+                          <div className="space-y-2 mt-3 pl-2 border-l-2 border-stone-800">
+                            {closetShoes.map((shoe) => (
                               <div
-                                style={{ width: `${pctUsed}%` }}
-                                className={`h-full rounded-full transition-all ${
-                                  isAlert ? "bg-[#B34D4D]" : "bg-[#4DB380]"
-                                }`}
+                                key={shoe.id}
+                                className="bg-stone-950/60 p-3 rounded-xl border border-stone-800/80 flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <div className="font-bold text-stone-300">
+                                    {shoe.brand} {shoe.name}
+                                  </div>
+                                  <div className="text-[10px] text-stone-500">
+                                    {shoe.currentKm.toFixed(0)} / {shoe.maxKm} km
+                                  </div>
+                                </div>
+
+                                {!isReadOnly && (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => onToggleActiveShoe(shoe.id)}
+                                      className="text-[10px] font-bold text-[#4DB380] hover:underline bg-[#4DB380]/10 border border-[#4DB380]/30 px-2 py-1 rounded-lg transition cursor-pointer"
+                                    >
+                                      Réactiver
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onDeleteShoe(shoe.id)}
+                                      className="text-stone-500 hover:text-red-400 text-xs px-1 font-bold transition cursor-pointer"
+                                      title="Supprimer définitivement"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!isReadOnly && (
+                      <div className="pt-2 border-t border-stone-800/60 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddShoeForm(!showAddShoeForm)}
+                          className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#4DB380] font-bold text-xs flex items-center justify-between transition cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            ➕ Ajouter une paire de chaussures
+                          </span>
+                          <span className="text-stone-400 text-xs">
+                            {showAddShoeForm ? "▲" : "▼"}
+                          </span>
+                        </button>
+
+                        {showAddShoeForm && (
+                          <form
+                            onSubmit={handleAddShoeSubmit}
+                            className="bg-stone-950/60 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2"
+                          >
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                required
+                                placeholder="Marque (ex: Hoka, Salomon)"
+                                value={newShoe.brand}
+                                onChange={(e) =>
+                                  setNewShoe({ ...newShoe, brand: e.target.value })
+                                }
+                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
+                              />
+                              <input
+                                type="text"
+                                required
+                                placeholder="Modèle (ex: Speedcross 6)"
+                                value={newShoe.name}
+                                onChange={(e) =>
+                                  setNewShoe({ ...newShoe, name: e.target.value })
+                                }
+                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
                               />
                             </div>
-                            <div className="flex justify-between text-[8px] font-bold text-stone-500">
-                              <span>0 km</span>
-                              <span
-                                className={
-                                  isAlert ? "text-[#B34D4D] font-black" : "text-[#4DB380]"
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="number"
+                                placeholder="Km de départ (ex: 0)"
+                                value={newShoe.initialKm}
+                                onChange={(e) =>
+                                  setNewShoe({
+                                    ...newShoe,
+                                    initialKm: e.target.value,
+                                  })
                                 }
-                              >
-                                Usure : {pctUsed}%
-                              </span>
-                              <span>{shoe.maxKm} km</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {closetShoes.length > 0 && (
-                  <div className="pt-2 border-t border-stone-800/60">
-                    <button
-                      type="button"
-                      onClick={() => setShowShoeCloset(!showShoeCloset)}
-                      className="w-full py-2 px-3 bg-stone-950 hover:bg-stone-900 border border-stone-800 text-stone-400 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-between"
-                    >
-                      <span>
-                        Accéder au placard ({closetShoes.length} paire
-                        {closetShoes.length > 1 ? "s" : ""})
-                      </span>
-                      <span>{showShoeCloset ? "▲" : "▼"}</span>
-                    </button>
-
-                    {showShoeCloset && (
-                      <div className="space-y-2 mt-3 pl-2 border-l-2 border-stone-800">
-                        {closetShoes.map((shoe) => (
-                          <div
-                            key={shoe.id}
-                            className="bg-stone-950/60 p-3 rounded-xl border border-stone-800/80 flex items-center justify-between text-xs"
-                          >
-                            <div>
-                              <div className="font-bold text-stone-300">
-                                {shoe.brand} {shoe.name}
-                              </div>
-                              <div className="text-[10px] text-stone-500">
-                                {shoe.currentKm.toFixed(0)} / {shoe.maxKm} km
-                              </div>
+                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
+                              />
+                              <input
+                                type="number"
+                                placeholder="Km Max conseillé (ex: 800)"
+                                value={newShoe.maxKm}
+                                onChange={(e) =>
+                                  setNewShoe({ ...newShoe, maxKm: e.target.value })
+                                }
+                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
+                              />
                             </div>
 
-                            {!isReadOnly && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => onToggleActiveShoe(shoe.id)}
-                                  className="text-[10px] font-bold text-[#4DB380] hover:underline bg-[#4DB380]/10 border border-[#4DB380]/30 px-2 py-1 rounded-lg transition cursor-pointer"
-                                >
-                                  Réactiver
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onDeleteShoe(shoe.id)}
-                                  className="text-stone-500 hover:text-red-400 text-xs px-1 font-bold transition cursor-pointer"
-                                  title="Supprimer définitivement"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                            <button
+                              type="submit"
+                              className="w-full py-2 bg-[#4DB380] hover:bg-[#3ea06f] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Enregistrer la paire
+                            </button>
+                          </form>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
+              </div>
 
-                {!isReadOnly && (
-                  <div className="pt-2 border-t border-stone-800/60 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddShoeForm(!showAddShoeForm)}
-                      className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#4DB380] font-bold text-xs flex items-center justify-between transition cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        ➕ Ajouter une paire de chaussures
-                      </span>
-                      <span className="text-stone-400 text-xs">
-                        {showAddShoeForm ? "▲" : "▼"}
-                      </span>
-                    </button>
+              {/* 7. ACCORDÉON APPAREILS CONNECTÉS */}
+              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+                <button
+                  type="button"
+                  onClick={() => setOpenDevicesSection(!openDevicesSection)}
+                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    ⌚ Appareils & Montres Connectées
+                  </span>
+                  <span className="text-stone-400 text-xs">
+                    {openDevicesSection ? "▲" : "▼"}
+                  </span>
+                </button>
 
-                    {showAddShoeForm && (
-                      <form
-                        onSubmit={handleAddShoeSubmit}
-                        className="bg-stone-950/60 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2"
+                {openDevicesSection && (
+                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
+                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
+                          <GarminLogo className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-stone-100">
+                            Garmin Connect
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-medium">
+                            {isGarminLinked && garminEmail
+                              ? garminEmail
+                              : "Forerunner, Fenix, Enduro"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => {
+                          if (isGarminLinked) {
+                            handleGarminDisconnect();
+                          } else {
+                            setShowGarminModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                          isGarminLinked
+                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                            : "bg-[#007CC3] hover:bg-[#006bb3] border-[#007CC3] text-white"
+                        }`}
                       >
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            required
-                            placeholder="Marque (ex: Hoka, Salomon)"
-                            value={newShoe.brand}
-                            onChange={(e) =>
-                              setNewShoe({ ...newShoe, brand: e.target.value })
-                            }
-                            className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                          />
-                          <input
-                            type="text"
-                            required
-                            placeholder="Modèle (ex: Speedcross 6)"
-                            value={newShoe.name}
-                            onChange={(e) =>
-                              setNewShoe({ ...newShoe, name: e.target.value })
-                            }
-                            className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                          />
-                        </div>
+                        {isGarminLinked ? "Déconnecter" : "Connecter"}
+                      </button>
+                    </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="number"
-                            placeholder="Km de départ (ex: 0)"
-                            value={newShoe.initialKm}
-                            onChange={(e) =>
-                              setNewShoe({
-                                ...newShoe,
-                                initialKm: e.target.value,
-                              })
-                            }
-                            className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Km Max conseillé (ex: 800)"
-                            value={newShoe.maxKm}
-                            onChange={(e) =>
-                              setNewShoe({ ...newShoe, maxKm: e.target.value })
-                            }
-                            className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                          />
+                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
+                          <CorosLogo className="w-5 h-5" />
                         </div>
+                        <div>
+                          <div className="font-bold text-xs text-stone-100">
+                            COROS Training Hub
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-medium">
+                            {isCorosLinked && corosEmail
+                              ? corosEmail
+                              : "Pace, Apex, Vertix"}
+                          </div>
+                        </div>
+                      </div>
 
-                        <button
-                          type="submit"
-                          className="w-full py-2 bg-[#4DB380] hover:bg-[#3ea06f] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
-                        >
-                          Enregistrer la paire
-                        </button>
-                      </form>
-                    )}
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => {
+                          if (isCorosLinked) {
+                            handleCorosDisconnect();
+                          } else {
+                            setShowCorosModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                          isCorosLinked
+                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                            : "bg-[#F8283B] hover:bg-[#d61e30] border-[#F8283B] text-white"
+                        }`}
+                      >
+                        {isCorosLinked ? "Déconnecter" : "Connecter"}
+                      </button>
+                    </div>
+
+                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
+                          <StravaLogo className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-stone-100">
+                            Strava Sync
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-medium">
+                            {isStravaLinked
+                              ? stravaEmail || "Synchronisation active"
+                              : "Historique et traces GPS"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => {
+                          if (isStravaLinked) {
+                            handleStravaDisconnect();
+                          } else {
+                            setShowStravaModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                          isStravaLinked
+                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                            : "bg-[#FC5200] hover:bg-[#e04900] border-[#FC5200] text-white"
+                        }`}
+                      >
+                        {isStravaLinked ? "Déconnecter" : "Connecter"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* 7. ACCORDÉON APPAREILS CONNECTÉS */}
-          <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-            <button
-              type="button"
-              onClick={() => setOpenDevicesSection(!openDevicesSection)}
-              className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                ⌚ Appareils & Montres Connectées
-              </span>
-              <span className="text-stone-400 text-xs">
-                {openDevicesSection ? "▲" : "▼"}
-              </span>
-            </button>
-
-            {openDevicesSection && (
-              <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
-                      <GarminLogo className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-stone-100">
-                        Garmin Connect
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-medium">
-                        {isGarminLinked && garminEmail
-                          ? garminEmail
-                          : "Forerunner, Fenix, Enduro"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => {
-                      if (isGarminLinked) {
-                        handleGarminDisconnect();
-                      } else {
-                        setShowGarminModal(true);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                      isGarminLinked
-                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                        : "bg-[#007CC3] hover:bg-[#006bb3] border-[#007CC3] text-white"
-                    }`}
-                  >
-                    {isGarminLinked ? "Déconnecter" : "Connecter"}
-                  </button>
-                </div>
-
-                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
-                      <CorosLogo className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-stone-100">
-                        COROS Training Hub
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-medium">
-                        {isCorosLinked && corosEmail
-                          ? corosEmail
-                          : "Pace, Apex, Vertix"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => {
-                      if (isCorosLinked) {
-                        handleCorosDisconnect();
-                      } else {
-                        setShowCorosModal(true);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                      isCorosLinked
-                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                        : "bg-[#F8283B] hover:bg-[#d61e30] border-[#F8283B] text-white"
-                    }`}
-                  >
-                    {isCorosLinked ? "Déconnecter" : "Connecter"}
-                  </button>
-                </div>
-
-                <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
-                      <StravaLogo className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-stone-100">
-                        Strava Sync
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-medium">
-                        {isStravaLinked
-                          ? stravaEmail || "Synchronisation active"
-                          : "Historique et traces GPS"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => {
-                      if (isStravaLinked) {
-                        handleStravaDisconnect();
-                      } else {
-                        setShowStravaModal(true);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                      isStravaLinked
-                        ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                        : "bg-[#FC5200] hover:bg-[#e04900] border-[#FC5200] text-white"
-                    }`}
-                  >
-                    {isStravaLinked ? "Déconnecter" : "Connecter"}
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {!isReadOnly && (
@@ -2131,6 +2141,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           )}
         </div>
       ) : (
+
         /* FORMULAIRE D'ÉDITION DU PROFIL */
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="space-y-3 bg-stone-900/80 p-4 rounded-2xl border border-stone-800">
