@@ -70,7 +70,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"plan" | "annual">(initialSubTab);
 
-  // Synchronisation dynamique si le sous-onglet demandé change depuis le dashboard
   useEffect(() => {
     if (initialSubTab) {
       setActiveTab(initialSubTab);
@@ -151,7 +150,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
   const currentMonthColor = getMonthThemeColor(selectedMonthIndex);
 
   return (
-    <div className="space-y-6 animate-fadeIn font-sans">
+    <div className="space-y-6 animate-fadeIn font-sans w-full">
       <div className="flex bg-stone-900 p-1.5 rounded-2xl border border-stone-800 shadow-md">
         <button
           type="button"
@@ -179,7 +178,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
       </div>
 
       {activeTab === "plan" && (
-        <div className="space-y-5 animate-fadeIn">
+        <div className="space-y-5 animate-fadeIn w-full">
           {!activePlan ? (
             <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 text-center space-y-3 shadow-xl">
               <div className="w-14 h-14 bg-[#CF9A61]/10 border border-[#CF9A61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CF9A61] text-2xl">
@@ -216,7 +215,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
       )}
 
       {activeTab === "annual" && (
-        <div className="space-y-6 animate-fadeIn">
+        <div className="space-y-6 animate-fadeIn w-full">
           <div className="flex justify-between items-center flex-wrap gap-2">
             <h3 className="text-lg font-black uppercase text-stone-100">
               Statistiques annuelles {selectedStatsYear}
@@ -673,7 +672,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           </div>
 
           {/* 2. ÉVOLUTION DU VOLUME */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 shadow-xl space-y-4">
+          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-4 md:p-6 shadow-xl space-y-4 w-full">
             <div className="flex items-center justify-between border-b border-stone-800 pb-2">
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-1.5">
@@ -715,19 +714,22 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                 20
               );
 
-              const width = 340;
-              const height = 120;
-              const paddingLeft = 32;
-              const paddingRight = 10;
-              const paddingY = 12;
+              // Coordonnées SVG étendues à 1000 de large
+              const width = 1000;
+              const height = 240;
+              const paddingLeft = 55;
+              const paddingRight = 20;
+              const paddingTop = 20;
+              const paddingBottom = 55; // Espace pour l'axe des abscisses et les mois
               const usableWidth = width - paddingLeft - paddingRight;
-              const usableHeight = height - paddingY * 2;
+              const usableHeight = height - paddingTop - paddingBottom;
+              const baselineY = height - paddingBottom;
 
               const pointsArray = Array.from({ length: 52 }, (_, i) => {
                 const wNum = i + 1;
                 const km = weekDataMap[wNum].km;
                 const x = paddingLeft + (i / 51) * usableWidth;
-                const y = height - paddingY - (km / maxWeekKm) * usableHeight;
+                const y = baselineY - (km / maxWeekKm) * usableHeight;
                 const monthColor = getWeekMonthColor(wNum);
                 return { x, y, km, wNum, count: weekDataMap[wNum].count, monthColor };
               });
@@ -736,93 +738,109 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                 return idx === 0 ? `M ${p.x},${p.y}` : `${acc} L ${p.x},${p.y}`;
               }, "");
 
-              const areaD = `${pathD} L ${pointsArray[51].x},${height - paddingY} L ${pointsArray[0].x},${height - paddingY} Z`;
+              const areaD = `${pathD} L ${pointsArray[51].x},${baselineY} L ${pointsArray[0].x},${baselineY} Z`;
 
-              const tickWeeks = [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49];
+              const tickWeeks = [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 52];
 
               return (
-                <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800 relative animate-fadeIn space-y-2">
-                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-32 overflow-visible">
+                <div className="bg-stone-950 p-3 md:p-4 rounded-2xl border border-stone-800 relative animate-fadeIn w-full overflow-hidden">
+                  <svg
+                    viewBox={`0 0 ${width} ${height}`}
+                    className="w-full h-auto overflow-visible select-none"
+                  >
                     <defs>
                       <linearGradient id="annualRainbowGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#C084FC" stopOpacity="0.3" />
+                        <stop offset="0%" stopColor="#C084FC" stopOpacity="0.35" />
                         <stop offset="50%" stopColor="#34D399" stopOpacity="0.15" />
                         <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
-                    <text x={paddingLeft - 4} y={paddingY + 3} fill="#94A3B8" fontSize="7" textAnchor="end" fontWeight="bold">
+                    {/* Lignes horizontales de graduation (Y) */}
+                    <text x={paddingLeft - 8} y={paddingTop + 4} fill="#94A3B8" fontSize="10" textAnchor="end" fontWeight="bold">
                       {Math.round(maxWeekKm)} km
                     </text>
-                    <text x={paddingLeft - 4} y={height / 2 + 3} fill="#94A3B8" fontSize="7" textAnchor="end" fontWeight="bold">
+                    <text x={paddingLeft - 8} y={paddingTop + usableHeight / 2 + 4} fill="#94A3B8" fontSize="10" textAnchor="end" fontWeight="bold">
                       {Math.round(maxWeekKm / 2)} km
                     </text>
-                    <text x={paddingLeft - 4} y={height - paddingY + 3} fill="#94A3B8" fontSize="7" textAnchor="end" fontWeight="bold">
+                    <text x={paddingLeft - 8} y={baselineY + 4} fill="#94A3B8" fontSize="10" textAnchor="end" fontWeight="bold">
                       0 km
                     </text>
 
-                    <line x1={paddingLeft} y1={paddingY} x2={width - paddingRight} y2={paddingY} stroke="#334155" strokeDasharray="2,2" />
-                    <line x1={paddingLeft} y1={height / 2} x2={width - paddingRight} y2={height / 2} stroke="#334155" strokeDasharray="2,2" />
-                    <line x1={paddingLeft} y1={height - paddingY} x2={width - paddingRight} y2={height - paddingY} stroke="#475569" />
+                    <line x1={paddingLeft} y1={paddingTop} x2={width - paddingRight} y2={paddingTop} stroke="#27272a" strokeDasharray="3,3" />
+                    <line x1={paddingLeft} y1={paddingTop + usableHeight / 2} x2={width - paddingRight} y2={paddingTop + usableHeight / 2} stroke="#27272a" strokeDasharray="3,3" />
+                    <line x1={paddingLeft} y1={baselineY} x2={width - paddingRight} y2={baselineY} stroke="#3f3f46" strokeWidth="1.5" />
 
+                    {/* Zone dégradée et courbe */}
                     <path d={areaD} fill="url(#annualRainbowGradient)" />
-                    <path d={pathD} fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d={pathD} fill="none" stroke="#94A3B8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
+                    {/* AXE DES ABSCISSES (SEMAINES) PARFAITEMENT ALIGNÉ */}
+                    {tickWeeks.map((wNum) => {
+                      const point = pointsArray[wNum - 1];
+                      return (
+                        <g key={`tick-${wNum}`}>
+                          <line
+                            x1={point.x}
+                            y1={baselineY}
+                            x2={point.x}
+                            y2={baselineY + 5}
+                            stroke="#52525b"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={point.x}
+                            y={baselineY + 16}
+                            fill="#a1a1aa"
+                            fontSize="9"
+                            fontWeight="bold"
+                            textAnchor="middle"
+                          >
+                            S{wNum}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* AXE DES MOIS EN BAS DU SVG */}
+                    {MONTHS_LIST.map((mName, mIdx) => {
+                      const mStartWeek = Math.round((mIdx * 52) / 12);
+                      const mEndWeek = Math.round(((mIdx + 1) * 52) / 12) - 1;
+                      const x1 = pointsArray[Math.min(51, Math.max(0, mStartWeek))].x;
+                      const x2 = pointsArray[Math.min(51, Math.max(0, mEndWeek))].x;
+                      const centerX = (x1 + x2) / 2;
+                      const monthColor = RAINBOW_PASTEL_COLORS[mIdx];
+
+                      return (
+                        <text
+                          key={mName}
+                          x={centerX}
+                          y={baselineY + 34}
+                          fill={monthColor}
+                          fontSize="9"
+                          fontWeight="900"
+                          textAnchor="middle"
+                          className="uppercase tracking-wider"
+                        >
+                          {mName.slice(0, 3)}
+                        </text>
+                      );
+                    })}
+
+                    {/* Points et Tooltips */}
                     {pointsArray.map((p) => (
                       <g key={p.wNum} className="group cursor-pointer">
                         <circle
                           cx={p.x}
                           cy={p.y}
-                          r={p.km > 0 ? "4" : "1.5"}
+                          r={p.km > 0 ? "4" : "1.8"}
                           style={{ fill: p.monthColor, stroke: "#09090b" }}
                           className="stroke-1 group-hover:r-6 transition-all"
                         />
-                        <foreignObject
-                          x={Math.max(0, Math.min(width - 90, p.x - 45))}
-                          y={p.y - 35}
-                          width="90"
-                          height="30"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30"
-                        >
-                          <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[8px] font-bold p-1 rounded shadow-xl text-center">
-                            S{p.wNum} : {p.km.toFixed(1)} km
-                          </div>
-                        </foreignObject>
+                        <title>{`Semaine ${p.wNum} : ${p.km.toFixed(1)} km (${p.count} sortie${p.count > 1 ? "s" : ""})`}</title>
                       </g>
                     ))}
                   </svg>
-
-                  <div className="relative h-4 w-full text-[8px] font-bold text-stone-400">
-                    {tickWeeks.map((wNum) => {
-                      const exactX = paddingLeft + ((wNum - 1) / 51) * usableWidth;
-                      const posPct = (exactX / width) * 100;
-                      return (
-                        <span
-                          key={wNum}
-                          style={{ left: `${posPct}%`, transform: 'translateX(-50%)' }}
-                          className="absolute"
-                        >
-                          S{wNum}
-                        </span>
-                      );
-                    })}
-                  </div>
-
-                  <div className="grid grid-cols-12 gap-0.5 pt-2 border-t border-stone-800 text-center">
-                    {MONTHS_LIST.map((mName, mIdx) => {
-                      const monthColor = RAINBOW_PASTEL_COLORS[mIdx];
-                      return (
-                        <span
-                          key={mName}
-                          style={{ color: monthColor }}
-                          className="text-[7.5px] font-black uppercase truncate px-0.5"
-                          title={mName}
-                        >
-                          {mName.slice(0, 3)}
-                        </span>
-                      );
-                    })}
-                  </div>
                 </div>
               );
             })()}
