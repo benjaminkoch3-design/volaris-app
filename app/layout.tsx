@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Viewport } from 'next';
 import './globals.css';
+import { ThemeProvider } from '../components/providers/ThemeProvider'; // Ajuste le chemin selon ton dossier components
 
 export const metadata = {
   title: 'Volaris - Running Performance',
@@ -31,9 +32,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <body>
-        {children}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

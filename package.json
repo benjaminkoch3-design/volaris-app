@@ -16,6 +16,7 @@
     "fit-file-parser": "^4.1.0",
     "garmin-connect": "^1.6.2",
     "next": "16.2.11",
+    "next-themes": "^0.4.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "xlsx": "^0.18.5"
