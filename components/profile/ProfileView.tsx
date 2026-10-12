@@ -137,7 +137,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // 1. GARMIN
   const [showGarminModal, setShowGarminModal] = useState(false);
@@ -346,7 +345,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setIsEditingProfile(false);
   };
 
-  // Chargement du fichier photo pour ouverture du modal de recadrage
   const handleAvatarFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -362,7 +360,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     e.target.value = "";
   };
 
-  // Validation du recadrage : export Canvas compressé en JPEG
   const handleApplyCroppedAvatar = () => {
     if (!cropImageSrc || !onUpdateAvatar) return;
 
@@ -461,9 +458,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   return (
-      <div className="space-y-6 animate-fadeIn w-full font-sans">
-      
-      {/* MODALE DE RECENTRAGE & ZOOM PHOTO DE PROFIL */}
+    <div className="space-y-6 animate-fadeIn w-full font-sans">
+      {/* MODALE RECENTRAGE PHOTO */}
       {cropModalOpen && cropImageSrc && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-70 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
@@ -485,7 +481,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             </div>
 
-            {/* ZONE DE PRÉVISUALISATION CIRCULAIRE AVEC DRAG */}
             <div className="flex flex-col items-center justify-center space-y-2">
               <div
                 className="w-48 h-48 rounded-full border-4 border-[#CF9A61] overflow-hidden relative cursor-grab active:cursor-grabbing shadow-2xl bg-stone-950 select-none"
@@ -522,11 +517,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 />
               </div>
               <p className="text-[10px] text-stone-400 font-bold">
-                👆 Glisse pour recentrer l'image
+                Glissez pour recentrer l'image
               </p>
             </div>
 
-            {/* CONTRÔLE DE ZOOM */}
             <div className="space-y-1.5 bg-stone-950 p-3 rounded-2xl border border-stone-800">
               <div className="flex justify-between text-[9px] font-bold uppercase text-stone-400">
                 <span>Zoom</span>
@@ -543,7 +537,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               />
             </div>
 
-            {/* ACTIONS MODALE */}
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
@@ -564,7 +557,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* 1. MODALE GARMIN CONNECT */}
+      {/* 1. MODALE GARMIN */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
@@ -639,7 +632,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* 2. MODALE COROS APP */}
+      {/* 2. MODALE COROS */}
       {showCorosModal && (
         <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-60 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
@@ -874,12 +867,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* CARTE RÉSUMÉ HAUT DE PAGE AVEC PHOTO DE PROFIL CIRCULAIRE */}
-      <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4">
+      {/* CARTE RÉSUMÉ HAUT DE PAGE (PLEINE LARGEUR) */}
+      <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4 w-full">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            
-            {/* PHOTO DE PROFIL CIRCULAIRE AVEC MODALE DE RECENTRAGE */}
             <div className="relative group">
               <div className="w-16 h-16 bg-stone-800 border-2 border-[#CF9A61]/60 rounded-full flex items-center justify-center text-xl font-black text-stone-200 overflow-hidden shadow-md">
                 {avatarUrl ? (
@@ -1059,7 +1050,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         ) : null}
       </div>
 
-{!isEditingProfile || isReadOnly ? (
+      {!isEditingProfile || isReadOnly ? (
         <div className="space-y-6 w-full">
           {/* PLEINE LARGEUR : BOUTON BIBLIOTHÈQUE DE SÉANCES */}
           {onOpenAthleteLibrary && (
@@ -2141,7 +2132,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           )}
         </div>
       ) : (
-
         /* FORMULAIRE D'ÉDITION DU PROFIL */
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="space-y-3 bg-stone-900/80 p-4 rounded-2xl border border-stone-800">
