@@ -84,14 +84,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   });
 
   return (
-    <div className="space-y-5 animate-fadeIn font-sans">
+    <div className="space-y-5 animate-fadeIn font-sans w-full">
       {/* BANDEAU NAVIGATION MOIS */}
-      <div className="bg-stone-900 border border-stone-800 p-4 rounded-3xl flex items-center justify-between shadow-lg">
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex items-center justify-between shadow-sm dark:shadow-lg transition-colors">
         <div>
           <span className="text-[10px] font-black text-[#CDCF61] uppercase tracking-widest block">
             Agenda d'Entraînement
           </span>
-          <h2 className="text-base font-black uppercase text-stone-100 mt-0.5">
+          <h2 className="text-base font-black uppercase text-stone-900 dark:text-stone-100 mt-0.5">
             {MONTHS_FR[month]} {year}
           </h2>
         </div>
@@ -100,21 +100,21 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           <button
             type="button"
             onClick={handleCurrentMonth}
-            className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-950 border border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+            className="text-[10px] font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
           >
             Aujourd'hui
           </button>
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="p-1.5 bg-stone-950 hover:bg-stone-800 text-stone-300 rounded-xl border border-stone-800 transition cursor-pointer"
+            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-xl border border-stone-200 dark:border-stone-800 transition cursor-pointer"
           >
             ◀
           </button>
           <button
             type="button"
             onClick={handleNextMonth}
-            className="p-1.5 bg-stone-950 hover:bg-stone-800 text-stone-300 rounded-xl border border-stone-800 transition cursor-pointer"
+            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-xl border border-stone-200 dark:border-stone-800 transition cursor-pointer"
           >
             ▶
           </button>
@@ -122,10 +122,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
       </div>
 
       {/* GRILLE MENSUELLE */}
-      <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-3.5 shadow-xl space-y-2">
-        <div className="grid grid-cols-7 gap-1 text-center pb-2 border-b border-stone-800/80">
+      <div className="bg-white/90 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-800 rounded-3xl p-3.5 shadow-sm dark:shadow-xl space-y-2 transition-colors">
+        <div className="grid grid-cols-7 gap-1 text-center pb-2 border-b border-stone-200 dark:border-stone-800/80">
           {DAYS_SHORT_FR.map((d) => (
-            <span key={d} className="text-[10px] font-black uppercase text-stone-400">
+            <span key={d} className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500">
               {d}
             </span>
           ))}
@@ -133,7 +133,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
         <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: startDayIndex }).map((_, i) => (
-            <div key={`empty_${i}`} className="min-h-[68px] bg-stone-950/20 rounded-2xl border border-transparent" />
+            <div key={`empty_${i}`} className="min-h-[85px] bg-stone-50/50 dark:bg-stone-950/20 rounded-2xl border border-transparent" />
           ))}
 
           {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -142,26 +142,36 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             const isToday = dateStr === todayStr;
             const daySessions = sessionsByDate[dateStr] || [];
 
-            const debriefedCount = daySessions.filter(
-              (s) => s.workout.completedRpe !== undefined || s.workout.completed || s.workout.completedKm
-            ).length;
+            const doneCount = daySessions.filter((s) => {
+              const w = s.workout as any;
+              return (
+                w.completed === true ||
+                w.isCompleted === true ||
+                w.completedRpe !== undefined ||
+                w.completedKm !== undefined ||
+                Boolean(w.athleteComment)
+              );
+            }).length;
 
             return (
               <div
                 key={dateStr}
                 onClick={() => onSelectDate(dateStr)}
-                className={`min-h-[70px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
+                className={`min-h-[85px] p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
                   isToday
-                    ? "bg-[#CDCF61]/10 border-[#CDCF61]/60 shadow-md"
+                    ? "bg-[#CDCF61]/15 border-[#CDCF61]/70 shadow-md"
                     : daySessions.length > 0
-                    ? "bg-stone-950/90 border-stone-800 hover:border-[#CDCF61]/50 hover:bg-stone-950"
-                    : "bg-stone-950/40 border-stone-800/50 hover:border-stone-700"
+                    ? "bg-stone-50/80 dark:bg-stone-950/90 border-stone-200 dark:border-stone-800 hover:border-[#CDCF61]/60 hover:bg-stone-100 dark:hover:bg-stone-950"
+                    : "bg-stone-50/40 dark:bg-stone-950/40 border-stone-200/60 dark:border-stone-800/50 hover:border-stone-300 dark:hover:border-stone-700"
                 }`}
               >
+                {/* EN-TÊTE DU JOUR */}
                 <div className="flex justify-between items-center">
                   <span
                     className={`text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center ${
-                      isToday ? "bg-[#CDCF61] text-stone-950" : "text-stone-300"
+                      isToday
+                        ? "bg-[#CDCF61] text-stone-950 font-extrabold"
+                        : "text-stone-700 dark:text-stone-300"
                     }`}
                   >
                     {dayNum}
@@ -169,47 +179,88 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
                   {daySessions.length > 0 && (
                     <span
-                      className={`text-[8px] font-black px-1 py-0.2 rounded-md ${
-                        debriefedCount > 0
-                          ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                          : "bg-[#CDCF61]/20 text-[#CDCF61]"
+                      className={`text-[8px] font-black px-1.5 py-0.5 rounded-md border ${
+                        doneCount === daySessions.length
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                          : doneCount > 0
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                          : "bg-stone-200 dark:bg-[#CDCF61]/20 text-stone-700 dark:text-[#CDCF61] border-stone-300 dark:border-[#CDCF61]/30"
                       }`}
                     >
-                      {debriefedCount > 0 ? `✓ ${debriefedCount}` : daySessions.length}
+                      {doneCount > 0 ? `✓ ${doneCount}/${daySessions.length}` : daySessions.length}
                     </span>
                   )}
                 </div>
 
-                {/* PASTILLES AVEC INDICATEUR DE BILAN DÉBRIEFÉ */}
-                <div className="space-y-1 mt-1">
-                  {daySessions.slice(0, 2).map((s, idx) => {
-                    const isDebriefed =
-                      s.workout.completedRpe !== undefined ||
-                      Boolean(s.workout.athleteComment) ||
-                      Boolean(s.workout.completedKm);
+                {/* LISTE DES PASTILLES SÉANCES DU JOUR */}
+                <div className="space-y-1 mt-1.5">
+                  {daySessions.slice(0, 3).map((s, idx) => {
+                    const w = s.workout as any;
+                    const isDone =
+                      w.completed === true ||
+                      w.isCompleted === true ||
+                      w.completedRpe !== undefined ||
+                      w.completedKm !== undefined ||
+                      Boolean(w.athleteComment);
 
-                    const typeConfig = getWorkoutTypeConfig(s.workout.type);
+                    // Couleur exacte définie dans le plan ou fallback sécurisé
+                    const fallbackConfig = getWorkoutTypeConfig(w.type);
+                    const workoutColor: string =
+                      w.color ||
+                      w.tagColor ||
+                      (fallbackConfig as any)?.color ||
+                      "#CF9A61";
+
+                    const typeName = w.type || (fallbackConfig as any)?.label || "Séance";
                     const firstName = (s.athlete.name || "Athlète").split(" ")[0];
 
                     return (
                       <div
                         key={idx}
-                        className={`text-[7.5px] font-bold px-1 py-0.5 rounded truncate border flex items-center justify-between ${
-                          isDebriefed
-                            ? "bg-emerald-950/40 text-emerald-300 border-emerald-800"
-                            : typeConfig.badgeClass
+                        style={{
+                          borderLeftColor: workoutColor,
+                          backgroundColor: `${workoutColor}14`,
+                        }}
+                        className={`text-[8px] font-bold px-1.5 py-1 rounded-md border border-stone-200/80 dark:border-stone-800 border-l-[3px] flex items-center justify-between gap-1 transition-all ${
+                          isDone ? "opacity-100" : "opacity-90"
                         }`}
-                        title={`${s.athlete.name} : ${s.workout.title || s.workout.type} ${isDebriefed ? "(Débriefé)" : ""}`}
+                        title={`${s.athlete.name} • ${typeName} : ${w.title || ""} ${isDone ? "(Réalisée ✓)" : "(Non réalisée / Prévue)"}`}
                       >
-                        <span className="truncate">{firstName}</span>
-                        {isDebriefed && <span className="text-[7px] text-emerald-400 ml-0.5">✓</span>}
+                        <div className="flex items-center gap-1 min-w-0 truncate">
+                          <span className="font-black text-stone-900 dark:text-stone-100 truncate">
+                            {firstName}
+                          </span>
+                          <span
+                            style={{ color: workoutColor }}
+                            className="font-bold truncate opacity-90 text-[7.5px]"
+                          >
+                            {typeName}
+                          </span>
+                        </div>
+
+                        {/* INDICATEUR D'EXÉCUTION */}
+                        {isDone ? (
+                          <span
+                            className="text-[8px] font-black text-emerald-500 shrink-0"
+                            title="Séance réalisée"
+                          >
+                            ✓
+                          </span>
+                        ) : (
+                          <span
+                            className="text-[8px] font-bold text-stone-400 dark:text-stone-500 shrink-0"
+                            title="Séance prévue"
+                          >
+                            •
+                          </span>
+                        )}
                       </div>
                     );
                   })}
 
-                  {daySessions.length > 2 && (
+                  {daySessions.length > 3 && (
                     <span className="text-[7.5px] font-black text-stone-500 block text-right">
-                      +{daySessions.length - 2}
+                      +{daySessions.length - 3} autre(s)
                     </span>
                   )}
                 </div>
