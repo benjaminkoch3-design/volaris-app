@@ -260,10 +260,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           </span>
                         ) : isPast ? (
                           <span
-                            className={`text-[8px] font-black px-1 rounded shrink-0 leading-none py-0.5 ${
-                              isDarkText ? "text-white bg-rose-700" : "text-white bg-black/40"
-                            }`}
-                            title="Non débriefée"
+                            className="text-[8.5px] font-black text-red-600 bg-white/95 border border-red-200 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
+                            title="Non débriefée / Manquée"
                           >
                             ✕
                           </span>

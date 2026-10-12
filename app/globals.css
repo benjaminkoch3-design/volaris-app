@@ -3,33 +3,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ========================================================
-   1. THÈME CLAIR (Par défaut ou quand .dark est retiré)
+   1. REGISTRE DE THÈME DYNAMIQUE TAILWIND V4
+   On relie les tokens utilitaires de Tailwind (stone-*)
+   aux variables CSS dynamiques afin que text-stone-100,
+   bg-stone-900, border-stone-800, etc. s'inversent partout !
    ======================================================== */
-:root {
-  --background: #f5f5f4;  /* Fond d'écran clair (stone-100) */
-  --foreground: #1c1917;  /* Texte principal foncé (stone-900) */
-
-  /* Inversion intelligente de la palette stone pour le mode clair */
-  --color-stone-950: #fcfcfc; /* Vos cartes les plus sombres deviennent quasi-blanches */
-  --color-stone-900: #ffffff; /* Vos cartes sombres deviennent blanches */
-  --color-stone-850: #f5f5f4;
-  --color-stone-800: #e7e5e4; /* Vos bordures sombres deviennent des séparateurs clairs */
-  --color-stone-700: #d6d3d1;
-  --color-stone-500: #78716c;
-  --color-stone-400: #57534e; /* Le texte secondaire devient gris foncé lisible */
-  --color-stone-300: #292524;
-  --color-stone-200: #1c1917;
-  --color-stone-100: #0c0a09; /* Vos textes blancs deviennent noir intense */
+@theme {
+  --color-stone-950: var(--color-stone-950);
+  --color-stone-900: var(--color-stone-900);
+  --color-stone-850: var(--color-stone-850);
+  --color-stone-800: var(--color-stone-800);
+  --color-stone-700: var(--color-stone-700);
+  --color-stone-500: var(--color-stone-500);
+  --color-stone-400: var(--color-stone-400);
+  --color-stone-300: var(--color-stone-300);
+  --color-stone-200: var(--color-stone-200);
+  --color-stone-100: var(--color-stone-100);
 }
 
 /* ========================================================
-   2. THÈME SOMBRE (Quand la classe .dark est présente)
+   2. VALEURS DU THÈME CLAIR (Par défaut ou sans .dark)
+   ======================================================== */
+:root {
+  color-scheme: light;
+
+  --background: #f5f5f4;  /* Fond clair de base */
+  --foreground: #1c1917;  /* Texte sombre lisible */
+
+  /* Inversion de la palette stone pour le mode clair */
+  --color-stone-950: #fcfcfc; /* Vos cartes les plus sombres -> quasi-blanches */
+  --color-stone-900: #ffffff; /* Vos cartes sombres -> blanches */
+  --color-stone-850: #f5f5f4;
+  --color-stone-800: #e7e5e4; /* Bordures sombres -> séparateurs clairs */
+  --color-stone-700: #d6d3d1;
+  --color-stone-500: #78716c;
+  --color-stone-400: #57534e; /* Sous-titres -> gris foncé lisible */
+  --color-stone-300: #292524;
+  --color-stone-200: #1c1917;
+  --color-stone-100: #0c0a09; /* Anciens textes clairs -> noir intense */
+}
+
+/* ========================================================
+   3. VALEURS DU THÈME SOMBRE (Quand .dark est actif)
    ======================================================== */
 .dark {
-  --background: #0c0a09;  /* Fond d'écran sombre (stone-950) */
-  --foreground: #f5f5f4;  /* Texte principal clair */
+  color-scheme: dark;
 
-  /* Rétablissement des vraies teintes stone sombres */
+  --background: #0c0a09;  /* Fond sombre */
+  --foreground: #f5f5f4;  /* Texte clair */
+
+  /* Palette stone sombre d'origine de Volaris */
   --color-stone-950: #0c0a09;
   --color-stone-900: #1c1917;
   --color-stone-850: #23201d;
@@ -42,8 +65,34 @@
   --color-stone-100: #f5f5f4;
 }
 
+/* ========================================================
+   4. RÈGLES GLOBALES DE LISIBILITÉ
+   ======================================================== */
 body {
   background-color: var(--background);
   color: var(--foreground);
   transition: background-color 0.2s ease, color 0.2s ease;
+  min-height: 100vh;
+}
+
+/* Sécurité anti-texte blanc sur fond blanc pour les champs de saisie */
+input,
+textarea,
+select {
+  color: var(--foreground);
+}
+
+/* Style de barre de défilement discrète */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-stone-700);
+  border-radius: 9999px;
 }

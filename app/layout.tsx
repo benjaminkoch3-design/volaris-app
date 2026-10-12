@@ -1,11 +1,11 @@
 // app/layout.tsx
 import type { Viewport } from 'next';
 import './globals.css';
-import { ThemeProvider } from '../components/providers/ThemeProvider'; // Ajuste le chemin selon ton dossier components
+import { ThemeProvider } from '../components/providers/ThemeProvider';
 
 export const metadata = {
   title: 'Volaris - Running Performance',
-  description: 'Application de suivi et de création de plans d\'entraînement',
+  description: "Application de suivi et de création de plans d'entraînement",
   manifest: '/manifest.json',
   icons: {
     icon: '/icon-192x192.jpeg',
@@ -13,13 +13,16 @@ export const metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Volaris',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#1c1917',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f4' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0a09' },
+  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -33,7 +36,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body>
+      <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)] antialiased transition-colors duration-200">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
