@@ -2,143 +2,89 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ========================================================
-   1. REGISTRE DE THÈME DYNAMIQUE TAILWIND V4
-   On relie les tokens utilitaires de Tailwind (stone-*)
-   aux variables CSS dynamiques afin que text-stone-100,
-   bg-stone-900, border-stone-800, etc. s'inversent partout !
-   ======================================================== */
-@theme {
-  --color-stone-950: var(--color-stone-950);
-  --color-stone-900: var(--color-stone-900);
-  --color-stone-850: var(--color-stone-850);
-  --color-stone-800: var(--color-stone-800);
-  --color-stone-700: var(--color-stone-700);
-  --color-stone-500: var(--color-stone-500);
-  --color-stone-400: var(--color-stone-400);
-  --color-stone-300: var(--color-stone-300);
-  --color-stone-200: var(--color-stone-200);
-  --color-stone-100: var(--color-stone-100);
-}
-
-/* ========================================================
-   2. VALEURS DU THÈME CLAIR (Par défaut ou sans .dark)
-   ======================================================== */
+/* 1. THÈMES & VARIABLES */
 :root {
   color-scheme: light;
-
-  --background: #f5f5f4;  /* Fond clair de base */
-  --foreground: #1c1917;  /* Texte sombre lisible */
-
-  /* Inversion de la palette stone pour le mode clair */
-  --color-stone-950: #fcfcfc; /* Vos cartes les plus sombres -> quasi-blanches */
-  --color-stone-900: #ffffff; /* Vos cartes sombres -> blanches */
-  --color-stone-850: #f5f5f4;
-  --color-stone-800: #e7e5e4; /* Bordures sombres -> séparateurs clairs */
-  --color-stone-700: #d6d3d1;
-  --color-stone-500: #78716c;
-  --color-stone-400: #57534e; /* Sous-titres -> gris foncé lisible */
-  --color-stone-300: #292524;
-  --color-stone-200: #1c1917;
-  --color-stone-100: #0c0a09; /* Anciens textes clairs -> noir intense */
+  --bg-app: #f5f5f4;
+  --text-main: #1c1917;
+  --text-muted: #57534e;
+  --card-bg: #ffffff;
+  --card-border: #e7e5e4;
 }
 
-/* ========================================================
-   3. VALEURS DU THÈME SOMBRE (Quand .dark est actif)
-   ======================================================== */
-.dark {
+html.dark {
   color-scheme: dark;
-
-  --background: #0c0a09;  /* Fond sombre */
-  --foreground: #f5f5f4;  /* Texte clair */
-
-  /* Palette stone sombre d'origine de Volaris */
-  --color-stone-950: #0c0a09;
-  --color-stone-900: #1c1917;
-  --color-stone-850: #23201d;
-  --color-stone-800: #292524;
-  --color-stone-700: #44403c;
-  --color-stone-500: #78716c;
-  --color-stone-400: #a8a29e;
-  --color-stone-300: #d6d3d1;
-  --color-stone-200: #e7e5e4;
-  --color-stone-100: #f5f5f4;
+  --bg-app: #0c0a09;
+  --text-main: #f5f5f4;
+  --text-muted: #a8a29e;
+  --card-bg: #1c1917;
+  --card-border: #292524;
 }
 
-/* ========================================================
-   4. RÈGLES GLOBALES DE LISIBILITÉ & SÉCURITÉ
-   ======================================================== */
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  background-color: var(--bg-app);
+  color: var(--text-main);
   min-height: 100vh;
 }
 
-/* Sécurité anti-texte blanc sur fond blanc pour les champs de saisie */
-input,
-textarea,
-select {
-  color: var(--foreground);
+/* ========================================================
+   2. CORRECTION GLOBALE AUTOMATIQUE POUR LE MODE CLAIR
+   (Agit sur toute l'application sans modifier un seul composant)
+   ======================================================== */
+html:not(.dark) {
+  /* A. Force text-white et text-stone-100 à devenir sombre */
+  .text-white,
+  .text-stone-100,
+  .text-stone-200 {
+    color: #1c1917 !important;
+  }
+
+  /* B. Les textes secondaires clairs deviennent un gris foncé très lisible */
+  .text-stone-300,
+  .text-stone-400 {
+    color: #57534e !important;
+  }
+
+  /* C. EXCEPTION ESSENTIELLE : 
+     Si l'élément a un fond coloré ou sombre (boutons, pastilles du calendrier, tags), 
+     le texte DOIT rester blanc pour rester lisible */
+  button.text-white,
+  [class*="bg-emerald-"],
+  [class*="bg-red-"],
+  [class*="bg-rose-"],
+  [class*="bg-orange-"],
+  [class*="bg-purple-"],
+  [class*="bg-blue-"],
+  [class*="bg-stone-900"],
+  [class*="bg-stone-950"],
+  [style*="background-color"] {
+    &, & * {
+      /* Ne force pas le noir sur les boutons ou éléments sur fond coloré */
+      color: inherit;
+    }
+  }
+
+  /* D. LE LOGO : s'il est blanc ou transparent, on le passe en noir/sombre */
+  header img[alt*="logo" i],
+  header img[alt*="volaris" i],
+  header [data-logo] {
+    filter: brightness(0) !important; /* Transforme n'importe quel logo SVG/PNG blanc en noir pur */
+  }
+
+  /* Si le logo est du texte écrit dans le header */
+  header a span,
+  header .font-black {
+    color: #1c1917 !important;
+  }
 }
 
 /* ========================================================
-   5. FILET DE SÉCURITÉ : TEXTES EN MODE CLAIR & CHAT
+   3. EN MODE SOMBRE : Le logo reste blanc/lumineux
    ======================================================== */
-/* En mode clair, toute classe "text-white" non portée par un bouton/badge coloré
-   devient sombre pour rester lisible (règle le nom du coach dans le chat, titres, etc.) */
-:root:not(.dark) :where(
-  h1.text-white,
-  h2.text-white,
-  h3.text-white,
-  h4.text-white,
-  p.text-white,
-  span.text-white:not([class*="bg-"]),
-  div.text-white:not([class*="bg-"])
-) {
-  color: var(--color-stone-100) !important;
-}
-
-/* En-tête et noms dans les pages de discussion / messagerie */
-:root:not(.dark) [class*="chat"] h1,
-:root:not(.dark) [class*="chat"] h2,
-:root:not(.dark) [class*="chat"] h3,
-:root:not(.dark) [class*="chat"] [class*="title"],
-:root:not(.dark) [class*="chat"] [class*="name"] {
-  color: var(--color-stone-100);
-}
-
-/* ========================================================
-   6. VERROUILLAGE DU LOGO : DOIT RESTER TOUJOURS FONCÉ
-   ======================================================== */
-/* Empêche le logo de devenir blanc ou d'inverser ses couleurs */
-.logo,
-[data-logo],
-header img[alt*="logo" i],
-header img[alt*="volaris" i],
-header svg[data-logo] {
-  filter: none !important;
-}
-
-/* Si le logo utilise du texte dans le header */
-header .logo-text,
-header [data-logo-text] {
-  color: #0c0a09 !important;
-}
-
-/* ========================================================
-   7. BARRE DE DÉFILEMENT
-   ======================================================== */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--color-stone-700);
-  border-radius: 9999px;
+html.dark {
+  header img[alt*="logo" i],
+  header img[alt*="volaris" i],
+  header [data-logo] {
+    filter: none !important;
+  }
 }
