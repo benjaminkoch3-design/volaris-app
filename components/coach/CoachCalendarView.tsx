@@ -140,6 +140,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             const dayNum = i + 1;
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
             const isToday = dateStr === todayStr;
+            const isPast = dateStr < todayStr;
             const daySessions = sessionsByDate[dateStr] || [];
 
             const doneCount = daySessions.filter((s) => {
@@ -203,7 +204,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       w.completedKm !== undefined ||
                       Boolean(w.athleteComment);
 
-                    // Couleur exacte définie dans le plan ou fallback sécurisé
+                    // Couleur personnalisée de la séance ou fallback
                     const fallbackConfig = getWorkoutTypeConfig(w.type);
                     const workoutColor: string =
                       w.color ||
@@ -211,49 +212,52 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       (fallbackConfig as any)?.color ||
                       "#CF9A61";
 
-                    const typeName = w.type || (fallbackConfig as any)?.label || "Séance";
+                    // Titre exact de la séance
+                    const workoutTitle = w.title || (fallbackConfig as any)?.label || "Séance";
                     const firstName = (s.athlete.name || "Athlète").split(" ")[0];
 
                     return (
                       <div
                         key={idx}
                         style={{
-                          borderLeftColor: workoutColor,
-                          backgroundColor: `${workoutColor}14`,
+                          backgroundColor: `${workoutColor}28`, // Toute la case prend la couleur de la séance
+                          borderColor: `${workoutColor}60`,
                         }}
-                        className={`text-[8px] font-bold px-1.5 py-1 rounded-md border border-stone-200/80 dark:border-stone-800 border-l-[3px] flex items-center justify-between gap-1 transition-all ${
-                          isDone ? "opacity-100" : "opacity-90"
+                        className="text-[8px] font-bold px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-xs"
+                        title={`${s.athlete.name} • ${workoutTitle} ${
+                          isDone
+                            ? "(Réalisée ✓)"
+                            : isPast
+                            ? "(Non réalisée ✕)"
+                            : "(À venir)"
                         }`}
-                        title={`${s.athlete.name} • ${typeName} : ${w.title || ""} ${isDone ? "(Réalisée ✓)" : "(Non réalisée / Prévue)"}`}
                       >
+                        {/* Athlète + Titre de la séance */}
                         <div className="flex items-center gap-1 min-w-0 truncate">
-                          <span className="font-black text-stone-900 dark:text-stone-100 truncate">
+                          <span className="font-black text-stone-950 dark:text-stone-100 truncate">
                             {firstName}
                           </span>
-                          <span
-                            style={{ color: workoutColor }}
-                            className="font-bold truncate opacity-90 text-[7.5px]"
-                          >
-                            {typeName}
+                          <span className="text-[7.5px] font-medium text-stone-700 dark:text-stone-300 truncate">
+                            • {workoutTitle}
                           </span>
                         </div>
 
-                        {/* INDICATEUR D'EXÉCUTION */}
+                        {/* Statut d'exécution conditionnel */}
                         {isDone ? (
                           <span
-                            className="text-[8px] font-black text-emerald-500 shrink-0"
-                            title="Séance réalisée"
+                            className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 shrink-0"
+                            title="Séance validée"
                           >
                             ✓
                           </span>
-                        ) : (
+                        ) : isPast ? (
                           <span
-                            className="text-[8px] font-bold text-stone-400 dark:text-stone-500 shrink-0"
-                            title="Séance prévue"
+                            className="text-[9px] font-black text-rose-600 dark:text-rose-400 shrink-0"
+                            title="Séance non réalisée"
                           >
-                            •
+                            ✕
                           </span>
-                        )}
+                        ) : null /* Rien si c'est aujourd'hui ou dans le futur et pas encore fait */}
                       </div>
                     );
                   })}
