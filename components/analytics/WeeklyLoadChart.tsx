@@ -11,11 +11,9 @@ interface WeeklyLoadChartProps {
   onNavigateToVolumeChart?: () => void;
 }
 
-// Fonction de calcul de la charge d'une séance (Durée x RPE)
 const calculatePlannedWorkoutLoad = (w: Workout): number => {
   if (w.isRest) return 0;
   const distOrTime = parseFloat(w.km || "0");
-  // Estimation de la durée en min (si km, approx 5 min/km si non spécifiée)
   const durationMin = w.completedTimeMinutes || (distOrTime > 0 ? distOrTime * 5 : 45);
   const targetRpe = w.rpe ? parseFloat(w.rpe) : 5;
   return Math.round(durationMin * targetRpe);
@@ -37,16 +35,12 @@ export const WeeklyLoadChart: React.FC<WeeklyLoadChartProps> = ({
 }) => {
   const weekWorkouts = workouts.filter((w) => w.weekNumber === currentWeekNum && !w.isRest);
 
-  // Calcul quotidien des charges Prévue (Coach) vs Réalisée (Athlète)
   const dailyLoads = DAYS_LIST.map((dayName, dayIdx) => {
     const dayWorkouts = weekWorkouts.filter((w) => w.dayIndex === dayIdx);
-    
-    // Charge prévue par le coach
+
     const totalLoad = dayWorkouts.reduce((sum, w) => sum + calculatePlannedWorkoutLoad(w), 0);
-    
-    // Charge réalisée par l'athlète avec son RPE ressenti
     const completedLoad = dayWorkouts.reduce((sum, w) => {
-      const isDone = completedWorkouts ? completedWorkouts[w.id] : false;
+      const isDone = completedWorkouts ? Boolean(completedWorkouts[w.id]) : false;
       return sum + calculateCompletedWorkoutLoad(w, isDone);
     }, 0);
 
@@ -59,31 +53,29 @@ export const WeeklyLoadChart: React.FC<WeeklyLoadChartProps> = ({
   });
 
   const maxDailyLoad = Math.max(...dailyLoads.map((d) => Math.max(d.totalLoad, d.completedLoad)), 100);
-  
-  // Total hebdo
+
   const totalWeekLoad = dailyLoads.reduce((acc, d) => acc + d.totalLoad, 0);
   const completedWeekLoad = dailyLoads.reduce((acc, d) => acc + d.completedLoad, 0);
 
-  // SVG dimensions
-  const width = 300;
-  const height = 90;
-  const paddingLeft = 32;
-  const paddingRight = 15;
-  const paddingY = 15;
+  const width = 600;
+  const height = 160;
+  const paddingLeft = 45;
+  const paddingRight = 20;
+  const paddingTop = 20;
+  const paddingBottom = 35;
+  const baselineY = height - paddingBottom;
   const usableWidth = width - paddingLeft - paddingRight;
-  const usableHeight = height - paddingY * 2;
+  const usableHeight = baselineY - paddingTop;
 
   const getX = (index: number) => paddingLeft + (index / (dailyLoads.length - 1)) * usableWidth;
-  const getY = (value: number) => height - paddingY - (value / maxDailyLoad) * usableHeight;
+  const getY = (value: number) => baselineY - (value / maxDailyLoad) * usableHeight;
 
   const pointsPlanned = dailyLoads.map((d, i) => `${getX(i)},${getY(d.totalLoad)}`).join(" ");
   const pointsCompleted = dailyLoads.map((d, i) => `${getX(i)},${getY(d.completedLoad)}`).join(" ");
-
-  const areaCompleted = `${getX(0)},${height - paddingY} ${pointsCompleted} ${getX(dailyLoads.length - 1)},${height - paddingY}`;
+  const areaCompleted = `${getX(0)},${baselineY} ${pointsCompleted} ${getX(dailyLoads.length - 1)},${baselineY}`;
 
   return (
-    <div className="bg-stone-900 border border-stone-800 p-5 rounded-3xl space-y-3 shadow-xl font-sans">
-      {/* HEADER : SANS EMOJI DANS LE TITRE */}
+    <div className="bg-stone-900 border border-stone-800 p-5 rounded-3xl space-y-3 shadow-xl font-sans w-full">
       <div className="flex justify-between items-center border-b border-stone-800 pb-2">
         <div>
           <span className="text-xs font-black uppercase text-stone-100 tracking-wider block">
@@ -105,9 +97,8 @@ export const WeeklyLoadChart: React.FC<WeeklyLoadChartProps> = ({
         )}
       </div>
 
-      {/* GRAPH SVG */}
-      <div className="relative bg-stone-950/80 rounded-2xl p-2 border border-stone-800/80">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-28 overflow-visible">
+      <div className="relative bg-stone-950/80 rounded-2xl p-2 border border-stone-800/80 w-full overflow-hidden">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none">
           <defs>
             <linearGradient id="completedGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#CF9A61" stopOpacity="0.3" />
@@ -115,63 +106,63 @@ export const WeeklyLoadChart: React.FC<WeeklyLoadChartProps> = ({
             </linearGradient>
           </defs>
 
-          {/* AXE DES ORDONNÉES (Y) EN GRIS */}
-          <text x={paddingLeft - 4} y={paddingY + 3} fill="#737373" fontSize="7" textAnchor="end" fontWeight="bold">
+          {/* Axe Y (Valeurs) */}
+          <text x={paddingLeft - 8} y={paddingTop + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
             {Math.round(maxDailyLoad)}
           </text>
-          <text x={paddingLeft - 4} y={height / 2 + 3} fill="#737373" fontSize="7" textAnchor="end" fontWeight="bold">
+          <text x={paddingLeft - 8} y={paddingTop + usableHeight / 2 + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
             {Math.round(maxDailyLoad / 2)}
           </text>
-          <text x={paddingLeft - 4} y={height - paddingY + 3} fill="#737373" fontSize="7" textAnchor="end" fontWeight="bold">
+          <text x={paddingLeft - 8} y={baselineY + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
             0
           </text>
 
-          {/* LIGNES DE QUADRILLAGE HORIZONTALES POINTILLÉES EN GRIS */}
-          <line x1={paddingLeft} y1={paddingY} x2={width - paddingRight} y2={paddingY} stroke="#525252" strokeDasharray="3,3" />
-          <line x1={paddingLeft} y1={height / 2} x2={width - paddingRight} y2={height / 2} stroke="#525252" strokeDasharray="3,3" />
-          <line x1={paddingLeft} y1={height - paddingY} x2={width - paddingRight} y2={height - paddingY} stroke="#737373" />
+          {/* Lignes de quadrillage */}
+          <line x1={paddingLeft} y1={paddingTop} x2={width - paddingRight} y2={paddingTop} stroke="#3f3f46" strokeDasharray="3,3" />
+          <line x1={paddingLeft} y1={paddingTop + usableHeight / 2} x2={width - paddingRight} y2={paddingTop + usableHeight / 2} stroke="#3f3f46" strokeDasharray="3,3" />
+          <line x1={paddingLeft} y1={baselineY} x2={width - paddingRight} y2={baselineY} stroke="#52525b" strokeWidth="1.5" />
 
-          {/* DÉGRADÉ SOUS LA COURBE RÉALISÉE */}
+          {/* Dégradé et courbes */}
           <polygon points={areaCompleted} fill="url(#completedGradient)" />
+          <polyline points={pointsPlanned} fill="none" stroke="#737373" strokeWidth="2" strokeDasharray="4,4" />
+          <polyline points={pointsCompleted} fill="none" stroke="#CF9A61" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
-          {/* COURBE CHARGE PRÉVUE (POINTILLÉS GRIS #737373) */}
-          <polyline points={pointsPlanned} fill="none" stroke="#737373" strokeWidth="1.5" strokeDasharray="3,3" />
-
-          {/* COURBE CHARGE RÉALISÉE (TRAIT BRUN #CF9A61) */}
-          <polyline points={pointsCompleted} fill="none" stroke="#CF9A61" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* CERCLES SUR LA COURBE RÉALISÉE (CONTOUR CF6361) */}
+          {/* Points et axe X alignés */}
           {dailyLoads.map((d, i) => {
             const cx = getX(i);
             const cy = getY(d.completedLoad);
+
             return (
-              <g key={i} className="group cursor-pointer">
-                <circle cx={cx} cy={cy} r="4" className="fill-stone-950 stroke-[#CF6361] stroke-[2.5] transition-all group-hover:r-6" />
-                {d.hasSession && (
-                  <foreignObject x={cx - 50} y={cy - 45} width="100" height="40" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    <div className="bg-stone-900 border border-stone-700 text-stone-100 text-[8px] font-bold p-1 rounded shadow-lg text-center">
-                      <div>{d.dayName}</div>
-                      <div className="text-[#CF9A61]">{d.completedLoad} pts (Réalisé)</div>
-                      <div className="text-stone-400">{d.totalLoad} pts (Prévu)</div>
-                    </div>
-                  </foreignObject>
-                )}
+              <g key={i}>
+                <line x1={cx} y1={baselineY} x2={cx} y2={baselineY + 4} stroke="#52525b" strokeWidth="1.5" />
+                <text
+                  x={cx}
+                  y={baselineY + 18}
+                  fill={d.hasSession ? "#f4f4f5" : "#71717a"}
+                  fontSize="11"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  {d.dayName}
+                </text>
+
+                <g className="group cursor-pointer">
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r="5"
+                    className="fill-stone-950 stroke-[#CF6361] stroke-[2.5] transition-all group-hover:r-7"
+                  />
+                  {d.hasSession && (
+                    <title>{`${d.dayName} — Réalisé : ${d.completedLoad} pts | Prévu : ${d.totalLoad} pts`}</title>
+                  )}
+                </g>
               </g>
             );
           })}
         </svg>
-
-        {/* ÉTIQUETTES DES JOURS */}
-        <div className="flex justify-between pl-8 pr-2 pt-1">
-          {dailyLoads.map((d, i) => (
-            <span key={i} className={`text-[9px] font-bold ${d.hasSession ? "text-stone-100" : "text-stone-500"}`}>
-              {d.dayName}
-            </span>
-          ))}
-        </div>
       </div>
 
-      {/* LÉGENDE DE COULEUR DU BAS */}
       <div className="flex justify-between items-center text-[9px] font-semibold text-stone-300 pt-1">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
@@ -181,7 +172,7 @@ export const WeeklyLoadChart: React.FC<WeeklyLoadChartProps> = ({
             <span className="w-2.5 h-0.5 bg-[#737373] inline-block border-t border-dashed border-[#737373]"></span> Prévu (RPE coach)
           </span>
         </div>
-        <span className="text-stone-300">Focus quotidien</span>
+        <span className="text-stone-400">Focus quotidien</span>
       </div>
     </div>
   );
