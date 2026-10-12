@@ -23,10 +23,10 @@ export const Header: React.FC<HeaderProps> = ({
   const isCoach = userRole === "coach";
 
   return (
-    <header className="bg-stone-900/90 border-b border-stone-800 px-4 py-3.5 sticky top-0 z-20 backdrop-blur-md font-sans">
-      <div className="max-w-md mx-auto flex items-center justify-between">
+    <header className="w-full bg-stone-900/90 border-b border-stone-800 px-4 md:px-8 py-3.5 sticky top-0 z-50 backdrop-blur-md font-sans">
+      <div className="w-full flex items-center justify-between gap-4">
         {/* À GAUCHE : DÉCONNEXION & TITRES */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={onLogout}
@@ -64,12 +64,12 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* À DROITE : BOUTON ÉVOLUTION + BASCULE DE RÔLE (ATHLÈTE & COACH) + LOGO */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 shrink-0">
           {onNavigateToVolumeChart && (
             <button
               type="button"
               onClick={onNavigateToVolumeChart}
-              className="text-white bg-stone-900 border border-stone-700 hover:bg-stone-800 font-extrabold text-[10px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap"
+              className="text-white bg-stone-900 border border-stone-700 hover:bg-stone-800 font-extrabold text-[10px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap hidden sm:flex"
             >
               📊 ÉVOLUTION VOLUME & CHARGE
             </button>
@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onToggleRole}
-              className={`text-[9.5px] font-black px-2.5 py-1.5 rounded-full transition cursor-pointer shadow-md border border-stone-800 text-stone-950 flex items-center gap-1 whitespace-nowrap ${
+              className={`text-[9.5px] font-black px-3 py-1.5 rounded-full transition cursor-pointer shadow-md border border-stone-800 text-stone-950 flex items-center gap-1.5 whitespace-nowrap ${
                 isCoach
                   ? "bg-[#CF9A61] hover:bg-[#b88652]"
                   : "bg-[#CDCF61] hover:bg-[#b8bb52]"
