@@ -40,6 +40,24 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const daysInMonth = lastDayOfMonth.getDate();
   const todayStr = new Date().toISOString().split("T")[0];
 
+  // Vérification stricte du débriefing réel de l'athlète
+  const isWorkoutDebriefed = (w: any): boolean => {
+    const hasExplicitFlag = w.completed === true || w.isCompleted === true;
+    const hasRealRpe =
+      w.completedRpe !== undefined &&
+      w.completedRpe !== null &&
+      Number(w.completedRpe) > 0;
+    const hasRealComment =
+      typeof w.athleteComment === "string" && w.athleteComment.trim().length > 0;
+    const hasRealCompletedKm =
+      w.completedKm !== undefined &&
+      w.completedKm !== null &&
+      Number(w.completedKm) > 0 &&
+      w.isKmValidated === true;
+
+    return hasExplicitFlag || hasRealRpe || hasRealComment || hasRealCompletedKm;
+  };
+
   // Regroupement des séances par date
   const sessionsByDate: Record<string, { athlete: AthleteProfile; workout: Workout }[]> = {};
 
@@ -143,16 +161,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             const isPast = dateStr < todayStr;
             const daySessions = sessionsByDate[dateStr] || [];
 
-            const doneCount = daySessions.filter((s) => {
-              const w = s.workout as any;
-              return (
-                w.completed === true ||
-                w.isCompleted === true ||
-                w.completedRpe !== undefined ||
-                w.completedKm !== undefined ||
-                Boolean(w.athleteComment)
-              );
-            }).length;
+            const debriefedCount = daySessions.filter((s) => isWorkoutDebriefed(s.workout)).length;
 
             return (
               <div
@@ -181,14 +190,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   {daySessions.length > 0 && (
                     <span
                       className={`text-[8px] font-black px-1.5 py-0.5 rounded-md border ${
-                        doneCount === daySessions.length
+                        debriefedCount === daySessions.length
                           ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                          : doneCount > 0
+                          : debriefedCount > 0
                           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                           : "bg-stone-200 dark:bg-[#CDCF61]/20 text-stone-700 dark:text-[#CDCF61] border-stone-300 dark:border-[#CDCF61]/30"
                       }`}
                     >
-                      {doneCount > 0 ? `✓ ${doneCount}/${daySessions.length}` : daySessions.length}
+                      {debriefedCount > 0 ? `✓ ${debriefedCount}/${daySessions.length}` : daySessions.length}
                     </span>
                   )}
                 </div>
@@ -197,14 +206,9 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                 <div className="space-y-1 mt-1.5">
                   {daySessions.slice(0, 3).map((s, idx) => {
                     const w = s.workout as any;
-                    const isDone =
-                      w.completed === true ||
-                      w.isCompleted === true ||
-                      w.completedRpe !== undefined ||
-                      w.completedKm !== undefined ||
-                      Boolean(w.athleteComment);
+                    const isDone = isWorkoutDebriefed(w);
 
-                    // Couleur personnalisée de la séance ou fallback
+                    // Couleur exacte issue du plan ou repli sécurisé
                     const fallbackConfig = getWorkoutTypeConfig(w.type);
                     const workoutColor: string =
                       w.color ||
@@ -212,7 +216,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       (fallbackConfig as any)?.color ||
                       "#CF9A61";
 
-                    // Titre exact de la séance
+                    // Titre réel de la séance
                     const workoutTitle = w.title || (fallbackConfig as any)?.label || "Séance";
                     const firstName = (s.athlete.name || "Athlète").split(" ")[0];
 
@@ -220,7 +224,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       <div
                         key={idx}
                         style={{
-                          backgroundColor: `${workoutColor}28`, // Toute la case prend la couleur de la séance
+                          backgroundColor: `${workoutColor}28`,
                           borderColor: `${workoutColor}60`,
                         }}
                         className="text-[8px] font-bold px-1.5 py-1 rounded-lg border flex items-center justify-between gap-1 transition-all shadow-xs"
@@ -257,7 +261,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           >
                             ✕
                           </span>
-                        ) : null /* Rien si c'est aujourd'hui ou dans le futur et pas encore fait */}
+                        ) : null}
                       </div>
                     );
                   })}
