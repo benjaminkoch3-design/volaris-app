@@ -1974,7 +1974,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                               />
                             </div>
 
-                            <button
+                          <button
                               type="submit"
                               className="w-full py-2 bg-[#4DB380] hover:bg-[#3ea06f] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
                             >
