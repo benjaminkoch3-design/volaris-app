@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { AthleteProfile, Plan, Workout } from "../../types";
-import { getWorkoutTypeConfig } from "../../utils/calculations";
 
 interface CoachCalendarViewProps {
   managedAthletes: AthleteProfile[];
@@ -17,6 +16,45 @@ const MONTHS_FR = [
 ];
 
 const DAYS_SHORT_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+// 🎨 Palette officielle calquée sur les clés exactes de ta liste prédéfinie
+const WORKOUT_COLORS: Record<string, { bg: string; text: "dark" | "light" }> = {
+  // Course / Compétition
+  course: { bg: "#eab308", text: "dark" },
+  competition: { bg: "#eab308", text: "dark" },
+
+  // Activation
+  activation: { bg: "#06b6d4", text: "dark" },
+
+  // Spécifique
+  specifique: { bg: "#CF9A61", text: "dark" },
+
+  // Footing actif
+  footing_actif: { bg: "#84cc16", text: "dark" },
+
+  // Footing / Endurance
+  footing: { bg: "#10b981", text: "light" },
+  endurance: { bg: "#10b981", text: "light" },
+
+  // Seuil
+  seuil: { bg: "#f97316", text: "light" },
+
+  // Fractionné / VMA
+  vma: { bg: "#ef4444", text: "light" },
+  fractionne: { bg: "#ef4444", text: "light" },
+
+  // Sortie Longue
+  sortie_longue: { bg: "#0284c7", text: "light" },
+
+  // Récupération
+  recup: { bg: "#64748b", text: "light" },
+  recuperation: { bg: "#64748b", text: "light" },
+
+  // Renforcement / PPG / Côtes
+  renfo: { bg: "#8b5cf6", text: "light" },
+  ppg: { bg: "#8b5cf6", text: "light" },
+  cotes: { bg: "#a855f7", text: "light" },
+};
 
 export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   managedAthletes,
@@ -40,7 +78,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const daysInMonth = lastDayOfMonth.getDate();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Détection stricte d'une séance débriefée par l'athlète
+  // Détection stricte d'un débriefing effectué par l'athlète
   const isWorkoutDebriefed = (w: any): boolean => {
     const hasExplicitFlag = w.completed === true || w.isCompleted === true;
     const hasRealRpe =
@@ -173,7 +211,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     : "bg-stone-50/40 dark:bg-stone-950/40 border-stone-200/60 dark:border-stone-800/50 hover:border-stone-300 dark:hover:border-stone-700"
                 }`}
               >
-                {/* EN-TÊTE DU JOUR (SEULEMENT LE NUMÉRO) */}
+                {/* NUMÉRO DU JOUR */}
                 <div className="flex items-center justify-between mb-1">
                   <span
                     className={`text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center ${
@@ -186,32 +224,32 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   </span>
                 </div>
 
-                {/* LISTE DES SÉANCES EN FORMAT ULTRA-COMPACT */}
+                {/* LISTE COMPACTE DES SÉANCES */}
                 <div className="space-y-1 w-full overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
                   {daySessions.map((s, idx) => {
                     const w = s.workout as any;
                     const isDone = isWorkoutDebriefed(w);
 
-                    // Couleur exacte issue du plan ou fallback calculé
-                    const fallbackConfig = getWorkoutTypeConfig(w.type);
-                    const workoutColor: string =
-                      w.color ||
-                      w.tagColor ||
-                      (fallbackConfig as any)?.color ||
-                      "#CF9A61";
+                    // Correspondance directe via la clé exacte w.type
+                    const typeKey = String(w.type || "footing").toLowerCase();
+                    const colorScheme =
+                      WORKOUT_COLORS[typeKey] ||
+                      (w.color ? { bg: w.color, text: "light" } : { bg: "#10b981", text: "light" });
 
-                    // Titre exact de la séance
-                    const workoutTitle = w.title || (fallbackConfig as any)?.label || "Séance";
+                    const textColorClass = colorScheme.text === "dark" ? "text-stone-950" : "text-white";
+                    const initialBgClass = colorScheme.text === "dark" ? "bg-stone-950/20 text-stone-950" : "bg-black/25 text-white";
+
+                    const workoutTitle = w.title || w.type || "Séance";
                     const initialLetter = (s.athlete.name || "A").trim().charAt(0).toUpperCase();
 
                     return (
                       <div
                         key={idx}
                         style={{
-                          backgroundColor: workoutColor,
-                          borderColor: `${workoutColor}cc`,
+                          backgroundColor: colorScheme.bg,
+                          borderColor: `${colorScheme.bg}ee`,
                         }}
-                        className="text-[8px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs text-stone-950 w-full"
+                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full ${textColorClass}`}
                         title={`${s.athlete.name} • ${workoutTitle} ${
                           isDone
                             ? "(Validée ✓)"
@@ -220,27 +258,27 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                             : "(Prévue)"
                         }`}
                       >
-                        {/* Initiale de l'athlète + Titre de la séance */}
+                        {/* Initiale de l'athlète + Titre exact */}
                         <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
-                          <span className="w-3.5 h-3.5 rounded-full bg-stone-950/20 flex items-center justify-center text-[7.5px] font-black shrink-0 text-stone-950">
+                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 ${initialBgClass}`}>
                             {initialLetter}
                           </span>
-                          <span className="truncate tracking-tight font-extrabold">
+                          <span className="truncate tracking-tight font-extrabold drop-shadow-xs">
                             {workoutTitle}
                           </span>
                         </div>
 
-                        {/* Statut d'exécution (✓ Fait / ✕ Passé non fait / Rien si futur) */}
+                        {/* Statut d'exécution */}
                         {isDone ? (
                           <span
-                            className="text-[8.5px] font-black text-emerald-950 bg-emerald-400/80 px-1 rounded shrink-0 leading-none py-0.5"
+                            className="text-[8.5px] font-black text-emerald-950 bg-white/95 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
                             title="Validée"
                           >
                             ✓
                           </span>
                         ) : isPast ? (
                           <span
-                            className="text-[8px] font-black text-white bg-rose-600/90 px-1 rounded shrink-0 leading-none py-0.5"
+                            className="text-[8px] font-black text-white bg-black/45 px-1 rounded shrink-0 leading-none py-0.5"
                             title="Non débriefée"
                           >
                             ✕
