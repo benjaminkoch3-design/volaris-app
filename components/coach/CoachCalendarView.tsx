@@ -1,7 +1,7 @@
 // src/components/coach/CoachCalendarView.tsx
 
 import React, { useState } from "react";
-import { AthleteProfile, Plan, Workout } from "../../types";
+import { AthleteProfile, Plan, Workout, WorkoutType } from "../../types";
 
 interface CoachCalendarViewProps {
   managedAthletes: AthleteProfile[];
@@ -17,43 +17,21 @@ const MONTHS_FR = [
 
 const DAYS_SHORT_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-// 🎨 Palette officielle calquée sur les clés exactes de ta liste prédéfinie
-const WORKOUT_COLORS: Record<string, { bg: string; text: "dark" | "light" }> = {
-  // Course / Compétition
-  course: { bg: "#eab308", text: "dark" },
-  competition: { bg: "#eab308", text: "dark" },
-
-  // Activation
-  activation: { bg: "#06b6d4", text: "dark" },
-
-  // Spécifique
-  specifique: { bg: "#CF9A61", text: "dark" },
-
-  // Footing actif
-  footing_actif: { bg: "#84cc16", text: "dark" },
-
-  // Footing / Endurance
-  footing: { bg: "#10b981", text: "light" },
-  endurance: { bg: "#10b981", text: "light" },
-
-  // Seuil
-  seuil: { bg: "#f97316", text: "light" },
-
-  // Fractionné / VMA
-  vma: { bg: "#ef4444", text: "light" },
-  fractionne: { bg: "#ef4444", text: "light" },
-
-  // Sortie Longue
-  sortie_longue: { bg: "#0284c7", text: "light" },
-
-  // Récupération
-  recup: { bg: "#64748b", text: "light" },
-  recuperation: { bg: "#64748b", text: "light" },
-
-  // Renforcement / PPG / Côtes
-  renfo: { bg: "#8b5cf6", text: "light" },
-  ppg: { bg: "#8b5cf6", text: "light" },
-  cotes: { bg: "#a855f7", text: "light" },
+// 🎨 Palette calquée exclusivement sur les clés de WORKOUT_TYPES_CONFIG (constants/index.ts)
+const WORKOUT_COLORS: Record<
+  Exclude<WorkoutType, "repos">,
+  { bg: string; text: "dark" | "light" }
+> = {
+  recup: { bg: "#38bdf8", text: "dark" },         // sky-400
+  footing: { bg: "#34d399", text: "dark" },       // emerald-400
+  footing_actif: { bg: "#059669", text: "light" },// emerald-600/700
+  cotes: { bg: "#92400e", text: "light" },        // amber-800
+  vma: { bg: "#ef4444", text: "light" },          // red-500
+  seuil: { bg: "#f97316", text: "light" },        // orange-500
+  specifique: { bg: "#a855f7", text: "light" },   // purple-500
+  sortie_longue: { bg: "#f472b6", text: "dark" }, // pink-400/500
+  activation: { bg: "#1d4ed8", text: "light" },   // blue-700
+  course: { bg: "#f59e0b", text: "dark" },        // amber-400/500
 };
 
 export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
@@ -120,7 +98,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
     planWorkouts.forEach((wItem) => {
       const w = wItem as any;
-      if (w.isRest || w.is_rest) return;
+      if (w.isRest || w.is_rest || w.type === "repos") return;
 
       const [sY, sM, sD] = planStartDateStr.split("-").map(Number);
       const workoutDateObj = new Date(sY, sM - 1, sD);
@@ -224,21 +202,19 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   </span>
                 </div>
 
-                {/* LISTE COMPACTE DES SÉANCES */}
+                {/* LISTE DES SÉANCES DU JOUR */}
                 <div className="space-y-1 w-full overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
                   {daySessions.map((s, idx) => {
                     const w = s.workout as any;
                     const isDone = isWorkoutDebriefed(w);
 
-                    // Correspondance directe via la clé exacte w.type
-                    const typeKey = String(w.type || "footing").toLowerCase();
+                    // Couleur calquée sur les clés exactes de WORKOUT_TYPES_CONFIG
+                    const typeKey = (w.type || "footing") as Exclude<WorkoutType, "repos">;
                     const colorScheme =
                       WORKOUT_COLORS[typeKey] ||
-                      (w.color ? { bg: w.color, text: "light" } : { bg: "#10b981", text: "light" });
+                      (w.color ? { bg: w.color, text: "light" } : { bg: "#34d399", text: "dark" });
 
-                    const textColorClass = colorScheme.text === "dark" ? "text-stone-950" : "text-white";
-                    const initialBgClass = colorScheme.text === "dark" ? "bg-stone-950/20 text-stone-950" : "bg-black/25 text-white";
-
+                    const isDarkText = colorScheme.text === "dark";
                     const workoutTitle = w.title || w.type || "Séance";
                     const initialLetter = (s.athlete.name || "A").trim().charAt(0).toUpperCase();
 
@@ -249,7 +225,9 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           backgroundColor: colorScheme.bg,
                           borderColor: `${colorScheme.bg}ee`,
                         }}
-                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full ${textColorClass}`}
+                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full ${
+                          isDarkText ? "text-stone-950" : "text-white"
+                        }`}
                         title={`${s.athlete.name} • ${workoutTitle} ${
                           isDone
                             ? "(Validée ✓)"
@@ -260,10 +238,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       >
                         {/* Initiale de l'athlète + Titre exact */}
                         <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
-                          <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 ${initialBgClass}`}>
+                          <span
+                            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 ${
+                              isDarkText ? "bg-stone-950/20 text-stone-950" : "bg-black/25 text-white"
+                            }`}
+                          >
                             {initialLetter}
                           </span>
-                          <span className="truncate tracking-tight font-extrabold drop-shadow-xs">
+                          <span className="truncate tracking-tight font-extrabold">
                             {workoutTitle}
                           </span>
                         </div>
@@ -278,7 +260,9 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           </span>
                         ) : isPast ? (
                           <span
-                            className="text-[8px] font-black text-white bg-black/45 px-1 rounded shrink-0 leading-none py-0.5"
+                            className={`text-[8px] font-black px-1 rounded shrink-0 leading-none py-0.5 ${
+                              isDarkText ? "text-white bg-rose-700" : "text-white bg-black/40"
+                            }`}
                             title="Non débriefée"
                           >
                             ✕
