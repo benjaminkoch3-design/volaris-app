@@ -1035,7 +1035,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="space-y-1">
               <div className="relative w-full h-3 bg-gradient-to-r from-emerald-500 via-amber-400 via-orange-500 to-red-600 rounded-full p-0.5 shadow-inner">
                 <div
-                  style={{ left: `calc(${runnerProfile.endurancePercent}% - 6px)` }}
+                  style={{ left: `calc(${runnerProfile.vitessePercent}% - 6px)` }}
                   className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-stone-950 rounded-full shadow-lg transition-all"
                   title={`Position : ${runnerProfile.endurancePercent}% Endurance`}
                 />
