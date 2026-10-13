@@ -1,8 +1,8 @@
 // src/components/profile/AthleteWorkoutLibraryView.tsx
 
 import React, { useState } from "react";
-import { LibraryWorkout, LibraryCategory, WorkoutType } from "../../types";
-import { WORKOUT_TYPES_CONFIG } from "../../constants";
+import { LibraryWorkout, LibraryCategory } from "../../types";
+import { getWorkoutTypeConfig } from "../../utils/calculations";
 
 interface AthleteWorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
@@ -15,24 +15,11 @@ interface AthleteWorkoutLibraryViewProps {
   onBackToProfile: () => void;
 }
 
-const WORKOUT_BORDER_COLORS: Record<string, string> = {
-  recup: "#38bdf8",         // sky-400
-  footing: "#34d399",       // emerald-400
-  footing_actif: "#059669", // emerald-600
-  cotes: "#92400e",         // amber-800
-  vma: "#ef4444",           // red-500
-  seuil: "#f97316",         // orange-500
-  specifique: "#a855f7",    // purple-500
-  sortie_longue: "#f472b6", // pink-400
-  activation: "#1d4ed8",    // blue-700
-  course: "#f59e0b",        // amber-500
-};
-
 const getRpeColor = (rpeVal: number) => {
-  if (rpeVal <= 3) return "#10b981"; // Vert
-  if (rpeVal <= 5) return "#f59e0b"; // Ambre
-  if (rpeVal <= 7) return "#f97316"; // Orange
-  return "#ef4444"; // Rouge
+  if (rpeVal <= 3) return "#10b981";
+  if (rpeVal <= 5) return "#f59e0b";
+  if (rpeVal <= 7) return "#f97316";
+  return "#ef4444";
 };
 
 export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps> = ({
@@ -66,7 +53,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
 
   return (
     <div className="space-y-5 animate-fadeIn pb-10 font-sans">
-      {/* HEADER DE LA BIBLIOTHÈQUE ATHLÈTE EN OCRE / BRUN (#CF9A61) */}
+      {/* HEADER DE LA BIBLIOTHÈQUE ATHLÈTE */}
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button
@@ -190,32 +177,22 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             const rpeVal = parseInt(workout.rpe || "5", 10);
             const rpeColor = getRpeColor(rpeVal);
 
-            const workoutType = ((workout as any).type || "footing") as WorkoutType;
-            const typeConfig = WORKOUT_TYPES_CONFIG[workoutType as Exclude<WorkoutType, "repos">];
-            const borderColor = WORKOUT_BORDER_COLORS[workoutType] || "#34d399";
-            const typeLabel = workoutType === "vma" ? "Fractionné" : (typeConfig?.label || "Footing");
+            // On utilise la fonction standard de l'application
+            const typeConfig = getWorkoutTypeConfig((workout as any).type || "footing");
 
             return (
               <div
                 key={workout.id}
-                style={{ borderLeftColor: borderColor }}
-                className="p-4 rounded-3xl border border-l-8 border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition"
+                className={`p-4 rounded-3xl border border-l-8 ${typeConfig.borderClass} border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition`}
               >
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span
-                        style={{ color: borderColor }}
-                        className="text-[9.5px] font-black uppercase tracking-widest block"
-                      >
-                        {typeLabel}
-                      </span>
-                      <span className="text-stone-600 text-[10px]">•</span>
-                      <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider">
-                        Séance Modèle
+                      <span className={`text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${typeConfig.badgeClass}`}>
+                        {typeConfig.label}
                       </span>
                     </div>
-                    <h3 className="text-base font-black uppercase tracking-tight text-stone-100 mt-0.5">
+                    <h3 className="text-base font-black uppercase tracking-tight text-stone-100 mt-1">
                       {workout.title || "Séance sans titre"}
                     </h3>
                   </div>
