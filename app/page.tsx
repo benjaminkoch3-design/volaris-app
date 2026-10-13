@@ -335,16 +335,26 @@ export default function Home() {
 
   const handleSaveLibraryWorkoutToSupabase = async (updatedLib: LibraryWorkout) => {
     if (!session?.user) return;
-    await supabase.from("library_workouts").upsert({
+    
+    const workoutType = (updatedLib as any).type || "footing";
+
+    const payload: any = {
       id: updatedLib.id,
       user_id: session.user.id,
       category_id: updatedLib.categoryId,
+      type: workoutType,
       title: updatedLib.title,
       description: updatedLib.description,
       km: updatedLib.km,
       rpe: updatedLib.rpe,
       steps: updatedLib.steps,
-    });
+    };
+
+    const { error } = await supabase.from("library_workouts").upsert(payload);
+
+    if (error) {
+      console.error("Erreur sauvegarde modèle bibliothèque :", error.message);
+    }
   };
 
   // ----------------------------------------------------
@@ -2170,7 +2180,8 @@ export default function Home() {
       return null;
     }
 
-    const currentType = (libTemplate as any).type || "footing";
+    // Récupérer le type existant ou rabat sur 'footing'
+    const templateType = (libTemplate as any).type || "footing";
 
     const mockWorkout: Workout = {
       id: libTemplate.id,
@@ -2179,7 +2190,7 @@ export default function Home() {
       dayName: "Modèle",
       sessionName: libTemplate.title,
       isRest: false,
-      type: currentType, // 👈 Conserve le type sélectionné
+      type: templateType,
       title: libTemplate.title,
       description: libTemplate.description,
       km: libTemplate.km,
@@ -2196,13 +2207,17 @@ export default function Home() {
           setLibraryWorkouts((prev) =>
             prev.map((lib) => {
               if (lib.id === id) {
-                let updatedFieldKey = field;
-                if (field === "sessionName") updatedFieldKey = "title";
-                const updatedLib = { 
-                  ...lib, 
-                  [updatedFieldKey]: value,
-                  ...(field === "type" ? { type: value } : {}) 
+                // Si on modifie le titre ou le sessionName
+                const fieldKey = field === "sessionName" ? "title" : field;
+
+                const updatedLib = {
+                  ...lib,
+                  [fieldKey]: value,
+                  // Garantir que le type est explicitement conservé/mis à jour
+                  type: field === "type" ? value : ((lib as any).type || "footing"),
                 };
+
+                // Sauvegarde immédiate dans Supabase
                 handleSaveLibraryWorkoutToSupabase(updatedLib);
                 return updatedLib;
               }
