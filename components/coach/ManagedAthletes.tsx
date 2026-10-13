@@ -8,7 +8,7 @@ interface ManagedAthletesProps {
   coachName?: string;
   onUpdateCoachName?: (newName: string) => void;
   onRenameAthlete?: (athleteId: string, customName: string) => void;
-  onRemoveAthlete?: (athleteId: string) => void; // 👈 Dissociation par le coach
+  onRemoveAthlete?: (athleteId: string) => void;
   onSelectAthlete: (id: string) => void;
   onInviteAthlete: () => void;
 }
@@ -228,9 +228,6 @@ export const ManagedAthletes: React.FC<ManagedAthletesProps> = ({
                           )}
                         </div>
                       )}
-                      <span className="text-[10px] text-stone-400 font-medium block">
-                        {athlete.email}
-                      </span>
                     </div>
                   </div>
 
