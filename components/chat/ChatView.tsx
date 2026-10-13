@@ -124,7 +124,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     className="w-full bg-white dark:bg-stone-900/90 border border-stone-200 dark:border-stone-800 hover:border-stone-400 dark:hover:border-[#CDCF61]/50 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition shadow-sm hover:shadow-md group"
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <div className="w-12 h-12 rounded-2xl bg-stone-950 border border-stone-800 flex items-center justify-center font-black !text-white text-base shrink-0 overflow-hidden shadow-inner">
+                      <div className="w-12 h-12 rounded-2xl !bg-stone-950 border border-stone-800 flex items-center justify-center font-black !text-white text-base shrink-0 overflow-hidden shadow-inner">
                         {athAvatar ? (
                           <img
                             src={athAvatar}
@@ -183,8 +183,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </button>
               )}
 
-              {/* AVATAR DU CONTACT */}
-              <div className="w-10 h-10 rounded-full bg-stone-950 border border-stone-800 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-inner">
+              {/* AVATAR DU CONTACT : FOND NOIR, LETTRE FORCÉE EN BLANC */}
+              <div className="w-10 h-10 rounded-full !bg-stone-950 border border-stone-800 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-inner">
                 {displayedContactAvatar ? (
                   <img
                     src={displayedContactAvatar}
@@ -296,7 +296,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     {/* AVATAR CONTACT (À GAUCHE) */}
                     {!isMe && (
-                      <div className="w-8 h-8 rounded-full bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
+                      <div className="w-8 h-8 rounded-full !bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
                         {avatarSrc ? (
                           <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
                         ) : (
@@ -340,6 +340,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         </span>
                       </div>
 
+                      {/* FOND NOIR ABSOLU (!bg-stone-950) ET TEXTE BLANC ABSOLU (!text-white) */}
                       <div
                         style={{
                           backgroundColor: isMe ? themeColor : undefined,
@@ -348,7 +349,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         className={`p-3.5 rounded-2xl border text-xs leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
                           isMe
                             ? "rounded-tr-none text-stone-950 font-bold"
-                            : "rounded-tl-none font-medium bg-stone-950 !text-white border-stone-800"
+                            : "rounded-tl-none font-medium !bg-stone-950 !text-white border-stone-800"
                         }`}
                       >
                         {msg.text}
@@ -357,7 +358,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                     {/* MON AVATAR (À DROITE) */}
                     {isMe && (
-                      <div className="w-8 h-8 rounded-full bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
+                      <div className="w-8 h-8 rounded-full !bg-stone-950 border border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
                         {avatarSrc ? (
                           <img src={avatarSrc} alt="Mon Avatar" className="w-full h-full object-cover" />
                         ) : (
