@@ -1896,7 +1896,7 @@ export default function Home() {
       shoe_id: w.shoeId || null,
       completed_km: w.completedKm || null,
       completed_time_minutes: w.completedTimeMinutes || null,
-      completedElevationGain: w.completedElevationGain || null,
+      completed_elevation_gain: w.completedElevationGain || null,
       imported_activity_name: w.importedActivityName || null,
       activity_telemetry: (w as any).activityTelemetry || (w as any).activity_telemetry || null,
     }));
