@@ -9,7 +9,7 @@ interface HeaderProps {
   athleteName: string;
   hasBothAccounts?: boolean;
   onToggleRole?: () => void;
-  onLogout: () => void;
+  onLogout?: () => void;
   onNavigateToVolumeChart?: () => void;
 }
 
@@ -18,21 +18,26 @@ export const Header: React.FC<HeaderProps> = ({
   athleteName,
   hasBothAccounts = true,
   onToggleRole,
-  onLogout,
   onNavigateToVolumeChart,
 }) => {
   const isCoach = userRole === "coach";
 
+  const handleGoBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+    }
+  };
+
   return (
     <header className="w-full bg-white/90 dark:bg-stone-900/90 border-b border-stone-200 dark:border-stone-800 px-4 md:px-8 py-3.5 sticky top-0 z-50 backdrop-blur-md font-sans transition-colors">
       <div className="w-full flex items-center justify-between gap-4">
-        {/* À GAUCHE : DÉCONNEXION & TITRES */}
+        {/* À GAUCHE : RETOUR EN ARRIÈRE & TITRES */}
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            onClick={onLogout}
-            className="p-2 rounded-xl bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 hover:text-stone-950 dark:hover:text-stone-100 transition cursor-pointer border border-stone-200 dark:border-transparent"
-            title="Déconnexion"
+            onClick={handleGoBack}
+            className="p-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-900 dark:text-stone-100 transition cursor-pointer border border-stone-200 dark:border-stone-700"
+            title="Retour à la page précédente"
           >
             <svg
               className="w-4 h-4"
@@ -43,11 +48,12 @@ export const Header: React.FC<HeaderProps> = ({
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
           </button>
+
           <div>
             <h1 className="text-sm font-black uppercase tracking-wider text-stone-900 dark:text-stone-100 flex items-center gap-2">
               VOLARIS
@@ -70,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onNavigateToVolumeChart}
-              className="text-stone-800 dark:text-white bg-stone-100 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 font-extrabold text-[10px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap hidden sm:flex"
+              className="text-stone-800 dark:text-stone-100 bg-stone-100 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 font-extrabold text-[10px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap hidden sm:flex"
             >
               📊 ÉVOLUTION VOLUME & CHARGE
             </button>
@@ -92,13 +98,12 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* BOUTON THÈME */}
           <ThemeToggle />
 
           <img
             src="/new_logo.png"
             alt="Logo VOLARIS"
-            className="w-8 h-8 object-contain rounded-xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 p-0.5 shrink-0"
+            className="w-8 h-8 object-contain rounded-xl border border-stone-800 bg-[#0c0a09] p-0.5 shrink-0"
           />
         </div>
       </div>
