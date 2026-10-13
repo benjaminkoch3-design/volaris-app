@@ -2168,7 +2168,8 @@ export default function Home() {
       dayName: "Modèle",
       sessionName: libTemplate.title,
       isRest: false,
-      type: libTemplate.categoryId,
+      // Utilise le type réel du modèle ou se rabat sur la catégorie/footing
+      type: (libTemplate as any).type || (libTemplate.categoryId as any) || "footing",
       title: libTemplate.title,
       description: libTemplate.description,
       km: libTemplate.km,
@@ -2187,7 +2188,14 @@ export default function Home() {
               if (lib.id === id) {
                 let updatedFieldKey = field;
                 if (field === "sessionName") updatedFieldKey = "title";
-                const updatedLib = { ...lib, [updatedFieldKey]: value };
+                
+                const updatedLib = { 
+                  ...lib, 
+                  [updatedFieldKey]: value,
+                  // Sauvegarde explicite du type de séance
+                  ...(field === "type" ? { type: value } : {}) 
+                };
+
                 handleSaveLibraryWorkoutToSupabase(updatedLib);
                 return updatedLib;
               }
