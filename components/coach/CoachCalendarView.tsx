@@ -125,7 +125,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           <span className="text-[10px] font-black text-[#CDCF61] uppercase tracking-widest block">
             Agenda d'Entraînement
           </span>
-          <h2 className="text-base font-black uppercase text-stone-900 dark:text-stone-100 mt-0.5">
+          {/* NOM DU MOIS : toujours noir foncé en clair, clair en sombre */}
+          <h2 className="text-base font-black uppercase text-[#1c1917] dark:text-[#f5f5f4] mt-0.5">
             {MONTHS_FR[month]} {year}
           </h2>
         </div>
@@ -134,21 +135,21 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           <button
             type="button"
             onClick={handleCurrentMonth}
-            className="text-[10px] font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+            className="text-[10px] font-bold text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
           >
             Aujourd'hui
           </button>
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-xl border border-stone-200 dark:border-stone-800 transition cursor-pointer"
+            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
           >
             ◀
           </button>
           <button
             type="button"
             onClick={handleNextMonth}
-            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-xl border border-stone-200 dark:border-stone-800 transition cursor-pointer"
+            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
           >
             ▶
           </button>
@@ -156,10 +157,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
       </div>
 
       {/* GRILLE MENSUELLE */}
-      <div className="bg-white/90 dark:bg-stone-900/90 border border-stone-200 dark:border-stone-800 rounded-3xl p-3.5 shadow-sm dark:shadow-xl space-y-2 transition-colors">
+      <div className="bg-white dark:bg-stone-900/90 border border-stone-200 dark:border-stone-800 rounded-3xl p-3.5 shadow-sm dark:shadow-xl space-y-2 transition-colors">
         <div className="grid grid-cols-7 gap-1 text-center pb-2 border-b border-stone-200 dark:border-stone-800/80">
           {DAYS_SHORT_FR.map((d) => (
-            <span key={d} className="text-[10px] font-black uppercase text-stone-400 dark:text-stone-500">
+            <span key={d} className="text-[10px] font-black uppercase text-stone-600 dark:text-stone-400">
               {d}
             </span>
           ))}
@@ -195,7 +196,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     className={`text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center ${
                       isToday
                         ? "bg-[#CDCF61] text-stone-950 font-extrabold"
-                        : "text-stone-700 dark:text-stone-300"
+                        : "text-[#1c1917] dark:text-[#f5f5f4]"
                     }`}
                   >
                     {dayNum}
@@ -228,7 +229,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full ${
                           isDarkText ? "text-stone-950" : "text-white"
                         }`}
-                        title={`${s.athlete.name} • ${workoutTitle} ${
+                        title={`${s.athlete.name} - ${workoutTitle} ${
                           isDone
                             ? "(Validée ✓)"
                             : isPast

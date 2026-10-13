@@ -89,10 +89,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="space-y-4 w-full">
           <div className="flex justify-between items-center border-b border-stone-200 dark:border-stone-800 pb-3">
             <div>
-              <span className="text-[10px] font-bold text-stone-700 dark:text-[#CDCF61] uppercase tracking-widest block">
+              <span className="text-[10px] font-black text-[#5c6e10] dark:text-[#CDCF61] uppercase tracking-widest block">
                 Messagerie Coach
               </span>
-              <h2 className="text-xl font-black uppercase text-stone-900 dark:text-stone-100">
+              {/* MOT "MESSAGES" ET COMPTEUR : noir net en clair, blanc pur en sombre */}
+              <h2 className="text-xl font-black uppercase text-[#1c1917] dark:text-[#f5f5f4]">
                 💬 Messages ({managedAthletes.length})
               </h2>
             </div>
@@ -101,13 +102,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <div className="space-y-2.5 w-full">
             {managedAthletes.length === 0 ? (
               <div className="bg-white dark:bg-stone-900/60 border border-stone-200 dark:border-stone-800 rounded-3xl p-8 text-center space-y-2 shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 flex items-center justify-center mx-auto text-xl text-stone-800 dark:text-[#CDCF61]">
+                <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 flex items-center justify-center mx-auto text-xl text-[#5c6e10] dark:text-[#CDCF61]">
                   💬
                 </div>
-                <p className="text-xs text-stone-700 dark:text-stone-300 font-bold">
+                <p className="text-xs text-[#1c1917] dark:text-[#f5f5f4] font-bold">
                   Aucun athlète associé pour le moment.
                 </p>
-                <p className="text-[11px] text-stone-500 max-w-xs mx-auto">
+                <p className="text-[11px] text-stone-600 dark:text-stone-400 max-w-xs mx-auto">
                   Partagez votre Code Coach pour que vos athlètes puissent vous contacter.
                 </p>
               </div>
@@ -125,7 +126,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       {/* AVATAR ATHLÈTE DANS LA LISTE */}
-                      <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-[#CDCF61]/10 border border-stone-300 dark:border-[#CDCF61]/30 flex items-center justify-center font-black text-stone-900 dark:text-[#CDCF61] text-base shrink-0 overflow-hidden shadow-inner">
+                      <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-[#CDCF61]/10 border border-stone-300 dark:border-[#CDCF61]/30 flex items-center justify-center font-black text-[#1c1917] dark:text-[#CDCF61] text-base shrink-0 overflow-hidden shadow-inner">
                         {athAvatar ? (
                           <img
                             src={athAvatar}
@@ -139,7 +140,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex justify-between items-center gap-2">
-                          <h4 className="text-xs font-black uppercase text-stone-900 dark:text-stone-100 group-hover:text-stone-950 dark:group-hover:text-[#CDCF61] transition truncate">
+                          {/* NOM DE L'ATHLÈTE : noir bien contrasté en clair, blanc pur en sombre */}
+                          <h4 className="text-xs font-black uppercase text-[#1c1917] dark:text-[#f5f5f4] group-hover:text-[#5c6e10] dark:group-hover:text-[#CDCF61] transition truncate">
                             {athlete.name}
                           </h4>
                           {lastMsg && (
@@ -149,7 +151,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           )}
                         </div>
 
-                        <p className="text-[11px] text-stone-600 dark:text-stone-400 truncate mt-0.5">
+                        <p className="text-[11px] text-stone-600 dark:text-stone-400 truncate mt-0.5 font-medium">
                           {lastMsg
                             ? `${lastMsg.senderRole === "coach" ? "Vous : " : ""}${lastMsg.text}`
                             : "Aucun message pour le moment. Cliquez pour discuter."}
@@ -157,7 +159,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </div>
                     </div>
 
-                    <span className="text-stone-500 dark:text-stone-400 group-hover:text-stone-900 dark:group-hover:text-[#CDCF61] text-xs ml-4 transition shrink-0">
+                    <span className="text-stone-500 dark:text-stone-400 group-hover:text-[#1c1917] dark:group-hover:text-[#CDCF61] text-xs ml-4 transition shrink-0">
                       ➔
                     </span>
                   </div>
@@ -185,7 +187,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               )}
 
               {/* AVATAR DU CONTACT */}
-              <div className="w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-inner">
+              <div className="w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-inner">
                 {displayedContactAvatar ? (
                   <img
                     src={displayedContactAvatar}
@@ -193,7 +195,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-stone-900 dark:text-[#CDCF61]">
+                  <span className="text-[#1c1917] dark:text-[#CDCF61]">
                     {displayedContactName.charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -210,7 +212,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       type="text"
                       value={customNameInput}
                       onChange={(e) => setCustomNameInput(e.target.value)}
-                      className="bg-stone-50 dark:bg-stone-950 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 text-xs px-2 py-0.5 rounded-lg focus:outline-none focus:border-stone-500"
+                      className="bg-stone-50 dark:bg-stone-950 border border-stone-300 dark:border-stone-700 text-[#1c1917] dark:text-[#f5f5f4] text-xs px-2 py-0.5 rounded-lg focus:outline-none focus:border-stone-500"
                       placeholder="Nom du coach..."
                       autoFocus
                     />
@@ -241,7 +243,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           setCustomNameInput(currentAthleteName);
                           setIsEditingName(true);
                         }}
-                        className="text-stone-500 hover:text-[#1c1917] dark:hover:text-[#f5f5f4] text-xs cursor-pointer"
+                        className="text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 text-xs cursor-pointer"
                         title="Renommer mon entraîneur"
                       >
                         ✏️
@@ -293,11 +295,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     onMouseLeave={() => setHoveredMessageId(null)}
                     className={`flex items-end gap-2.5 group ${
                       isMe ? "justify-end ml-auto" : "justify-start mr-auto"
-                    }`}
+                    } max-w-[85%] md:max-w-[70%]`}
                   >
                     {/* AVATAR CONTACT (À GAUCHE) */}
                     {!isMe && (
-                      <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
+                      <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
                         {avatarSrc ? (
                           <img src={avatarSrc} alt="Avatar" className="w-full h-full object-cover" />
                         ) : (
@@ -349,7 +351,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         className={`p-3.5 rounded-2xl border text-xs leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
                           isMe
                             ? "rounded-tr-none text-stone-950 font-bold"
-                            : "rounded-tl-none font-medium bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 border-stone-200 dark:border-stone-800"
+                            : "rounded-tl-none font-medium bg-stone-100 dark:bg-stone-950 text-[#1c1917] dark:text-[#f5f5f4] border-stone-200 dark:border-stone-800"
                         }`}
                       >
                         {msg.text}
@@ -358,11 +360,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                     {/* MON AVATAR (À DROITE) */}
                     {isMe && (
-                      <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
+                      <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-sm">
                         {avatarSrc ? (
                           <img src={avatarSrc} alt="Mon Avatar" className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-[10px] font-black text-stone-900 dark:text-stone-200">
+                          <span className="text-[10px] font-black text-[#CF9A61]">
                             {msg.senderName?.charAt(0).toUpperCase() || "M"}
                           </span>
                         )}
@@ -386,7 +388,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               placeholder="Écrivez votre message..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 bg-stone-50 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 rounded-2xl px-4 py-3 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-stone-500 placeholder:text-stone-400 dark:placeholder:text-stone-500 transition shadow-inner"
+              className="flex-1 bg-stone-50 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 rounded-2xl px-4 py-3 text-xs text-[#1c1917] dark:text-[#f5f5f4] focus:outline-none focus:border-stone-500 placeholder:text-stone-400 dark:placeholder:text-stone-500 transition shadow-inner"
             />
             <button
               type="submit"

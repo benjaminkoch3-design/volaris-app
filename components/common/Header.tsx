@@ -10,7 +10,7 @@ interface HeaderProps {
   hasBothAccounts?: boolean;
   onToggleRole?: () => void;
   onLogout?: () => void;
-  onBack?: () => void; // 👈 Callback de retour personnalisé (changement d'onglet ou retour vue précédente)
+  onBack?: () => void;
   onNavigateToVolumeChart?: () => void;
 }
 
@@ -39,15 +39,16 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="w-full bg-white/90 dark:bg-stone-900/90 border-b border-stone-200 dark:border-stone-800 px-4 md:px-8 py-3.5 sticky top-0 z-50 backdrop-blur-md font-sans transition-colors">
+    <header className="w-full bg-white/95 dark:bg-stone-900/95 border-b border-stone-200 dark:border-stone-800 px-4 md:px-8 py-3.5 sticky top-0 z-50 backdrop-blur-md font-sans transition-colors">
       <div className="w-full flex items-center justify-between gap-4">
         {/* À GAUCHE : BOUTON RETOUR & TITRES */}
         <div className="flex items-center gap-3 shrink-0">
+          {/* Bouton flèche : style strictement identique et fixe (clair et sombre) */}
           <button
             type="button"
             onClick={handleGoBack}
-            className="p-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#1c1917] dark:text-[#f5f5f4] transition cursor-pointer border border-stone-300 dark:border-stone-700"
-            title="Retour"
+            className="p-2 rounded-xl bg-[#1c1917] hover:bg-[#292524] text-[#f5f5f4] transition cursor-pointer border border-[#292524] shadow-xs"
+            title="Page précédente"
           >
             <svg
               className="w-4 h-4"
@@ -65,13 +66,13 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <div>
-            {/* VOLARIS : Couleur hexadécimale explicite pour forcer le noir en clair et le blanc en sombre */}
             <h1 className="text-sm font-black uppercase tracking-wider text-[#1c1917] dark:text-[#f5f5f4] flex items-center gap-2">
               VOLARIS
             </h1>
+            {/* Espace Entraîneur : strictement vert (#CDCF61) en permanence */}
             <p
               className={`text-[10px] font-bold ${
-                isCoach ? "text-[#9e7039] dark:text-[#CDCF61]" : "text-[#b47a3e] dark:text-[#CF9A61]"
+                isCoach ? "text-[#CDCF61]" : "text-[#CF9A61]"
               }`}
             >
               {isCoach
@@ -111,7 +112,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <ThemeToggle />
 
-          {/* Logo : fond sombre fixe pour garder son aspect intact */}
+          {/* Logo : fond sombre fixe pour garder son visuel identique */}
           <img
             src="/new_logo.png"
             alt="Logo VOLARIS"
