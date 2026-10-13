@@ -39,25 +39,36 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   onDeleteImport,
 }) => {
   const safeShoes = Array.isArray(shoes) ? shoes : [];
-  const targetKm = parseFloat(String(workout?.km || "0")) || 0;
-  
+  const targetKm = parseFloat(String(workout?.km || "")) || 0;
+
   const initialTotalMinutes =
     workout?.completedTimeMinutes !== undefined && !isNaN(Number(workout.completedTimeMinutes))
       ? Number(workout.completedTimeMinutes)
-      : Math.round(targetKm > 0 ? targetKm * 5.2 : 45);
+      : targetKm > 0
+      ? Math.round(targetKm * 5.2)
+      : 45;
 
-  const [distanceKm, setDistanceKm] = useState<number>(
+  // États autorisant la chaîne vide '' pour permettre l'effacement total
+  const [distanceKm, setDistanceKm] = useState<number | "">(
     workout?.completedKm !== undefined && !isNaN(Number(workout.completedKm))
       ? Number(workout.completedKm)
-      : targetKm
+      : targetKm > 0
+      ? targetKm
+      : ""
   );
 
-  const [hours, setHours] = useState<number>(Math.floor(initialTotalMinutes / 60) || 0);
-  const [minutes, setMinutes] = useState<number>(Math.floor(initialTotalMinutes % 60) || 0);
-  const [seconds, setSeconds] = useState<number>(0);
+  const [hours, setHours] = useState<number | "">(
+    initialTotalMinutes >= 60 ? Math.floor(initialTotalMinutes / 60) : ""
+  );
+  const [minutes, setMinutes] = useState<number | "">(
+    initialTotalMinutes % 60 > 0 ? Math.floor(initialTotalMinutes % 60) : ""
+  );
+  const [seconds, setSeconds] = useState<number | "">("");
 
-  const [elevationGain, setElevationGain] = useState<number>(
-    workout?.completedElevationGain ?? 0
+  const [elevationGain, setElevationGain] = useState<number | "">(
+    workout?.completedElevationGain && workout.completedElevationGain > 0
+      ? workout.completedElevationGain
+      : ""
   );
   const [avgHeartRate, setAvgHeartRate] = useState<string>(
     (workout as any)?.avgHr ? String((workout as any).avgHr) : ""
@@ -116,11 +127,12 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
   }, [hours, minutes, seconds]);
 
   const calculatedPace = useMemo(() => {
-    if (!distanceKm || distanceKm <= 0 || totalTimeSeconds <= 0) return null;
-    const secPerKm = Math.round(totalTimeSeconds / distanceKm);
+    const dist = Number(distanceKm) || 0;
+    if (dist <= 0 || totalTimeSeconds <= 0) return null;
+    const secPerKm = Math.round(totalTimeSeconds / dist);
     const m = Math.floor(secPerKm / 60);
     const s = Math.round(secPerKm % 60);
-    const speedKmh = ((distanceKm / totalTimeSeconds) * 3600).toFixed(1);
+    const speedKmh = ((dist / totalTimeSeconds) * 3600).toFixed(1);
     return {
       paceFormatted: `${m}:${s < 10 ? "0" : ""}${s}`,
       speedKmh,
@@ -180,17 +192,17 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     const durSec = act?.durationSeconds || ((act?.durationMinutes || 0) * 60);
     const elev = parseInt(String(act?.elevationGain || 0), 10) || 0;
 
-    setDistanceKm(dist);
-    setHours(Math.floor(durSec / 3600));
-    setMinutes(Math.floor((durSec % 3600) / 60));
-    setSeconds(Math.round(durSec % 60));
-    setElevationGain(elev);
+    setDistanceKm(dist > 0 ? dist : "");
+    setHours(Math.floor(durSec / 3600) || "");
+    setMinutes(Math.floor((durSec % 3600) / 60) || "");
+    setSeconds(Math.round(durSec % 60) || "");
+    setElevationGain(elev > 0 ? elev : "");
 
     if (act?.avgHr) setAvgHeartRate(String(act.avgHr));
     if (act?.activityTelemetry) setActivityTelemetry(act.activityTelemetry);
 
     const platform = (platformName || act?.platform || "Montre").toUpperCase();
-    setImportedActivityName(`${act?.title || "Course"} (${platform} • ${act?.date || ""})`);
+    setImportedActivityName(`${act?.title || "Course"} (${platform} ${act?.date || ""})`);
     setIsActivityImported(true);
     setShowActivityPicker(false);
   };
@@ -226,9 +238,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           <WorkoutTelemetryModal
             workout={{
               ...workout,
-              completedKm: distanceKm,
+              completedKm: Number(distanceKm) || 0,
               completedTimeMinutes: totalTimeSeconds / 60,
-              completedElevationGain: elevationGain,
+              completedElevationGain: Number(elevationGain) || 0,
               actualAvgHr: avgHeartRate || undefined,
               title: importedActivityName || workout?.title,
               activityTelemetry,
@@ -305,8 +317,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     type="number"
                     step="0.01"
                     min="0"
-                    value={distanceKm !== undefined ? distanceKm : ""}
-                    onChange={(e) => setDistanceKm(Math.max(0, parseFloat(e.target.value) || 0))}
+                    value={distanceKm}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDistanceKm(val === "" ? "" : Math.max(0, parseFloat(val)));
+                    }}
                     placeholder="0.0"
                     className="w-full text-sm font-black font-mono text-stone-100 bg-transparent focus:outline-none"
                   />
@@ -324,8 +339,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     type="number"
                     min="0"
                     step="5"
-                    value={elevationGain !== undefined ? elevationGain : ""}
-                    onChange={(e) => setElevationGain(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    value={elevationGain}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setElevationGain(val === "" ? "" : Math.max(0, parseInt(val, 10)));
+                    }}
                     placeholder="0"
                     className="w-full text-sm font-black font-mono text-emerald-400 bg-transparent focus:outline-none"
                   />
@@ -353,8 +371,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     type="number"
                     min="0"
                     max="23"
-                    value={hours !== undefined ? hours : ""}
-                    onChange={(e) => setHours(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    value={hours}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setHours(val === "" ? "" : Math.max(0, parseInt(val, 10)));
+                    }}
                     placeholder="0"
                     className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
                   />
@@ -366,8 +387,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     type="number"
                     min="0"
                     max="59"
-                    value={minutes !== undefined ? minutes : ""}
-                    onChange={(e) => setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                    value={minutes}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMinutes(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
+                    }}
                     placeholder="00"
                     className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
                   />
@@ -379,8 +403,11 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                     type="number"
                     min="0"
                     max="59"
-                    value={seconds !== undefined ? seconds : ""}
-                    onChange={(e) => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                    value={seconds}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSeconds(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
+                    }}
                     placeholder="00"
                     className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
                   />
@@ -391,7 +418,7 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
         )}
 
-        {/* 2. IMPORT MONTRE (CENTRÉ ET MOINS GROS) */}
+        {/* 2. IMPORT MONTRE */}
         {activeTabMode === "watch" && (
           <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2.5 animate-fadeIn">
             {isActivityImported && importedActivityName ? (
@@ -418,7 +445,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                   Importer depuis votre montre :
                 </span>
 
-                {/* BOUTONS CENTRÉS ET DISCRETS */}
                 <div className="flex justify-center items-center gap-2 max-w-xs mx-auto">
                   {connectedApps.garmin && (
                     <button

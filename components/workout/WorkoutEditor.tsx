@@ -173,19 +173,21 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
                     Nombre de répétitions
                   </label>
+                  {/* Champ répétition : autorise le vide total pour saisie immédiate */}
                   <input
                     type="number"
                     min="1"
                     value={step.reps ?? ""}
                     placeholder="Ex: 5"
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const val = e.target.value;
                       onUpdateStep(
                         workout.id,
                         currentPath,
                         "reps",
-                        parseInt(e.target.value, 10) || 1
-                      )
-                    }
+                        val === "" ? "" : Math.max(1, parseInt(val, 10))
+                      );
+                    }}
                     style={{ color: themeColor }}
                     className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 text-stone-100"
                   />
@@ -305,7 +307,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* ALLURES : LENTE À GAUCHE (#CF6361) — RAPIDE À DROITE (#CDCF61) */}
+              {/* ALLURES */}
               <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
                 <div>
                   <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
@@ -354,8 +356,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     });
   };
 
-  const rpeVal = Math.min(10, Math.max(1, parseInt(workout.rpe || "5", 10) || 1));
-  const rpeColor = getRpeColor(rpeVal);
+  const currentRpeRaw = workout.rpe;
+  const rpeNumeric = currentRpeRaw !== undefined && currentRpeRaw !== "" ? parseInt(String(currentRpeRaw), 10) : 5;
+  const rpeColor = getRpeColor(rpeNumeric || 5);
 
   return (
     <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
@@ -471,10 +474,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           style={{ color: themeColor }}
                           className="text-[10px] font-bold block"
                         >
-                          {template.km} km
+                          {template.km || "-"} km
                         </span>
                         <span className="text-[9px] text-stone-400">
-                          RPE {template.rpe}
+                          RPE {template.rpe || "-"}
                         </span>
                       </div>
                     </div>
@@ -500,7 +503,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               Distance Calculée
             </span>
             <span style={{ color: themeColor }} className="text-base font-black">
-              {metrics.totalKm || 0} km
+              {metrics.totalKm && Number(metrics.totalKm) > 0 ? `${metrics.totalKm} km` : "-"}
             </span>
           </div>
           <div>
@@ -508,12 +511,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               Durée Estimée
             </span>
             <span style={{ color: themeColor }} className="text-base font-black">
-              {metrics.totalMinutes || 0} min
+              {metrics.totalMinutes && Number(metrics.totalMinutes) > 0 ? `${metrics.totalMinutes} min` : "-"}
             </span>
           </div>
         </div>
 
-        {/* PROFIL D'ALLURE CHRONOLOGIQUE (Importé depuis PaceProfileChart.tsx) */}
+        {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
         <PaceProfileChart steps={workout.steps} />
 
         {/* PARAMÈTRES GÉNÉRAUX */}
@@ -569,10 +572,16 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                     type="number"
                     min="1"
                     max="10"
-                    value={rpeVal}
+                    value={workout.rpe ?? ""}
+                    placeholder="5"
                     onChange={(e) => {
-                      const val = Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1));
-                      onUpdateWorkout(workout.id, "rpe", val.toString());
+                      const val = e.target.value;
+                      if (val === "") {
+                        onUpdateWorkout(workout.id, "rpe", "");
+                      } else {
+                        const parsed = Math.min(10, Math.max(1, parseInt(val, 10)));
+                        onUpdateWorkout(workout.id, "rpe", parsed.toString());
+                      }
                     }}
                     style={{ color: rpeColor }}
                     className="w-10 bg-stone-950 border border-stone-800 rounded-lg text-center text-xs font-black py-0.5 focus:outline-none"
@@ -586,14 +595,14 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   type="range"
                   min="1"
                   max="10"
-                  value={rpeVal}
+                  value={rpeNumeric}
                   onChange={(e) =>
                     onUpdateWorkout(workout.id, "rpe", e.target.value)
                   }
                   className="w-full opacity-0 cursor-pointer absolute inset-0 z-10"
                 />
                 <div
-                  style={{ left: `calc(${((rpeVal - 1) / 9) * 100}% - 6px)` }}
+                  style={{ left: `calc(${((rpeNumeric - 1) / 9) * 100}% - 6px)` }}
                   className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-stone-950 rounded-full shadow-md pointer-events-none transition-all"
                 />
               </div>
