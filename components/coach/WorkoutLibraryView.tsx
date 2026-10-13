@@ -1,7 +1,8 @@
 // src/components/coach/WorkoutLibraryView.tsx
 
 import React, { useState } from "react";
-import { LibraryWorkout, LibraryCategory } from "../../types";
+import { LibraryWorkout, LibraryCategory, WorkoutType } from "../../types";
+import { WORKOUT_TYPES_CONFIG } from "../../constants";
 
 interface WorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
@@ -12,6 +13,20 @@ interface WorkoutLibraryViewProps {
   onEditTemplate: (id: string) => void;
   onDeleteTemplate: (id: string) => void;
 }
+
+// Couleurs de secours ou bordures par type de séance
+const WORKOUT_BORDER_COLORS: Record<string, string> = {
+  recup: "#38bdf8",         // sky-400
+  footing: "#34d399",       // emerald-400
+  footing_actif: "#059669", // emerald-600
+  cotes: "#92400e",         // amber-800
+  vma: "#ef4444",           // red-500
+  seuil: "#f97316",         // orange-500
+  specifique: "#a855f7",    // purple-500
+  sortie_longue: "#f472b6", // pink-400
+  activation: "#1d4ed8",    // blue-700
+  course: "#f59e0b",        // amber-500
+};
 
 // Fonction de couleur dynamique selon la valeur du RPE
 const getRpeColor = (rpeVal: number) => {
@@ -132,7 +147,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     {cat.label}
                   </button>
 
-                  {/* Bouton pour supprimer la catégorie en Terracotta (#B34D4D) */}
                   {isSelected && (
                     <button
                       type="button"
@@ -170,22 +184,38 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
             const rpeVal = parseInt(workout.rpe || "5", 10);
             const rpeColor = getRpeColor(rpeVal);
 
+            // Détection du type de la séance et de sa couleur dédiée
+            const workoutType = ((workout as any).type || "footing") as WorkoutType;
+            const typeConfig = WORKOUT_TYPES_CONFIG[workoutType as Exclude<WorkoutType, "repos">];
+            const borderColor = WORKOUT_BORDER_COLORS[workoutType] || "#34d399";
+            const typeLabel = workoutType === "vma" ? "Fractionné" : (typeConfig?.label || "Footing");
+
             return (
               <div
                 key={workout.id}
-                className="p-4 rounded-3xl border border-l-8 border-l-[#CDCF61] border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition"
+                style={{ borderLeftColor: borderColor }}
+                className="p-4 rounded-3xl border border-l-8 border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition"
               >
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <span className="text-[9.5px] font-black uppercase tracking-widest text-[#CDCF61] block">
-                      Séance Modèle
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        style={{ color: borderColor }}
+                        className="text-[9.5px] font-black uppercase tracking-widest block"
+                      >
+                        {typeLabel}
+                      </span>
+                      <span className="text-stone-600 text-[10px]">•</span>
+                      <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider">
+                        Séance Modèle
+                      </span>
+                    </div>
                     <h3 className="text-base font-black uppercase tracking-tight text-stone-100 mt-0.5">
-                      {workout.title}
+                      {workout.title || "Séance sans titre"}
                     </h3>
                   </div>
 
-                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40">
+                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-stone-950 text-stone-300 border-stone-800">
                     {currentCategory?.label}
                   </span>
                 </div>
@@ -196,7 +226,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   </p>
                 )}
 
-                {/* STRUCTURE DE LA SÉANCE SANS EMOJI DANS LES INTERVALLES */}
+                {/* STRUCTURE DE LA SÉANCE */}
                 {workout.steps && workout.steps.length > 0 && (
                   <div className="bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800 text-[10px] space-y-1">
                     <span className="font-extrabold text-stone-400 uppercase block">
@@ -217,7 +247,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   </div>
                 )}
 
-                {/* MÉTRIQUES : KM EN BLANC ET RPE EN GRADIENT D'INTENSITÉ SANS EMOJIS */}
+                {/* MÉTRIQUES : KM ET RPE */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800/80">
                   <div className="flex items-center gap-2">
                     {workout.km && (
@@ -235,7 +265,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     )}
                   </div>
 
-                  {/* BOUTON ÉDITER SANS EMOJI */}
+                  {/* BOUTONS ACTIONS */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
