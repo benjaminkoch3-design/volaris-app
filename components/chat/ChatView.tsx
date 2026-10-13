@@ -231,7 +231,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black uppercase text-stone-900 dark:text-stone-100">
+                    <h3 className="text-sm font-black uppercase text-[#1c1917] dark:text-[#f5f5f4]">
                       {displayedContactName}
                     </h3>
                     {!isCoach && onRenameContact && (
@@ -241,7 +241,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           setCustomNameInput(currentAthleteName);
                           setIsEditingName(true);
                         }}
-                        className="text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 text-xs cursor-pointer"
+                        className="text-stone-500 hover:text-[#1c1917] dark:hover:text-[#f5f5f4] text-xs cursor-pointer"
                         title="Renommer mon entraîneur"
                       >
                         ✏️
