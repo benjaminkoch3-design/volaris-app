@@ -299,7 +299,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {w.km && (
                                   <span className="text-[9px] font-extrabold bg-stone-900 text-stone-100 px-2 py-0.5 rounded-md border border-stone-800">
-                                    {w.completedKm !== undefined ? `${w.completedKm} km (réel)` : `${w.km} km`}
+                                    {w.km} km
                                   </span>
                                 )}
 
