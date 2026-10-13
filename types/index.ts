@@ -207,6 +207,7 @@ export interface LibraryWorkout {
   id: string;
   categoryId: string; // Fait référence à l'ID de la catégorie
   category?: string; // Alias de rétrocompatibilité
+  type?: WorkoutType | string;
   title: string;
   description?: string;
   km?: string;

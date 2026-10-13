@@ -20,6 +20,8 @@ import {
   LibraryCategory,
 } from "../types";
 
+import { WORKOUT_TYPES_CONFIG } from "../constants";
+
 // Fonctions utilitaires
 import {
   calculateWeeks,
@@ -293,9 +295,14 @@ export default function Home() {
     if (!session?.user) return;
     const newTemplateId = `lib_${Date.now()}`;
     const selectedCategory = categoryId || customCategories[0]?.id || "default";
+    
+    // Déterminer un type initial par défaut cohérent
+    const initialType = (WORKOUT_TYPES_CONFIG as any)[selectedCategory] ? selectedCategory : "footing";
+
     const newTemplate: LibraryWorkout = {
       id: newTemplateId,
       categoryId: selectedCategory,
+      type: initialType,
       title: "",
       description: "",
       km: "",
@@ -311,6 +318,7 @@ export default function Home() {
       id: newTemplateId,
       user_id: session.user.id,
       category_id: selectedCategory,
+      type: initialType,
       title: newTemplate.title,
       description: newTemplate.description,
       km: newTemplate.km,
@@ -933,10 +941,11 @@ export default function Home() {
         setLibraryWorkouts(libraryData.map((l: any) => ({
           id: l.id,
           categoryId: l.category_id,
-          title: l.title,
-          description: l.description,
-          km: l.km,
-          rpe: l.rpe,
+          type: l.type || (WORKOUT_TYPES_CONFIG[l.category_id] ? l.category_id : "footing"),
+          title: l.title || "",
+          description: l.description || "",
+          km: l.km || "",
+          rpe: l.rpe || "5",
           steps: l.steps || [],
           createdAt: l.created_at?.split("T")[0] || "",
         })));
@@ -2161,6 +2170,8 @@ export default function Home() {
       return null;
     }
 
+    const currentType = (libTemplate as any).type || "footing";
+
     const mockWorkout: Workout = {
       id: libTemplate.id,
       weekNumber: 1,
@@ -2168,8 +2179,7 @@ export default function Home() {
       dayName: "Modèle",
       sessionName: libTemplate.title,
       isRest: false,
-      // Utilise le type réel du modèle ou se rabat sur la catégorie/footing
-      type: (libTemplate as any).type || (libTemplate.categoryId as any) || "footing",
+      type: currentType, // 👈 Conserve le type sélectionné
       title: libTemplate.title,
       description: libTemplate.description,
       km: libTemplate.km,
@@ -2188,14 +2198,11 @@ export default function Home() {
               if (lib.id === id) {
                 let updatedFieldKey = field;
                 if (field === "sessionName") updatedFieldKey = "title";
-                
                 const updatedLib = { 
                   ...lib, 
                   [updatedFieldKey]: value,
-                  // Sauvegarde explicite du type de séance
                   ...(field === "type" ? { type: value } : {}) 
                 };
-
                 handleSaveLibraryWorkoutToSupabase(updatedLib);
                 return updatedLib;
               }
