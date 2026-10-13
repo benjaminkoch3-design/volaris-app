@@ -1,7 +1,8 @@
 // src/components/profile/AthleteWorkoutLibraryView.tsx
 
 import React, { useState } from "react";
-import { LibraryWorkout, LibraryCategory } from "../../types";
+import { LibraryWorkout, LibraryCategory, WorkoutType } from "../../types";
+import { WORKOUT_TYPES_CONFIG } from "../../constants";
 
 interface AthleteWorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
@@ -13,6 +14,19 @@ interface AthleteWorkoutLibraryViewProps {
   onDeleteTemplate: (id: string) => void;
   onBackToProfile: () => void;
 }
+
+const WORKOUT_BORDER_COLORS: Record<string, string> = {
+  recup: "#38bdf8",         // sky-400
+  footing: "#34d399",       // emerald-400
+  footing_actif: "#059669", // emerald-600
+  cotes: "#92400e",         // amber-800
+  vma: "#ef4444",           // red-500
+  seuil: "#f97316",         // orange-500
+  specifique: "#a855f7",    // purple-500
+  sortie_longue: "#f472b6", // pink-400
+  activation: "#1d4ed8",    // blue-700
+  course: "#f59e0b",        // amber-500
+};
 
 const getRpeColor = (rpeVal: number) => {
   if (rpeVal <= 3) return "#10b981"; // Vert
@@ -176,22 +190,37 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             const rpeVal = parseInt(workout.rpe || "5", 10);
             const rpeColor = getRpeColor(rpeVal);
 
+            const workoutType = ((workout as any).type || "footing") as WorkoutType;
+            const typeConfig = WORKOUT_TYPES_CONFIG[workoutType as Exclude<WorkoutType, "repos">];
+            const borderColor = WORKOUT_BORDER_COLORS[workoutType] || "#34d399";
+            const typeLabel = workoutType === "vma" ? "Fractionné" : (typeConfig?.label || "Footing");
+
             return (
               <div
                 key={workout.id}
-                className="p-4 rounded-3xl border border-l-8 border-l-[#CF9A61] border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition"
+                style={{ borderLeftColor: borderColor }}
+                className="p-4 rounded-3xl border border-l-8 border-stone-800 bg-stone-900/90 shadow-xl space-y-3 transition"
               >
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <span className="text-[9.5px] font-black uppercase tracking-widest text-[#CF9A61] block">
-                      Séance Modèle
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        style={{ color: borderColor }}
+                        className="text-[9.5px] font-black uppercase tracking-widest block"
+                      >
+                        {typeLabel}
+                      </span>
+                      <span className="text-stone-600 text-[10px]">•</span>
+                      <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider">
+                        Séance Modèle
+                      </span>
+                    </div>
                     <h3 className="text-base font-black uppercase tracking-tight text-stone-100 mt-0.5">
-                      {workout.title}
+                      {workout.title || "Séance sans titre"}
                     </h3>
                   </div>
 
-                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40">
+                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-stone-950 text-stone-300 border-stone-800">
                     {currentCategory?.label}
                   </span>
                 </div>
