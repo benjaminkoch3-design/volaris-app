@@ -179,6 +179,7 @@ export default function Home() {
       setUserRole(newRole);
       setActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
+      setActivePlan(null);
       setLoadingAuth(false);
       return;
     }
@@ -204,6 +205,7 @@ export default function Home() {
       setUserRole(newRole);
       setActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
+      setActivePlan(null);
     }
 
     setLoadingAuth(false);
@@ -338,7 +340,7 @@ export default function Home() {
   };
 
   // ----------------------------------------------------
-  // MESSAGES ROBUSTES (UUID VALIDE + GESTION ERREURS)
+  // MESSAGES
   // ----------------------------------------------------
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
@@ -456,9 +458,6 @@ export default function Home() {
     };
   }, [session]);
 
-  // ----------------------------------------------------
-  // MISE À JOUR ET PERSISTANCE DE L'AVATAR
-  // ----------------------------------------------------
   const handleUpdateAvatar = async (newAvatarUrl: string) => {
     if (!session?.user) return;
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
@@ -481,7 +480,6 @@ export default function Home() {
     }
   };
 
-  // Connexion coach
   const handleConnectCoachByCode = async (coachId: string, coachNameStr: string) => {
     if (!session?.user) return;
 
@@ -555,6 +553,7 @@ export default function Home() {
     setManagedAthletes((prev) => prev.filter((a) => a.id !== athleteId));
     if (inspectingAthleteId === athleteId) {
       setInspectingAthleteId(null);
+      setActivePlan(null);
     }
 
     await supabase.from("profiles").update({ coach_id: null }).eq("id", athleteId);
@@ -786,12 +785,17 @@ export default function Home() {
     };
   }, [session, userRole]);
 
-  // CHARGEMENT PROFIL ATHLÈTE
+  // CHARGEMENT PROFIL ATHLÈTE OU ATHLÈTE INSPECTÉ
   useEffect(() => {
     if (!session?.user) return;
 
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
-    if (!targetUserId) return;
+    if (!targetUserId) {
+      if (userRole === "coach" && !inspectingAthleteId) {
+        setActivePlan(null);
+      }
+      return;
+    }
 
     const fetchUserData = async () => {
       const { data: profile } = await supabase
@@ -938,6 +942,7 @@ export default function Home() {
         })));
       }
 
+      // CHARGEMENT DU PLAN STRICTEMENT LIÉ À TARGET_USER_ID
       const { data: plansData } = await supabase
         .from("plans")
         .select("*")
@@ -1522,7 +1527,6 @@ export default function Home() {
     );
   };
 
-  // RECURSIVE STEPS
   const updateNestedStepsRecursive = (
     stepList: WorkoutStep[],
     targetPath: string[],
@@ -2325,7 +2329,35 @@ export default function Home() {
               onRenameAthlete={handleRenameAthleteByCoach}
               onRemoveAthlete={handleRemoveAthleteByCoach}
               onSelectAthlete={(id) => {
+                // 1. Définir l'athlète inspecté
                 setInspectingAthleteId(id);
+
+                // 2. Trouver immédiatement son plan actif dans la liste déjà en mémoire
+                const athleteActivePlan = allCoachAthletesPlans.find((p: any) => {
+                  const pUserId = p.userId || p.user_id;
+                  const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
+                  const isPlanArchived = p.isArchived !== undefined ? p.isArchived : (p.is_archived === true);
+                  return pUserId === id && isPlanActive && !isPlanArchived;
+                });
+
+                if (athleteActivePlan) {
+                  // Récupérer les séances de cet athlète pour son plan
+                  const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
+                    const wUserId = w.userId || w.user_id;
+                    const wPlanId = w.planId || w.plan_id;
+                    return wUserId === id && wPlanId === athleteActivePlan.id;
+                  });
+
+                  setActivePlan({
+                    ...athleteActivePlan,
+                    workouts: athleteWorkouts,
+                  } as any);
+                  setGoal(athleteActivePlan.targetDistance || "10 km");
+                } else {
+                  setActivePlan(null);
+                }
+
+                // 3. Basculer sur l'onglet Plan
                 setActiveTab("plan");
               }}
               onInviteAthlete={() =>
@@ -2367,7 +2399,11 @@ export default function Home() {
               <span className="font-extrabold text-stone-100">{selectedAthlete?.name}</span>
             </div>
             <button
-              onClick={() => setInspectingAthleteId(null)}
+              onClick={() => {
+                setInspectingAthleteId(null);
+                setActivePlan(null);
+                setActiveTab("athletes");
+              }}
               className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800 transition cursor-pointer"
             >
               ← Retour liste
@@ -2429,7 +2465,7 @@ export default function Home() {
                       </h3>
                       <p className="text-xs text-stone-400 mt-1 leading-relaxed">
                         {userRole === "coach"
-                          ? "Créez le programme personnalisé de votre athlète étape par étape."
+                          ? `Créez le programme personnalisé pour ${selectedAthlete?.name || "votre athlète"}.`
                           : assignedCoachId
                           ? "Votre entraîneur n'a pas encore créé votre plan d'entraînement actif."
                           : "Créez votre programme personnalisé étape par étape pour atteindre votre objectif."}
@@ -2618,7 +2654,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* NAVIGATION (Mobile en bas / Desktop à gauche) */}
       <BottomNav
         userRole={userRole}
         activeTab={activeTab}
