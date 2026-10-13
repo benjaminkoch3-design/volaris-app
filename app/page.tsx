@@ -1896,9 +1896,9 @@ export default function Home() {
       shoe_id: w.shoeId || null,
       completed_km: w.completedKm || null,
       completed_time_minutes: w.completedTimeMinutes || null,
-      completed_elevation_gain: w.completedElevationGain || null,
-      imported_activity_name: w.importedActivityName || null,
-      activity_telemetry: (w as any).activityTelemetry || (w as any).activity_telemetry || null,
+      completed_elevation_gain: (w as any).completedElevationGain ?? (w as any).completed_elevation_gain ?? null,
+      imported_activity_name: (w as any).importedActivityName ?? (w as any).imported_activity_name ?? null,
+      activity_telemetry: (w as any).activityTelemetry ?? (w as any).activity_telemetry ?? null,
     }));
 
     const { error: workoutsError } = await supabase.from("workouts").insert(workoutsPayload);
