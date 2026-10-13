@@ -19,21 +19,15 @@ export const Header: React.FC<HeaderProps> = ({
   athleteName,
   hasBothAccounts = true,
   onToggleRole,
-  onBack,
+  onLogout,
   onNavigateToVolumeChart,
 }) => {
   const isCoach = userRole === "coach";
 
-  const handleGoBack = () => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (typeof window !== "undefined") {
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        window.location.href = "/";
+  const handleLogoutClick = () => {
+    if (onLogout) {
+      if (confirm("Voulez-vous vous déconnecter de Volaris ?")) {
+        onLogout();
       }
     }
   };
@@ -41,14 +35,14 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="w-full bg-white/95 dark:bg-stone-900/95 border-b border-stone-200 dark:border-stone-800 px-4 md:px-8 py-3.5 sticky top-0 z-50 backdrop-blur-md font-sans transition-colors">
       <div className="w-full flex items-center justify-between gap-4">
-        {/* À GAUCHE : BOUTON RETOUR & TITRES */}
+        {/* À GAUCHE : DÉCONNEXION & TITRES */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Bouton flèche : style strictement identique et fixe (clair et sombre) */}
+          {/* Bouton flèche : déclenche la déconnexion */}
           <button
             type="button"
-            onClick={handleGoBack}
+            onClick={handleLogoutClick}
             className="p-2 rounded-xl bg-[#1c1917] hover:bg-[#292524] text-[#f5f5f4] transition cursor-pointer border border-[#292524] shadow-xs"
-            title="Page précédente"
+            title="Déconnexion"
           >
             <svg
               className="w-4 h-4"
@@ -69,7 +63,6 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-sm font-black uppercase tracking-wider text-[#1c1917] dark:text-[#f5f5f4] flex items-center gap-2">
               VOLARIS
             </h1>
-            {/* Espace Entraîneur : strictement vert (#CDCF61) en permanence */}
             <p
               className={`text-[10px] font-bold ${
                 isCoach ? "text-[#CDCF61]" : "text-[#CF9A61]"
@@ -112,7 +105,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           <ThemeToggle />
 
-          {/* Logo : fond sombre fixe pour garder son visuel identique */}
           <img
             src="/new_logo.png"
             alt="Logo VOLARIS"
