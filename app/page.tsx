@@ -778,6 +778,11 @@ export default function Home() {
               w.id === updatedWorkout.id
                 ? {
                     ...w,
+                    km: updatedWorkout.km ?? w.km,
+                    title: updatedWorkout.title ?? w.title,
+                    type: updatedWorkout.type ?? w.type,
+                    description: updatedWorkout.description ?? w.description,
+                    steps: Array.isArray(updatedWorkout.steps) ? updatedWorkout.steps : w.steps,
                     completedRpe: updatedWorkout.completed_rpe,
                     athleteComment: updatedWorkout.athlete_comment,
                     shoeId: updatedWorkout.shoe_id,
@@ -1588,9 +1593,8 @@ export default function Home() {
           };
         }
         return step;
-      }
-    )
-    .filter(Boolean);
+      })
+      .filter(Boolean);
   };
 
   const handleAddStepToWorkout = (workoutId: string, parentPath: string[] = []) => {
@@ -1892,7 +1896,7 @@ export default function Home() {
       shoe_id: w.shoeId || null,
       completed_km: w.completedKm || null,
       completed_time_minutes: w.completedTimeMinutes || null,
-      completed_elevation_gain: w.completedElevationGain || null,
+      completedElevationGain: w.completedElevationGain || null,
       imported_activity_name: w.importedActivityName || null,
       activity_telemetry: (w as any).activityTelemetry || (w as any).activity_telemetry || null,
     }));
@@ -2372,28 +2376,73 @@ export default function Home() {
               onUpdateCoachName={handleUpdateCoachOwnName}
               onRenameAthlete={handleRenameAthleteByCoach}
               onRemoveAthlete={handleRemoveAthleteByCoach}
-              onSelectAthlete={(id) => {
+              onSelectAthlete={async (id) => {
                 setInspectingAthleteId(id);
 
-                const athleteActivePlan = allCoachAthletesPlans.find((p: any) => {
-                  const pUserId = p.userId || p.user_id;
-                  const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
-                  const isPlanArchived = p.isArchived !== undefined ? p.isArchived : (p.is_archived === true);
-                  return pUserId === id && isPlanActive && !isPlanArchived;
-                });
+                // Récupération directe du plan et des séances fraîches depuis Supabase
+                const { data: planData } = await supabase
+                  .from("plans")
+                  .select("*")
+                  .eq("user_id", id)
+                  .eq("is_active", true)
+                  .eq("is_archived", false)
+                  .maybeSingle();
 
-                if (athleteActivePlan) {
-                  const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
-                    const wUserId = w.userId || w.user_id;
-                    const wPlanId = w.planId || w.plan_id;
-                    return wUserId === id && wPlanId === athleteActivePlan.id;
-                  });
+                if (planData) {
+                  const { data: wData } = await supabase
+                    .from("workouts")
+                    .select("*")
+                    .eq("plan_id", planData.id)
+                    .order("week_number", { ascending: true })
+                    .order("day_index", { ascending: true });
+
+                  const freshWorkouts: Workout[] = (wData || []).map((w: any) => ({
+                    id: w.id,
+                    planId: w.plan_id,
+                    userId: w.user_id,
+                    weekNumber: w.week_number,
+                    dayIndex: w.day_index,
+                    dayName: w.day_name,
+                    sessionName: w.session_name,
+                    isRest: Boolean(w.is_rest),
+                    type: w.type,
+                    title: w.title,
+                    description: w.description || "",
+                    km: w.km || "",
+                    rpe: w.rpe || "",
+                    remark: w.remark || "",
+                    steps: Array.isArray(w.steps) ? w.steps : [],
+                    completed: Boolean(w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name),
+                    completedRpe: w.completed_rpe,
+                    athleteComment: w.athlete_comment,
+                    shoeId: w.shoe_id,
+                    completedKm: w.completed_km,
+                    completedTimeMinutes: w.completed_time_minutes,
+                    completedElevationGain: w.completed_elevation_gain,
+                    importedActivityName: w.imported_activity_name,
+                    activityTelemetry: w.activity_telemetry || null,
+                  }));
 
                   setActivePlan({
-                    ...athleteActivePlan,
-                    workouts: athleteWorkouts,
+                    id: planData.id,
+                    name: planData.name,
+                    targetDistance: planData.target_distance,
+                    targetTime: planData.target_time,
+                    raceCategory: planData.race_category,
+                    elevationGain: planData.elevation_gain,
+                    startDate: planData.start_date,
+                    eventDate: planData.event_date,
+                    durationWeeks: planData.duration_weeks,
+                    weekTypes: planData.week_types || {},
+                    workouts: freshWorkouts,
                   } as any);
-                  setGoal(athleteActivePlan.targetDistance || "10 km");
+
+                  setAllCoachAthletesWorkouts((prev) => [
+                    ...prev.filter((w) => (w.planId || (w as any).plan_id) !== planData.id),
+                    ...freshWorkouts,
+                  ]);
+
+                  setGoal(planData.target_distance || "10 km");
                 } else {
                   setActivePlan(null);
                 }
