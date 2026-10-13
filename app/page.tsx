@@ -1593,8 +1593,9 @@ export default function Home() {
           };
         }
         return step;
-      })
-      .filter(Boolean);
+      }
+    )
+    .filter(Boolean);
   };
 
   const handleAddStepToWorkout = (workoutId: string, parentPath: string[] = []) => {
@@ -1873,8 +1874,7 @@ export default function Home() {
       return;
     }
 
-    await supabase.from("workouts").delete().eq("plan_id", planId);
-
+    // 1. Préparation du payload avec correspondance exacte snake_case
     const workoutsPayload = draftWorkouts.map((w, idx) => ({
       id: w.id || `w_${planId}_${w.weekNumber}_${w.dayIndex}_${idx}`,
       plan_id: planId,
@@ -1901,12 +1901,26 @@ export default function Home() {
       activity_telemetry: (w as any).activityTelemetry ?? (w as any).activity_telemetry ?? null,
     }));
 
-    const { error: workoutsError } = await supabase.from("workouts").insert(workoutsPayload);
+    // 2. Sauvegarde sécurisée : Upsert d'abord pour ne jamais effacer sans certitude d'écriture
+    const { error: workoutsError } = await supabase
+      .from("workouts")
+      .upsert(workoutsPayload, { onConflict: "id" });
 
     if (workoutsError) {
       console.error("❌ Erreur sauvegarde séances:", workoutsError.message);
       alert(`Erreur de sauvegarde des séances : ${workoutsError.message}`);
-      return;
+      return; // Interrompt l'exécution : les séances existantes ne sont PAS détruites
+    }
+
+    // 3. Nettoyage différé : suppression uniquement des séances retirées du plan
+    const currentWorkoutIds = workoutsPayload.map((w) => w.id);
+    if (currentWorkoutIds.length > 0) {
+      const idListStr = `(${currentWorkoutIds.map((id) => `"${id}"`).join(",")})`;
+      await supabase
+        .from("workouts")
+        .delete()
+        .eq("plan_id", planId)
+        .not("id", "in", idListStr);
     }
 
     const createdPlan: Plan = {
