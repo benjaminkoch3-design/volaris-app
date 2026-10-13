@@ -295,8 +295,7 @@ export default function Home() {
     if (!session?.user) return;
     const newTemplateId = `lib_${Date.now()}`;
     const selectedCategory = categoryId || customCategories[0]?.id || "default";
-    
-    // Déterminer un type initial par défaut cohérent
+
     const initialType = (WORKOUT_TYPES_CONFIG as any)[selectedCategory] ? selectedCategory : "footing";
 
     const newTemplate: LibraryWorkout = {
@@ -314,7 +313,7 @@ export default function Home() {
     setLibraryWorkouts((prev) => [newTemplate, ...prev]);
     setEditingLibraryId(newTemplateId);
 
-    await supabase.from("library_workouts").insert([{
+    const payload: any = {
       id: newTemplateId,
       user_id: session.user.id,
       category_id: selectedCategory,
@@ -324,7 +323,9 @@ export default function Home() {
       km: newTemplate.km,
       rpe: newTemplate.rpe,
       steps: newTemplate.steps,
-    }]);
+    };
+
+    await supabase.from("library_workouts").insert([payload]);
   };
 
   const handleDeleteTemplate = async (id: string) => {
@@ -335,7 +336,7 @@ export default function Home() {
 
   const handleSaveLibraryWorkoutToSupabase = async (updatedLib: LibraryWorkout) => {
     if (!session?.user) return;
-    
+
     const workoutType = (updatedLib as any).type || "footing";
 
     const payload: any = {
@@ -1587,8 +1588,9 @@ export default function Home() {
           };
         }
         return step;
-      })
-      .filter(Boolean);
+      }
+    )
+    .filter(Boolean);
   };
 
   const handleAddStepToWorkout = (workoutId: string, parentPath: string[] = []) => {
@@ -1917,6 +1919,22 @@ export default function Home() {
       workouts: draftWorkouts,
     } as any;
 
+    // SYNCHRONISATION DU CACHE GLOBAL COACH
+    if (userRole === "coach") {
+      setAllCoachAthletesWorkouts((prev) => [
+        ...prev.filter((w) => (w.planId || (w as any).plan_id) !== planId),
+        ...draftWorkouts.map((w) => ({
+          ...w,
+          planId: planId,
+          userId: targetUserId,
+        })),
+      ]);
+
+      setAllCoachAthletesPlans((prev) =>
+        prev.map((p) => (p.id === planId ? createdPlan : p))
+      );
+    }
+
     const currentWeekNum = getCurrentWeekNumber(
       newPlanForm.startDate,
       calculatedWeeks.toString()
@@ -2180,7 +2198,6 @@ export default function Home() {
       return null;
     }
 
-    // Récupérer le type existant ou rabat sur 'footing'
     const templateType = (libTemplate as any).type || "footing";
 
     const mockWorkout: Workout = {
@@ -2207,17 +2224,14 @@ export default function Home() {
           setLibraryWorkouts((prev) =>
             prev.map((lib) => {
               if (lib.id === id) {
-                // Si on modifie le titre ou le sessionName
                 const fieldKey = field === "sessionName" ? "title" : field;
 
                 const updatedLib = {
                   ...lib,
                   [fieldKey]: value,
-                  // Garantir que le type est explicitement conservé/mis à jour
                   type: field === "type" ? value : ((lib as any).type || "footing"),
                 };
 
-                // Sauvegarde immédiate dans Supabase
                 handleSaveLibraryWorkoutToSupabase(updatedLib);
                 return updatedLib;
               }
@@ -2359,10 +2373,8 @@ export default function Home() {
               onRenameAthlete={handleRenameAthleteByCoach}
               onRemoveAthlete={handleRemoveAthleteByCoach}
               onSelectAthlete={(id) => {
-                // 1. Définir l'athlète inspecté
                 setInspectingAthleteId(id);
 
-                // 2. Trouver immédiatement son plan actif dans la liste déjà en mémoire
                 const athleteActivePlan = allCoachAthletesPlans.find((p: any) => {
                   const pUserId = p.userId || p.user_id;
                   const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
@@ -2371,7 +2383,6 @@ export default function Home() {
                 });
 
                 if (athleteActivePlan) {
-                  // Récupérer les séances de cet athlète pour son plan
                   const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
                     const wUserId = w.userId || w.user_id;
                     const wPlanId = w.planId || w.plan_id;
@@ -2387,7 +2398,6 @@ export default function Home() {
                   setActivePlan(null);
                 }
 
-                // 3. Basculer sur l'onglet Plan
                 setActiveTab("plan");
               }}
               onInviteAthlete={() =>
