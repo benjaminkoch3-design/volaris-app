@@ -866,6 +866,7 @@ export default function Home() {
         }
       }
 
+      // CHARGEMENT DES SORTIES POUR LES STATS ANNUELLES
       const { data: runs } = await supabase
         .from("completed_runs")
         .select("*")
@@ -881,6 +882,8 @@ export default function Home() {
           elevation: Number(r.elevation),
           raceNotes: r.race_notes,
         })));
+      } else {
+        setCompletedRuns([]);
       }
 
       if (userRole === "athlete") {
@@ -967,57 +970,62 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DU PLAN STRICTEMENT LIÉ À TARGET_USER_ID
+      // CHARGEMENT DU PLAN ET DES SÉANCES
       const { data: plansData } = await supabase
         .from("plans")
         .select("*")
         .eq("user_id", targetUserId)
         .order("created_at", { ascending: false });
 
+      const { data: workoutsData } = await supabase
+        .from("workouts")
+        .select("*")
+        .eq("user_id", targetUserId);
+
+      const completedMap: Record<string, boolean> = {};
+
+      const formatWorkoutsList = (wData: any[]): Workout[] => {
+        return (wData || []).map((w: any) => {
+          const isCompleted = Boolean(
+            w.completed_rpe !== null || 
+            w.completed_km !== null || 
+            w.imported_activity_name !== null
+          );
+          if (isCompleted) {
+            completedMap[w.id] = true;
+          }
+          return {
+            id: w.id,
+            planId: w.plan_id,
+            userId: w.user_id,
+            weekNumber: w.week_number,
+            dayIndex: w.dayIndex ?? w.day_index,
+            dayName: w.day_name,
+            sessionName: w.session_name,
+            isRest: Boolean(w.is_rest),
+            type: w.type,
+            title: w.title,
+            description: w.description || "",
+            km: w.km || "",
+            rpe: w.rpe || "",
+            remark: w.remark || "",
+            steps: Array.isArray(w.steps) ? w.steps : [],
+            completed: isCompleted,
+            completedRpe: w.completed_rpe,
+            athleteComment: w.athlete_comment,
+            shoeId: w.shoe_id,
+            completedKm: w.completed_km,
+            completedTimeMinutes: w.completed_time_minutes,
+            completedElevationGain: w.completed_elevation_gain,
+            importedActivityName: w.imported_activity_name,
+            activityTelemetry: w.activity_telemetry || null,
+          };
+        });
+      };
+
       if (plansData && plansData.length > 0) {
         const activePlanDb = plansData.find((p: any) => p.is_active && !p.is_archived);
         const archivedPlansDb = plansData.filter((p: any) => p.is_archived);
-
-        const { data: workoutsData } = await supabase
-          .from("workouts")
-          .select("*")
-          .eq("user_id", targetUserId);
-
-        const completedMap: Record<string, boolean> = {};
-
-        const formatWorkoutsList = (wData: any[]): Workout[] => {
-          return (wData || []).map((w: any) => {
-            if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
-              completedMap[w.id] = true;
-            }
-            return {
-              id: w.id,
-              planId: w.plan_id,
-              userId: w.user_id,
-              weekNumber: w.week_number,
-              dayIndex: w.dayIndex ?? w.day_index,
-              dayName: w.day_name,
-              sessionName: w.session_name,
-              isRest: Boolean(w.is_rest),
-              type: w.type,
-              title: w.title,
-              description: w.description || "",
-              km: w.km || "",
-              rpe: w.rpe || "",
-              remark: w.remark || "",
-              steps: Array.isArray(w.steps) ? w.steps : [],
-              completed: Boolean(w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name),
-              completedRpe: w.completed_rpe,
-              athleteComment: w.athlete_comment,
-              shoeId: w.shoe_id,
-              completedKm: w.completed_km,
-              completedTimeMinutes: w.completed_time_minutes,
-              completedElevationGain: w.completed_elevation_gain,
-              importedActivityName: w.imported_activity_name,
-              activityTelemetry: w.activity_telemetry || null,
-            };
-          });
-        };
 
         if (activePlanDb) {
           const planWorkouts = formatWorkoutsList(
@@ -1063,10 +1071,22 @@ export default function Home() {
           );
         }
 
+        // Synchroniser toutes les séances effectuées dans completedWorkouts
+        (workoutsData || []).forEach((w: any) => {
+          if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
+            completedMap[w.id] = true;
+          }
+        });
         setCompletedWorkouts(completedMap);
       } else {
         setActivePlan(null);
         setArchivedPlans([]);
+        (workoutsData || []).forEach((w: any) => {
+          if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
+            completedMap[w.id] = true;
+          }
+        });
+        setCompletedWorkouts(completedMap);
       }
     };
 
@@ -1593,9 +1613,8 @@ export default function Home() {
           };
         }
         return step;
-      }
-    )
-    .filter(Boolean);
+      })
+      .filter(Boolean);
   };
 
   const handleAddStepToWorkout = (workoutId: string, parentPath: string[] = []) => {
@@ -1901,7 +1920,7 @@ export default function Home() {
       activity_telemetry: (w as any).activityTelemetry ?? (w as any).activity_telemetry ?? null,
     }));
 
-    // 2. Sauvegarde sécurisée : Upsert d'abord pour ne jamais effacer sans certitude d'écriture
+    // 2. Sauvegarde sécurisée : Upsert d'abord
     const { error: workoutsError } = await supabase
       .from("workouts")
       .upsert(workoutsPayload, { onConflict: "id" });
@@ -1909,7 +1928,7 @@ export default function Home() {
     if (workoutsError) {
       console.error("❌ Erreur sauvegarde séances:", workoutsError.message);
       alert(`Erreur de sauvegarde des séances : ${workoutsError.message}`);
-      return; // Interrompt l'exécution : les séances existantes ne sont PAS détruites
+      return;
     }
 
     // 3. Nettoyage différé : suppression uniquement des séances retirées du plan
@@ -2393,7 +2412,27 @@ export default function Home() {
               onSelectAthlete={async (id) => {
                 setInspectingAthleteId(id);
 
-                // Récupération directe du plan et des séances fraîches depuis Supabase
+                // 1. Récupération des sorties effectuées pour alimenter les statistiques
+                const { data: runsData } = await supabase
+                  .from("completed_runs")
+                  .select("*")
+                  .eq("user_id", id)
+                  .order("date", { ascending: false });
+
+                if (runsData) {
+                  setCompletedRuns(runsData.map((r: any) => ({
+                    id: r.id,
+                    date: r.date,
+                    km: Number(r.km),
+                    durationHours: Number(r.duration_hours),
+                    elevation: Number(r.elevation),
+                    raceNotes: r.race_notes,
+                  })));
+                } else {
+                  setCompletedRuns([]);
+                }
+
+                // 2. Récupération directe du plan et des séances fraîches depuis Supabase
                 const { data: planData } = await supabase
                   .from("plans")
                   .select("*")
@@ -2402,15 +2441,30 @@ export default function Home() {
                   .eq("is_archived", false)
                   .maybeSingle();
 
-                if (planData) {
-                  const { data: wData } = await supabase
-                    .from("workouts")
-                    .select("*")
-                    .eq("plan_id", planData.id)
-                    .order("week_number", { ascending: true })
-                    .order("day_index", { ascending: true });
+                const { data: allUserWorkouts } = await supabase
+                  .from("workouts")
+                  .select("*")
+                  .eq("user_id", id);
 
-                  const freshWorkouts: Workout[] = (wData || []).map((w: any) => ({
+                const completedMap: Record<string, boolean> = {};
+
+                (allUserWorkouts || []).forEach((w: any) => {
+                  if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
+                    completedMap[w.id] = true;
+                  }
+                });
+
+                setCompletedWorkouts(completedMap);
+
+                if (planData) {
+                  const planSpecificWorkouts = (allUserWorkouts || [])
+                    .filter((w: any) => w.plan_id === planData.id)
+                    .sort((a: any, b: any) => {
+                      if (a.week_number !== b.week_number) return a.week_number - b.week_number;
+                      return a.day_index - b.day_index;
+                    });
+
+                  const freshWorkouts: Workout[] = planSpecificWorkouts.map((w: any) => ({
                     id: w.id,
                     planId: w.plan_id,
                     userId: w.user_id,
