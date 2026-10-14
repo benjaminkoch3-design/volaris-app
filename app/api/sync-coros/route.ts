@@ -67,6 +67,7 @@ const parsePaceToSeconds = (str: string): number | null => {
   return null;
 };
 
+// Vitesse en cm/s pour COROS (100 000 / secPerKm)
 const paceSecToCmPerSec = (secPerKm: number): number => {
   if (!secPerKm || secPerKm <= 0) return 0;
   return Math.round(100000 / secPerKm);
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
           body: loginPayload,
         });
         const data = await res.json();
+
         if (data?.result === "0000" && (data?.data?.accessToken || data?.data?.token)) {
           token = data.data.accessToken || data.data.token;
           userId = data.data.userId || data.data.id || data.data.account;
@@ -143,7 +145,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Poursuite vers l'autre cluster
+        // Essai sur le host suivant
       }
     }
 
@@ -170,28 +172,28 @@ export async function POST(request: Request) {
       const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
       const slowSec = parsePaceToSeconds(step.paceMax);
 
-      let targetType = 0;
-      let targetMin = 0;
-      let targetMax = 0;
+      let intensityType = 0;
+      let intensityMin = 0;
+      let intensityMax = 0;
 
       if (fastSec && fastSec > 0) {
-        targetType = 1;
+        intensityType = 1;
         const speedFast = paceSecToCmPerSec(fastSec);
         const speedSlow = slowSec && slowSec > fastSec
           ? paceSecToCmPerSec(slowSec)
           : paceSecToCmPerSec(fastSec + 10);
 
-        targetMin = Math.min(speedFast, speedSlow);
-        targetMax = Math.max(speedFast, speedSlow);
+        intensityMin = Math.min(speedFast, speedSlow);
+        intensityMax = Math.max(speedFast, speedSlow);
       }
 
       return {
         stepType: getCorosStepType(step.type),
         mode: parsed.mode,
         targetValue: parsed.value,
-        intensityType: targetType,
-        intensityMin: targetMin,
-        intensityMax: targetMax,
+        intensityType: intensityType,
+        intensityMin: intensityMin,
+        intensityMax: intensityMax,
         note: step.description || "",
       };
     };
@@ -216,10 +218,12 @@ export async function POST(request: Request) {
                 workoutStepList.push(buildCorosStep(nStep));
               });
             } else {
+              const subSteps = step.nestedSteps.map(buildCorosStep);
               workoutStepList.push({
                 stepType: 5,
                 repeatCount: reps - 1,
-                subStepList: step.nestedSteps.map(buildCorosStep),
+                subStepList: subSteps,
+                stepList: subSteps,
               });
             }
 
@@ -228,10 +232,12 @@ export async function POST(request: Request) {
               workoutStepList.push(buildCorosStep(nStep));
             });
           } else {
+            const subSteps = step.nestedSteps.map(buildCorosStep);
             workoutStepList.push({
               stepType: 5,
               repeatCount: reps,
-              subStepList: step.nestedSteps.map(buildCorosStep),
+              subStepList: subSteps,
+              stepList: subSteps,
             });
           }
         } else {
@@ -255,25 +261,34 @@ export async function POST(request: Request) {
       accessToken: token,
     };
 
-    const workoutData = {
+    // Formats de payload à tenter (avec userId typé et structure directe)
+    const basePayload = {
       name: workoutTitle,
-      sportType: 1,
+      sportType: 1, // Running
       workoutStepList: workoutStepList,
       description: workout.description || "",
-      userId: userId || undefined,
+      userId: Number(userId) || userId,
     };
 
-    // Endpoints réels du Training Hub pour la bibliothèque de séances
-    const endpointsToTry = [
-      { url: `${successfulHost}/program/workout/save`, body: workoutData },
-      { url: `${successfulHost}/program/save`, body: { workout: workoutData } },
-      { url: `${successfulHost}/workout/save`, body: workoutData },
+    const requestsToTry = [
+      {
+        url: `${successfulHost}/workout/save`,
+        body: basePayload,
+      },
+      {
+        url: `${successfulHost}/workout/save`,
+        body: { ...basePayload, workout: basePayload },
+      },
+      {
+        url: `${successfulHost}/program/workout/save`,
+        body: basePayload,
+      },
     ];
 
     let saveSuccess = false;
-    let corosResponseDetail = null;
+    let detailedErrors: string[] = [];
 
-    for (const req of endpointsToTry) {
+    for (const req of requestsToTry) {
       try {
         const res = await fetch(req.url, {
           method: "POST",
@@ -281,27 +296,32 @@ export async function POST(request: Request) {
           body: JSON.stringify(req.body),
         });
 
-        if (res.status === 404) continue;
+        const status = res.status;
+        const textResponse = await res.text();
+        let parsed: any = null;
 
-        const data = await res.json();
-        if (data?.result === "0000" || data?.data?.workoutId || data?.data?.id) {
+        try {
+          parsed = JSON.parse(textResponse);
+        } catch {
+          // pas du JSON
+        }
+
+        if (status === 200 && (parsed?.result === "0000" || parsed?.data?.workoutId || parsed?.data?.id)) {
           saveSuccess = true;
           break;
         } else {
-          corosResponseDetail = data?.message || JSON.stringify(data);
+          const msg = parsed?.message || parsed?.result || textResponse.substring(0, 120);
+          detailedErrors.push(`[${req.url.split("/").pop()} - HTTP ${status}]: ${msg}`);
         }
-      } catch (e) {
-        // Tentative suivante
+      } catch (err: any) {
+        detailedErrors.push(`Erreur réseau: ${err.message}`);
       }
     }
 
     if (!saveSuccess) {
-      console.error("COROS API Refusal:", corosResponseDetail);
-      throw new Error(
-        corosResponseDetail
-          ? `COROS : ${corosResponseDetail}`
-          : "Échec de l'enregistrement dans la bibliothèque COROS."
-      );
+      const finalMsg = detailedErrors.join(" | ");
+      console.error("COROS Detailed Refusal:", finalMsg);
+      throw new Error(finalMsg || "Rejet de l'entraînement par le serveur COROS.");
     }
 
     return NextResponse.json({
