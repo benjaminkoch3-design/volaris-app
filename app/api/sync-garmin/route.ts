@@ -144,6 +144,7 @@ const getGarminStepType = (type: string) => {
     case "echauffement":
       return { stepTypeId: 1, stepTypeKey: "warmup" };
     case "recup":
+    case "recup_marche":
       return { stepTypeId: 4, stepTypeKey: "recovery" };
     case "retour_calme":
       return { stepTypeId: 2, stepTypeKey: "cooldown" };
@@ -234,23 +235,67 @@ export async function POST(request: Request) {
 
     if (workout.steps && workout.steps.length > 0) {
       workout.steps.forEach((step: any) => {
-        if (step.type === "repeat" && step.nestedSteps) {
+        if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
           const reps = parseInt(step.reps || step.repeatCount || "1", 10) || 1;
-          const repeatSteps: any[] = [];
+          const skipLast = Boolean(step.skipLastRecovery);
 
-          step.nestedSteps.forEach((nStep: any) => {
-            repeatSteps.push(buildStepDTO(nStep, stepOrder++));
-          });
+          // Vérifier si le dernier sous-bloc est une récupération
+          const lastNestedIndex = step.nestedSteps.length - 1;
+          const lastNested = step.nestedSteps[lastNestedIndex];
+          const hasRecoveryAtEnd =
+            lastNested &&
+            (lastNested.type === "recup" ||
+              lastNested.type === "recup_marche" ||
+              lastNested.type === "retour_calme");
 
-          workoutSteps.push({
-            type: "RepeatGroupDTO",
-            stepId: null,
-            stepOrder: stepOrder++,
-            stepType: { stepTypeId: 6, stepTypeKey: "repeat" },
-            numberOfIterations: reps,
-            workoutSteps: repeatSteps,
-            smartRepeat: Boolean(step.skipLastRecovery), // Prise en compte de la case à cocher
-          });
+          if (skipLast && reps > 1 && hasRecoveryAtEnd) {
+            // Sous-blocs sans la dernière récupération
+            const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
+
+            // 1. Première partie : boucle de (reps - 1) répétitions complètes
+            if (reps - 1 === 1) {
+              step.nestedSteps.forEach((nStep: any) => {
+                workoutSteps.push(buildStepDTO(nStep, stepOrder++));
+              });
+            } else {
+              const repeatSteps: any[] = [];
+              step.nestedSteps.forEach((nStep: any) => {
+                repeatSteps.push(buildStepDTO(nStep, stepOrder++));
+              });
+              workoutSteps.push({
+                type: "RepeatGroupDTO",
+                stepId: null,
+                stepOrder: stepOrder++,
+                stepType: { stepTypeId: 6, stepTypeKey: "repeat" },
+                numberOfIterations: reps - 1,
+                workoutSteps: repeatSteps,
+                smartRepeat: false,
+                skipLastRestStep: false,
+              });
+            }
+
+            // 2. Dernière répétition : uniquement le travail (sans la récupération)
+            stepsWithoutLastRecovery.forEach((nStep: any) => {
+              workoutSteps.push(buildStepDTO(nStep, stepOrder++));
+            });
+          } else {
+            // Boucle standard
+            const repeatSteps: any[] = [];
+            step.nestedSteps.forEach((nStep: any) => {
+              repeatSteps.push(buildStepDTO(nStep, stepOrder++));
+            });
+
+            workoutSteps.push({
+              type: "RepeatGroupDTO",
+              stepId: null,
+              stepOrder: stepOrder++,
+              stepType: { stepTypeId: 6, stepTypeKey: "repeat" },
+              numberOfIterations: reps,
+              workoutSteps: repeatSteps,
+              smartRepeat: skipLast,
+              skipLastRestStep: skipLast,
+            });
+          }
         } else {
           workoutSteps.push(buildStepDTO(step, stepOrder++));
         }
