@@ -56,24 +56,6 @@ const parseDurationOrDist = (
   return { mode: 1, value: Math.round((rawNum || 5) * 60) };
 };
 
-const parsePaceToSeconds = (str: string): number | null => {
-  if (!str) return null;
-  const clean = str.toString().trim().toLowerCase();
-  const match = clean.match(/(\d{1,2})[':](\d{2})/);
-  if (match) {
-    const mins = parseInt(match[1], 10);
-    const secs = parseInt(match[2], 10);
-    return mins * 60 + secs;
-  }
-  return null;
-};
-
-// 100 000 / secPerKm = cm/s
-const paceSecToCmPerSec = (secPerKm: number): number => {
-  if (!secPerKm || secPerKm <= 0) return 0;
-  return Math.round(100000 / secPerKm);
-};
-
 const getCorosStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -105,7 +87,7 @@ export async function POST(request: Request) {
     const baseHeaders = {
       "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
       Accept: "application/json, text/plain, */*",
       origin: "https://training.coros.com",
       referer: "https://training.coros.com/",
@@ -172,34 +154,19 @@ export async function POST(request: Request) {
 
     const buildCorosStep = (step: any) => {
       const parsed = parseDurationOrDist(step.durationOrDist || "", step.endCondition);
-      const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
-      const slowSec = parsePaceToSeconds(step.paceMax);
-
-      let intensityType = 0;
-      let intensityMin = 0;
-      let intensityMax = 0;
-
-      // COROS exige que intensityMin <= intensityMax
-      if (fastSec && fastSec > 0) {
-        intensityType = 1;
-        const speedFast = paceSecToCmPerSec(fastSec);
-        const speedSlow =
-          slowSec && slowSec > fastSec
-            ? paceSecToCmPerSec(slowSec)
-            : paceSecToCmPerSec(fastSec + 10);
-
-        intensityMin = Math.min(speedFast, speedSlow);
-        intensityMax = Math.max(speedFast, speedSlow);
-      }
+      const paceTarget = step.paceMin || step.goalValue || step.targetPace || "";
+      const noteText = [step.description || step.title || "", paceTarget ? `Allure : ${paceTarget}` : ""]
+        .filter(Boolean)
+        .join(" - ");
 
       return {
         stepType: getCorosStepType(step.type),
         mode: parsed.mode,
         targetValue: parsed.value,
-        intensityType: intensityType,
-        intensityMin: intensityMin,
-        intensityMax: intensityMax,
-        note: step.description || "",
+        intensityType: 0,
+        intensityMin: 0,
+        intensityMax: 0,
+        note: noteText,
       };
     };
 
@@ -207,42 +174,11 @@ export async function POST(request: Request) {
       workout.steps.forEach((step: any) => {
         if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
           const reps = parseInt(step.reps || "1", 10) || 1;
-          const skipLast = Boolean(step.skipLastRecovery);
-
-          const lastNestedIndex = step.nestedSteps.length - 1;
-          const lastNested = step.nestedSteps[lastNestedIndex];
-          const hasRecoveryAtEnd =
-            lastNested &&
-            (lastNested.type === "recup" ||
-              lastNested.type === "recup_marche" ||
-              lastNested.type === "retour_calme");
-
-          if (skipLast && reps > 1 && hasRecoveryAtEnd) {
-            if (reps - 1 === 1) {
-              step.nestedSteps.forEach((nStep: any) => {
-                workoutStepList.push(buildCorosStep(nStep));
-              });
-            } else {
-              const subList = step.nestedSteps.map(buildCorosStep);
-              workoutStepList.push({
-                stepType: 5,
-                repeatCount: reps - 1,
-                subStepList: subList,
-              });
-            }
-
-            const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
-            stepsWithoutLastRecovery.forEach((nStep: any) => {
-              workoutStepList.push(buildCorosStep(nStep));
-            });
-          } else {
-            const subList = step.nestedSteps.map(buildCorosStep);
-            workoutStepList.push({
-              stepType: 5,
-              repeatCount: reps,
-              subStepList: subList,
-            });
-          }
+          workoutStepList.push({
+            stepType: 5,
+            repeatCount: reps,
+            subStepList: step.nestedSteps.map(buildCorosStep),
+          });
         } else {
           workoutStepList.push(buildCorosStep(step));
         }
@@ -252,8 +188,6 @@ export async function POST(request: Request) {
         buildCorosStep({
           type: "corps",
           durationOrDist: `${workout.km || 8}km`,
-          paceMin: workout.paceMin,
-          paceMax: workout.paceMax,
         })
       );
     }
@@ -270,6 +204,7 @@ export async function POST(request: Request) {
       workoutType: 1,
       workoutStepList: workoutStepList,
       description: workout.description || "",
+      userId: userId ? Number(userId) : undefined,
     };
 
     const endpointsToTry = [
@@ -306,7 +241,7 @@ export async function POST(request: Request) {
         try {
           data = JSON.parse(text);
         } catch {
-          // pas du json
+          // Format non JSON
         }
 
         const isOk =
@@ -324,10 +259,10 @@ export async function POST(request: Request) {
           break;
         } else {
           const detail = data?.message || data?.result || data?.code || text.slice(0, 100);
-          errorDetails.push(`[${req.url.split("/").pop()} - HTTP ${status}]: ${detail}`);
+          errorDetails.push(`[${req.url.split("/").pop()} - HTTP ${status}] : ${detail}`);
         }
       } catch (err: any) {
-        errorDetails.push(`Erreur: ${err.message}`);
+        errorDetails.push(`Erreur réseau : ${err.message}`);
       }
     }
 
