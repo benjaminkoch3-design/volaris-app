@@ -71,7 +71,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     strava: false,
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loadingPlatform, setLoadingPlatform] = useState<"garmin" | "coros" | "strava" | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         return;
       }
 
-      setLoading(true);
+      setLoadingPlatform("garmin");
       setSyncStatus(null);
 
       try {
@@ -129,7 +129,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       } catch (err: any) {
         setSyncStatus(`❌ ${err.message}`);
       } finally {
-        setLoading(false);
+        setLoadingPlatform(null);
       }
       return;
     }
@@ -142,7 +142,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         return;
       }
 
-      setLoading(true);
+      setLoadingPlatform("coros");
       setSyncStatus(null);
 
       try {
@@ -159,12 +159,12 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur de synchronisation COROS");
 
-        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur COROS Hub !`);
+        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur COROS Training Hub !`);
         setTimeout(() => setSyncStatus(null), 3000);
       } catch (err: any) {
         setSyncStatus(`❌ ${err.message}`);
       } finally {
-        setLoading(false);
+        setLoadingPlatform(null);
       }
       return;
     }
@@ -419,13 +419,13 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   <button
                     type="button"
                     onClick={() => handlePushToPlatform("garmin")}
-                    disabled={loading}
-                    className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    disabled={loadingPlatform !== null}
+                    className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
                     title="Envoyer vers Garmin Connect"
                   >
                     <GarminLogo className="w-5 h-5" />
                     <span className="text-xs font-bold uppercase text-stone-300">
-                      Garmin
+                      {loadingPlatform === "garmin" ? "Envoi..." : "Garmin"}
                     </span>
                   </button>
                 )}
@@ -434,13 +434,13 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   <button
                     type="button"
                     onClick={() => handlePushToPlatform("coros")}
-                    disabled={loading}
-                    className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    disabled={loadingPlatform !== null}
+                    className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
                     title="Envoyer vers COROS Training Hub"
                   >
                     <CorosLogo className="w-5 h-5" />
                     <span className="text-xs font-bold uppercase text-stone-300">
-                      COROS
+                      {loadingPlatform === "coros" ? "Envoi..." : "COROS"}
                     </span>
                   </button>
                 )}
@@ -449,8 +449,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                   <button
                     type="button"
                     onClick={() => handlePushToPlatform("strava")}
-                    disabled={loading}
-                    className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group"
+                    disabled={loadingPlatform !== null}
+                    className="p-2.5 bg-stone-900 hover:bg-[#FC5200]/20 border border-stone-800 hover:border-[#FC5200]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
                     title="Synchroniser avec Strava"
                   >
                     <StravaLogo className="w-5 h-5" />
