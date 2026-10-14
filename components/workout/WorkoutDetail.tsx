@@ -60,36 +60,23 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 
   const [showTelemetryModal, setShowTelemetryModal] = useState(false);
 
-  const [connectedApps, setConnectedApps] = useState<{
-    garmin: boolean;
-    coros: boolean;
-  }>({
-    garmin: false,
-    coros: false,
-  });
+  const [hasGarminCreds, setHasGarminCreds] = useState(false);
+  const [hasCorosCreds, setHasCorosCreds] = useState(false);
 
   const [loadingPlatform, setLoadingPlatform] = useState<"garmin" | "coros" | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const hasGarmin = Boolean(
-        localStorage.getItem("volaris_garmin_email") && localStorage.getItem("volaris_garmin_pwd")
-      );
-      const hasCoros = Boolean(
-        localStorage.getItem("volaris_coros_email") && localStorage.getItem("volaris_coros_pwd")
-      );
+      const gEmail = localStorage.getItem("volaris_garmin_email");
+      const gPwd = localStorage.getItem("volaris_garmin_pwd");
+      setHasGarminCreds(Boolean(gEmail && gPwd));
 
-      setConnectedApps({
-        garmin: hasGarmin,
-        coros: hasCoros,
-      });
+      const cEmail = localStorage.getItem("volaris_coros_email");
+      const cPwd = localStorage.getItem("volaris_coros_pwd");
+      setHasCorosCreds(Boolean(cEmail && cPwd));
     }
   }, []);
-
-  const connectedList = (
-    Object.keys(connectedApps) as Array<keyof typeof connectedApps>
-  ).filter((key) => connectedApps[key]);
 
   const handlePushToPlatform = async (platform: "garmin" | "coros") => {
     const workoutName = workout.title || workout.sessionName || "Séance";
@@ -97,8 +84,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     if (platform === "garmin") {
       const savedEmail = localStorage.getItem("volaris_garmin_email");
       const savedPwd = localStorage.getItem("volaris_garmin_pwd");
+
       if (!savedEmail || !savedPwd) {
-        setSyncStatus("❌ Veuillez connecter votre compte Garmin dans l'onglet Profil.");
+        setSyncStatus("⚠️ Veuillez d'abord connecter votre compte Garmin dans l'onglet Profil.");
         return;
       }
 
@@ -132,8 +120,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     if (platform === "coros") {
       const savedEmail = localStorage.getItem("volaris_coros_email");
       const savedPwd = localStorage.getItem("volaris_coros_pwd");
+
       if (!savedEmail || !savedPwd) {
-        setSyncStatus("❌ Veuillez connecter votre compte COROS dans l'onglet Profil.");
+        setSyncStatus("⚠️ Veuillez d'abord connecter votre compte COROS dans l'onglet Profil.");
         return;
       }
 
@@ -154,7 +143,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur de synchronisation COROS");
 
-        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur COROS !`);
+        setSyncStatus(`✅ Séance « ${workoutName} » envoyée sur votre compte COROS !`);
         setTimeout(() => setSyncStatus(null), 3500);
       } catch (err: any) {
         setSyncStatus(`❌ ${err.message}`);
@@ -271,6 +260,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           />
         )}
 
+        {/* HEADER */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -296,6 +286,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         </div>
 
+        {/* MÉTRIQUES CIBLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
             <span className="block text-[8px] font-bold text-stone-400 uppercase">
@@ -358,6 +349,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         </div>
 
+        {/* BOUTON D'ACCÈS AUX GRAPHIQUES TÉLÉMÉTRIQUES */}
         {hasDebrief && (
           <button
             type="button"
@@ -368,71 +360,74 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         )}
 
+        {/* SYNCHRONISATION MONTRES (Garmin & COROS pour tout le monde) */}
         {!isCoach && (
           <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
                 Synchronisation Montre
               </span>
-              {connectedList.length > 0 && (
-                <span className="text-[9px] text-stone-500 font-bold">
-                  Exporter la séance
-                </span>
-              )}
+              <span className="text-[9px] text-stone-500 font-bold">
+                Exporter la séance
+              </span>
             </div>
 
-            {connectedList.length === 0 ? (
-              <div className="bg-stone-900/60 border border-stone-800 rounded-xl p-3 text-center">
-                <p className="text-[11px] text-stone-400 leading-relaxed">
-                  Aucune montre connectée. Rendez-vous dans l'onglet{" "}
-                  <strong className="text-[#CF9A61]">Profil</strong> pour lier votre
-                  compte.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {connectedApps.garmin && (
-                  <button
-                    type="button"
-                    onClick={() => handlePushToPlatform("garmin")}
-                    disabled={loadingPlatform !== null}
-                    className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
-                    title="Envoyer vers Garmin Connect"
-                  >
-                    <GarminLogo className="w-5 h-5" />
-                    <span className="text-xs font-bold uppercase text-stone-300">
-                      {loadingPlatform === "garmin" ? "Envoi..." : "Garmin"}
-                    </span>
-                  </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handlePushToPlatform("garmin")}
+                disabled={loadingPlatform !== null}
+                className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
+                title={hasGarminCreds ? "Envoyer vers Garmin Connect" : "Connecter Garmin dans le profil"}
+              >
+                <GarminLogo className="w-5 h-5" />
+                <span className="text-xs font-bold uppercase text-stone-300">
+                  {loadingPlatform === "garmin" ? "Envoi..." : "Garmin"}
+                </span>
+                {!hasGarminCreds && (
+                  <span className="text-[8px] text-stone-500 font-normal">
+                    (non lié)
+                  </span>
                 )}
+              </button>
 
-                {connectedApps.coros && (
-                  <button
-                    type="button"
-                    onClick={() => handlePushToPlatform("coros")}
-                    disabled={loadingPlatform !== null}
-                    className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
-                    title="Envoyer vers COROS Training Hub"
-                  >
-                    <CorosLogo className="w-5 h-5" />
-                    <span className="text-xs font-bold uppercase text-stone-300">
-                      {loadingPlatform === "coros" ? "Envoi..." : "COROS"}
-                    </span>
-                  </button>
+              <button
+                type="button"
+                onClick={() => handlePushToPlatform("coros")}
+                disabled={loadingPlatform !== null}
+                className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
+                title={hasCorosCreds ? "Envoyer vers COROS Training Hub" : "Connecter COROS dans le profil"}
+              >
+                <CorosLogo className="w-5 h-5" />
+                <span className="text-xs font-bold uppercase text-stone-300">
+                  {loadingPlatform === "coros" ? "Envoi..." : "COROS"}
+                </span>
+                {!hasCorosCreds && (
+                  <span className="text-[8px] text-stone-500 font-normal">
+                    (non lié)
+                  </span>
                 )}
-              </div>
-            )}
+              </button>
+            </div>
 
             {syncStatus && (
-              <p className="text-[10px] text-center font-bold text-emerald-400 animate-fadeIn">
+              <p className={`text-[10px] text-center font-bold animate-fadeIn ${
+                syncStatus.startsWith("✅")
+                  ? "text-emerald-400"
+                  : syncStatus.startsWith("⚠️")
+                  ? "text-amber-400"
+                  : "text-rose-400"
+              }`}>
                 {syncStatus}
               </p>
             )}
           </div>
         )}
 
+        {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
         <PaceProfileChart steps={workout.steps} />
 
+        {/* DESCRIPTION */}
         {workout.description && (
           <div className="bg-stone-950/60 p-3 rounded-2xl border border-stone-800 space-y-1">
             <span className="text-[9px] font-bold uppercase text-stone-400 block">
@@ -444,6 +439,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         )}
 
+        {/* REMARQUE COACH */}
         {workout.remark && (
           <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-3 rounded-2xl space-y-0.5">
             <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">
@@ -453,6 +449,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </div>
         )}
 
+        {/* STRUCTURE DES BLOCS */}
         <div className="space-y-2 border-t border-stone-800 pt-3">
           <span className="text-[10px] font-black uppercase text-stone-200 tracking-wider block">
             Structure de la séance ({workout.steps?.length || 0} bloc
@@ -470,6 +467,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
+        {/* ACTIONS */}
         <div className="flex gap-2 pt-2 border-t border-stone-800">
           <button
             type="button"

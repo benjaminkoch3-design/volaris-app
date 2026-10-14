@@ -7,7 +7,6 @@ const md5Hash = (str: string) => {
   return crypto.createHash("md5").update(str).digest("hex").toLowerCase();
 };
 
-// Mode COROS : 1 = Temps (sec), 2 = Distance (m), 6 = Touche Lap / Manuel
 const parseDurationOrDist = (
   val: string,
   endCondition?: string
@@ -88,12 +87,15 @@ export async function POST(request: Request) {
     const { email, password, workout, testOnly } = body || {};
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Identifiants COROS manquants." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Identifiants COROS manquants." },
+        { status: 400 }
+      );
     }
 
     const pwdMd5 = md5Hash(password);
 
-    const headers = {
+    const baseHeaders = {
       "Content-Type": "application/json",
       "User-Agent":
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
@@ -108,56 +110,53 @@ export async function POST(request: Request) {
       pwd: pwdMd5,
     });
 
-    // Endpoints réels de l'API COROS (Europe en priorité, puis Global)
-    const baseUrls = [
-      "https://teamapi-eu.coros.com",
+    const candidateHosts = [
+      "https://teameuapi.coros.com",
       "https://teamapi.coros.com",
     ];
 
     let token = null;
     let userId = null;
-    let activeBaseUrl = baseUrls[0];
-    let lastErrorMsg = null;
+    let successfulHost = candidateHosts[0];
+    let lastError = null;
 
-    for (const baseUrl of baseUrls) {
+    // 1. Authentification
+    for (const host of candidateHosts) {
       try {
-        const res = await fetch(`${baseUrl}/account/login`, {
+        const res = await fetch(`${host}/account/login`, {
           method: "POST",
-          headers,
+          headers: baseHeaders,
           body: loginPayload,
         });
-
         const data = await res.json();
-
         if (data?.result === "0000" && (data?.data?.accessToken || data?.data?.token)) {
           token = data.data.accessToken || data.data.token;
-          userId = data.data.userId || data.data.id;
-          activeBaseUrl = baseUrl;
+          userId = data.data.userId || data.data.id || data.data.account;
+          successfulHost = host;
           break;
         } else if (data?.message) {
-          lastErrorMsg = data.message;
+          lastError = data.message;
         }
-      } catch (err) {
-        // Test de l'URL suivante
+      } catch (e) {
+        // Essai sur le cluster suivant
       }
     }
 
     if (!token) {
       return NextResponse.json(
-        { error: lastErrorMsg || "Identifiants COROS invalides ou compte introuvable." },
+        { error: lastError || "Identifiants COROS invalides ou rejetés." },
         { status: 401 }
       );
     }
 
     if (testOnly || workout?.title === "Test Connexion") {
-      return NextResponse.json({ success: true, message: "Connexion COROS réussie !" });
+      return NextResponse.json({ success: true, message: "Connexion COROS validée !" });
     }
 
     if (!workout) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    // Préparation des étapes
     const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 30);
     const workoutStepList: any[] = [];
 
@@ -170,10 +169,11 @@ export async function POST(request: Request) {
       let targetMin = 0;
       let targetMax = 0;
 
-      if (fastSec) {
+      // Type d'intensité 1 = Allure
+      if (fastSec && fastSec > 0) {
         targetType = 1;
         targetMin = fastSec;
-        targetMax = slowSec || fastSec + 10;
+        targetMax = slowSec && slowSec > fastSec ? slowSec : fastSec + 10;
       }
 
       return {
@@ -240,36 +240,59 @@ export async function POST(request: Request) {
       );
     }
 
+    // 2. Format exact attendu par la bibliothèque COROS Training Hub
     const payload = {
+      workoutId: null,
       name: workoutTitle,
-      sportType: 1,
+      sportType: 1, // Course à pied
       workoutStepList: workoutStepList,
       description: workout.description || "",
+      userId: userId || undefined,
     };
 
-    const createRes = await fetch(`${activeBaseUrl}/workout/save`, {
-      method: "POST",
-      headers: {
-        ...headers,
-        accesstoken: token,
-      },
-      body: JSON.stringify(payload),
-    });
+    const endpoints = [
+      `${successfulHost}/workout/save`,
+      `${successfulHost}/training/workout/save`,
+    ];
 
-    const createData = await createRes.json();
+    let saveSuccess = false;
+    let apiErrorMsg = null;
 
-    if (createData?.result && createData.result !== "0000") {
-      throw new Error(createData?.message || "Erreur lors de l'enregistrement de la séance sur COROS.");
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            ...baseHeaders,
+            accesstoken: token,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (data?.result === "0000") {
+          saveSuccess = true;
+          break;
+        } else if (data?.message) {
+          apiErrorMsg = data.message;
+        }
+      } catch (e) {
+        // Essai sur le endpoint alternatif
+      }
+    }
+
+    if (!saveSuccess) {
+      throw new Error(apiErrorMsg || "Impossible de sauvegarder la séance sur COROS.");
     }
 
     return NextResponse.json({
       success: true,
-      message: `Séance « ${workoutTitle} » synchronisée sur COROS !`,
+      message: `Séance « ${workoutTitle} » ajoutée à votre bibliothèque d'entraînements COROS !`,
     });
   } catch (error: any) {
     console.error("COROS Sync Error:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur de communication avec COROS." },
+      { error: error?.message || "Erreur lors de la synchronisation COROS." },
       { status: 400 }
     );
   }
