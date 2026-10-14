@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 
 const md5Hash = (str: string) => {
-  return crypto.createHash("md5").update(str).digest("hex");
+  return crypto.createHash("md5").update(str).digest("hex").toLowerCase();
 };
 
 // Mode COROS : 1 = Temps (sec), 2 = Distance (m), 6 = Touche Lap / Manuel
@@ -93,115 +93,58 @@ export async function POST(request: Request) {
 
     const pwdMd5 = md5Hash(password);
 
-    const baseHeaders = {
+    const headers = {
+      "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
+      Accept: "application/json",
+      origin: "https://training.coros.com",
+      referer: "https://training.coros.com/",
     };
 
-    // ÉTAPE 1 : RÉCUPÉRATION DU JETON CSRF ET DU COOKIE DE SESSION COROS
-    let csrfToken = "";
-    let cookieHeader = "";
-
-    try {
-      const initRes = await fetch("https://training.coros.com/login", {
-        method: "GET",
-        headers: baseHeaders,
-      });
-
-      const rawSetCookie = initRes.headers.get("set-cookie") || "";
-      if (rawSetCookie) {
-        cookieHeader = rawSetCookie
-          .split(",")
-          .map((c) => c.split(";")[0].trim())
-          .join("; ");
-
-        const csrfMatch = rawSetCookie.match(/(?:csrf_token|XSRF-TOKEN|csrfToken)=([^;]+)/i);
-        if (csrfMatch) {
-          csrfToken = decodeURIComponent(csrfMatch[1]);
-        }
-      }
-
-      // Si le token n'est pas dans les cookies, recherche dans le code HTML de la page
-      if (!csrfToken) {
-        const html = await initRes.text();
-        const htmlMatch =
-          html.match(/name="csrf-token"\s+content="([^"]+)"/i) ||
-          html.match(/window\.__CSRF_TOKEN__\s*=\s*['"]([^'"]+)['"]/i);
-        if (htmlMatch) {
-          csrfToken = htmlMatch[1];
-        }
-      }
-    } catch (e) {
-      // Poursuite si la pré-requête échoue
-    }
-
-    // ÉTAPE 2 : AUTHENTIFICATION AVEC HEADERS COMPLETS
     const loginPayload = JSON.stringify({
       account: email,
       accountType: 2,
       pwd: pwdMd5,
     });
 
-    const candidateUrls = [
-      "https://open.coros.com/v2/coros/account/login",
-      "https://open-eu.coros.com/v2/coros/account/login",
-      "https://training.coros.com/v2/coros/account/login",
+    // Endpoints réels de l'API COROS (Europe en priorité, puis Global)
+    const baseUrls = [
+      "https://teamapi-eu.coros.com",
+      "https://teamapi.coros.com",
     ];
 
-    let loginData = null;
-    let successfulBaseUrl = "https://open.coros.com";
+    let token = null;
+    let userId = null;
+    let activeBaseUrl = baseUrls[0];
+    let lastErrorMsg = null;
 
-    for (const url of candidateUrls) {
+    for (const baseUrl of baseUrls) {
       try {
-        const headers: Record<string, string> = {
-          ...baseHeaders,
-          "Content-Type": "application/json",
-        };
-
-        if (csrfToken) {
-          headers["X-CSRF-Token"] = csrfToken;
-          headers["csrf-token"] = csrfToken;
-        }
-        if (cookieHeader) {
-          headers["Cookie"] = cookieHeader;
-        }
-
-        const res = await fetch(url, {
+        const res = await fetch(`${baseUrl}/account/login`, {
           method: "POST",
           headers,
           body: loginPayload,
         });
 
-        const text = await res.text();
-        if (text && text.trim().startsWith("{")) {
-          const parsed = JSON.parse(text);
-          if (parsed?.data?.accessToken || parsed?.data?.token || parsed.result === "0000") {
-            loginData = parsed;
-            successfulBaseUrl = new URL(url).origin;
-            break;
-          } else if (!loginData) {
-            loginData = parsed;
-          }
+        const data = await res.json();
+
+        if (data?.result === "0000" && (data?.data?.accessToken || data?.data?.token)) {
+          token = data.data.accessToken || data.data.token;
+          userId = data.data.userId || data.data.id;
+          activeBaseUrl = baseUrl;
+          break;
+        } else if (data?.message) {
+          lastErrorMsg = data.message;
         }
       } catch (err) {
-        // Tentative suivante
+        // Test de l'URL suivante
       }
     }
 
-    if (!loginData) {
+    if (!token) {
       return NextResponse.json(
-        { error: "Impossible d'établir la liaison avec les serveurs COROS." },
-        { status: 502 }
-      );
-    }
-
-    const token = loginData?.data?.accessToken || loginData?.data?.token;
-
-    if (!token && loginData.result !== "0000") {
-      return NextResponse.json(
-        { error: loginData?.message || "Identifiants COROS invalides ou rejetés." },
+        { error: lastErrorMsg || "Identifiants COROS invalides ou compte introuvable." },
         { status: 401 }
       );
     }
@@ -214,7 +157,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    // ÉTAPE 3 : CRÉATION ET ENVOI DE LA SÉANCE STRUCTURÉE
+    // Préparation des étapes
     const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 30);
     const workoutStepList: any[] = [];
 
@@ -304,24 +247,19 @@ export async function POST(request: Request) {
       description: workout.description || "",
     };
 
-    const createRes = await fetch(`${successfulBaseUrl}/v2/coros/workout`, {
+    const createRes = await fetch(`${activeBaseUrl}/workout/save`, {
       method: "POST",
       headers: {
-        ...baseHeaders,
-        "Content-Type": "application/json",
-        accessToken: token,
+        ...headers,
+        accesstoken: token,
       },
       body: JSON.stringify(payload),
     });
 
-    const createText = await createRes.text();
-    let createData: any = {};
-    if (createText && createText.trim().startsWith("{")) {
-      createData = JSON.parse(createText);
-    }
+    const createData = await createRes.json();
 
-    if (createData.result && createData.result !== "0000") {
-      throw new Error(createData?.message || "Erreur de création de la séance sur COROS.");
+    if (createData?.result && createData.result !== "0000") {
+      throw new Error(createData?.message || "Erreur lors de l'enregistrement de la séance sur COROS.");
     }
 
     return NextResponse.json({
@@ -331,7 +269,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("COROS Sync Error:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur lors de la synchronisation COROS." },
+      { error: error?.message || "Erreur de communication avec COROS." },
       { status: 400 }
     );
   }
