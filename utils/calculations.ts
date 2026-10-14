@@ -34,6 +34,7 @@ export const getStepTypeLabel = (type: string) => {
     case "corps":
       return "Course";
     case "recup":
+    case "recup_marche":
       return "Récupération";
     case "retour_calme":
       return "Retour au calme";
@@ -303,6 +304,7 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
     case "echauffement":
       return 340; // 5:40 /km
     case "recup":
+    case "recup_marche":
     case "retour_calme":
       return 360; // 6:00 /km
     case "corps":
@@ -335,7 +337,6 @@ export function parseStepMetricsValues(
     if (str.includes("km")) {
       km = num;
     } else {
-      // Détection automatique : si >= 50, valeur en mètres (ex: 400m -> 0.4km), sinon kilomètres
       km = num >= 50 ? num / 1000 : num;
     }
     return { km, seconds: 0, hasParsed: true };
@@ -346,7 +347,7 @@ export function parseStepMetricsValues(
     } else if (str.endsWith("h")) {
       seconds = num * 3600;
     } else {
-      seconds = num * 60; // Minutes par défaut
+      seconds = num * 60;
     }
     return { km: 0, seconds, hasParsed: true };
   }
@@ -364,34 +365,56 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
     return { totalKm: 0, totalMinutes: 0 };
   }
 
-  const computeStepsRecursive = (stepList: WorkoutStep[], parentReps = 1) => {
+  const computeSingleStep = (step: WorkoutStep) => {
+    const paceSec = getStepPaceInSeconds(step);
+    const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
+
+    if (hasParsed) {
+      if (km > 0) {
+        totalKm += km;
+        totalSeconds += km * paceSec;
+      } else if (seconds > 0) {
+        totalSeconds += seconds;
+        totalKm += paceSec > 0 ? seconds / paceSec : 0;
+      }
+    }
+  };
+
+  const processStepList = (stepList: WorkoutStep[]) => {
     stepList.forEach((step) => {
-      const currentReps = (step.type === "repeat" ? (step.reps || 1) : 1) * parentReps;
-
       if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        computeStepsRecursive(step.nestedSteps, currentReps);
-      } else if (step.type !== "repeat") {
-        const paceSec = getStepPaceInSeconds(step);
-        const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
+        const reps = Math.max(1, parseInt(String(step.reps || "1"), 10) || 1);
+        const skipLast = Boolean(step.skipLastRecovery);
 
-        if (hasParsed) {
-          if (km > 0) {
-            const stepKm = km * currentReps;
-            const stepSec = km * paceSec * currentReps;
-            totalKm += stepKm;
-            totalSeconds += stepSec;
-          } else if (seconds > 0) {
-            const stepSec = seconds * currentReps;
-            const stepKm = paceSec > 0 ? stepSec / paceSec : 0;
-            totalKm += stepKm;
-            totalSeconds += stepSec;
-          }
+        for (let r = 0; r < reps; r++) {
+          const isLastIteration = r === reps - 1;
+
+          step.nestedSteps.forEach((nested, nIdx) => {
+            const isLastSubStep = nIdx === step.nestedSteps!.length - 1;
+
+            if (
+              isLastIteration &&
+              isLastSubStep &&
+              skipLast &&
+              (nested.type === "recup" || nested.type === "recup_marche" || nested.type === "retour_calme")
+            ) {
+              return;
+            }
+
+            if (nested.type === "repeat") {
+              processStepList([nested]);
+            } else {
+              computeSingleStep(nested);
+            }
+          });
         }
+      } else if (step.type !== "repeat") {
+        computeSingleStep(step);
       }
     });
   };
 
-  computeStepsRecursive(steps);
+  processStepList(steps);
 
   return {
     totalKm: Math.round(totalKm * 10) / 10,
@@ -542,48 +565,70 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
 
   const profile: PaceProfilePoint[] = [];
 
-  const processStep = (step: WorkoutStep, repetitions = 1) => {
-    for (let r = 0; r < repetitions; r++) {
-      if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        step.nestedSteps.forEach((nested) => {
-          const nestedReps = nested.type === "repeat" ? (nested.reps || 1) : 1;
-          processStep(nested, nestedReps);
-        });
-      } else if (step.type !== "repeat") {
-        const paceSec = getStepPaceInSeconds(step);
-        const { km, seconds, hasParsed } = parseStepMetricsValues(
-          step.durationOrDist || "",
-          step.endCondition
-        );
+  const pushPoint = (step: WorkoutStep) => {
+    const paceSec = getStepPaceInSeconds(step);
+    const { km, seconds, hasParsed } = parseStepMetricsValues(
+      step.durationOrDist || "",
+      step.endCondition
+    );
 
-        let durSec = 60;
-        if (hasParsed) {
-          if (km > 0) {
-            durSec = km * paceSec;
-          } else if (seconds > 0) {
-            durSec = seconds;
-          }
-        }
-
-        const mins = Math.floor(paceSec / 60);
-        const secs = Math.round(paceSec % 60);
-        const paceFormatted = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-        profile.push({
-          label: step.durationOrDist || getStepTypeLabel(step.type),
-          durationSec: durSec > 0 ? Math.round(durSec) : 60,
-          paceSecPerKm: paceSec,
-          paceFormatted,
-          type: step.type,
-        });
+    let durSec = 60;
+    if (hasParsed) {
+      if (km > 0) {
+        durSec = km * paceSec;
+      } else if (seconds > 0) {
+        durSec = seconds;
       }
     }
+
+    const mins = Math.floor(paceSec / 60);
+    const secs = Math.round(paceSec % 60);
+    const paceFormatted = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+    profile.push({
+      label: step.durationOrDist || getStepTypeLabel(step.type),
+      durationSec: durSec > 0 ? Math.round(durSec) : 60,
+      paceSecPerKm: paceSec,
+      paceFormatted,
+      type: step.type,
+    });
   };
 
-  steps.forEach((step) => {
-    const reps = step.type === "repeat" ? (step.reps || 1) : 1;
-    processStep(step, reps);
-  });
+  const processStepList = (stepList: WorkoutStep[]) => {
+    stepList.forEach((step) => {
+      if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
+        const reps = Math.max(1, parseInt(String(step.reps || "1"), 10) || 1);
+        const skipLast = Boolean(step.skipLastRecovery);
+
+        for (let r = 0; r < reps; r++) {
+          const isLastIteration = r === reps - 1;
+
+          step.nestedSteps.forEach((nested, nIdx) => {
+            const isLastSubStep = nIdx === step.nestedSteps!.length - 1;
+
+            if (
+              isLastIteration &&
+              isLastSubStep &&
+              skipLast &&
+              (nested.type === "recup" || nested.type === "recup_marche" || nested.type === "retour_calme")
+            ) {
+              return;
+            }
+
+            if (nested.type === "repeat") {
+              processStepList([nested]);
+            } else {
+              pushPoint(nested);
+            }
+          });
+        }
+      } else if (step.type !== "repeat") {
+        pushPoint(step);
+      }
+    });
+  };
+
+  processStepList(steps);
 
   return profile;
 }
