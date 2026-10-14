@@ -7,6 +7,7 @@ const md5Hash = (str: string) => {
   return crypto.createHash("md5").update(str).digest("hex").toLowerCase();
 };
 
+// Mode COROS : 1 = Temps (sec), 2 = Distance (m), 6 = Touche Lap / Manuel
 const parseDurationOrDist = (
   val: string,
   endCondition?: string
@@ -67,6 +68,13 @@ const parsePaceToSeconds = (str: string): number | null => {
   return null;
 };
 
+// COROS attend les allures sous forme de vitesse en cm/s
+// Ex: 4:00/km -> 240s -> 100 000 / 240 = 416 cm/s
+const paceSecToCmPerSec = (secPerKm: number): number => {
+  if (!secPerKm || secPerKm <= 0) return 0;
+  return Math.round(100000 / secPerKm);
+};
+
 const getCorosStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -99,7 +107,7 @@ export async function POST(request: Request) {
       "Content-Type": "application/json",
       "User-Agent":
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
-      Accept: "application/json",
+      Accept: "application/json, text/plain, */*",
       origin: "https://training.coros.com",
       referer: "https://training.coros.com/",
     };
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Essai sur le cluster suivant
+        // Essai sur le host suivant
       }
     }
 
@@ -169,11 +177,17 @@ export async function POST(request: Request) {
       let targetMin = 0;
       let targetMax = 0;
 
-      // Type d'intensité 1 = Allure
+      // Type d'intensité 1 = Vitesse/Allure en cm/s
       if (fastSec && fastSec > 0) {
         targetType = 1;
-        targetMin = fastSec;
-        targetMax = slowSec && slowSec > fastSec ? slowSec : fastSec + 10;
+        const speedFast = paceSecToCmPerSec(fastSec);
+        const speedSlow = slowSec && slowSec > fastSec
+          ? paceSecToCmPerSec(slowSec)
+          : paceSecToCmPerSec(fastSec + 10);
+
+        // COROS attend : targetMin = vitesse lente, targetMax = vitesse rapide
+        targetMin = Math.min(speedFast, speedSlow);
+        targetMax = Math.max(speedFast, speedSlow);
       }
 
       return {
@@ -240,9 +254,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Format exact attendu par la bibliothèque COROS Training Hub
-    const payload = {
-      workoutId: null,
+    const workoutCore = {
       name: workoutTitle,
       sportType: 1, // Course à pied
       workoutStepList: workoutStepList,
@@ -250,39 +262,53 @@ export async function POST(request: Request) {
       userId: userId || undefined,
     };
 
+    // Test de deux formats de payload : à la racine et enveloppé dans "workout"
+    const payloadsToTry = [
+      workoutCore,
+      { workout: workoutCore, workoutId: 0 },
+    ];
+
     const endpoints = [
       `${successfulHost}/workout/save`,
       `${successfulHost}/training/workout/save`,
     ];
 
     let saveSuccess = false;
-    let apiErrorMsg = null;
+    let corosResponseDetail = null;
 
     for (const url of endpoints) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            ...baseHeaders,
-            accesstoken: token,
-          },
-          body: JSON.stringify(payload),
-        });
+      for (const payload of payloadsToTry) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              ...baseHeaders,
+              accesstoken: token,
+            },
+            body: JSON.stringify(payload),
+          });
 
-        const data = await res.json();
-        if (data?.result === "0000") {
-          saveSuccess = true;
-          break;
-        } else if (data?.message) {
-          apiErrorMsg = data.message;
+          const data = await res.json();
+          if (data?.result === "0000") {
+            saveSuccess = true;
+            break;
+          } else {
+            corosResponseDetail = data?.message || JSON.stringify(data);
+          }
+        } catch (e) {
+          // Essai suivant
         }
-      } catch (e) {
-        // Essai sur le endpoint alternatif
       }
+      if (saveSuccess) break;
     }
 
     if (!saveSuccess) {
-      throw new Error(apiErrorMsg || "Impossible de sauvegarder la séance sur COROS.");
+      console.error("COROS API Refusal:", corosResponseDetail);
+      throw new Error(
+        corosResponseDetail
+          ? `COROS: ${corosResponseDetail}`
+          : "Format d'entraînement rejeté par le serveur COROS."
+      );
     }
 
     return NextResponse.json({
