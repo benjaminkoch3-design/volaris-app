@@ -17,21 +17,21 @@ const MONTHS_FR = [
 
 const DAYS_SHORT_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-// 🎨 Palette calquée exclusivement sur les clés de WORKOUT_TYPES_CONFIG (constants/index.ts)
+// 🎨 Palette calquée sur WORKOUT_TYPES_CONFIG
 const WORKOUT_COLORS: Record<
   Exclude<WorkoutType, "repos">,
-  { bg: string; text: "dark" | "light" }
+  { bg: string }
 > = {
-  recup: { bg: "#38bdf8", text: "dark" },         // sky-400
-  footing: { bg: "#34d399", text: "dark" },       // emerald-400
-  footing_actif: { bg: "#059669", text: "light" },// emerald-600/700
-  cotes: { bg: "#92400e", text: "light" },        // amber-800
-  vma: { bg: "#ef4444", text: "light" },          // red-500
-  seuil: { bg: "#f97316", text: "light" },        // orange-500
-  specifique: { bg: "#a855f7", text: "light" },   // purple-500
-  sortie_longue: { bg: "#f472b6", text: "dark" }, // pink-400/500
-  activation: { bg: "#1d4ed8", text: "light" },   // blue-700
-  course: { bg: "#f59e0b", text: "dark" },        // amber-400/500
+  recup: { bg: "#0284c7" },          // sky-600
+  footing: { bg: "#059669" },        // emerald-600
+  footing_actif: { bg: "#047857" },  // emerald-700
+  cotes: { bg: "#92400e" },          // amber-800
+  vma: { bg: "#dc2626" },            // red-600
+  seuil: { bg: "#ea580c" },          // orange-600
+  specifique: { bg: "#9333ea" },     // purple-600
+  sortie_longue: { bg: "#db2777" },  // pink-600
+  activation: { bg: "#1d4ed8" },     // blue-700
+  course: { bg: "#d97706" },         // amber-600
 };
 
 export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
@@ -125,7 +125,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           <span className="text-[10px] font-black text-[#CDCF61] uppercase tracking-widest block">
             Agenda d'Entraînement
           </span>
-          {/* NOM DU MOIS : toujours noir foncé en clair, clair en sombre */}
           <h2 className="text-base font-black uppercase text-[#1c1917] dark:text-[#f5f5f4] mt-0.5">
             {MONTHS_FR[month]} {year}
           </h2>
@@ -209,13 +208,11 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     const w = s.workout as any;
                     const isDone = isWorkoutDebriefed(w);
 
-                    // Couleur calquée sur les clés exactes de WORKOUT_TYPES_CONFIG
                     const typeKey = (w.type || "footing") as Exclude<WorkoutType, "repos">;
                     const colorScheme =
                       WORKOUT_COLORS[typeKey] ||
-                      (w.color ? { bg: w.color, text: "light" } : { bg: "#34d399", text: "dark" });
+                      (w.color ? { bg: w.color } : { bg: "#059669" });
 
-                    const isDarkText = colorScheme.text === "dark";
                     const workoutTitle = w.title || w.type || "Séance";
                     const initialLetter = (s.athlete.name || "A").trim().charAt(0).toUpperCase();
 
@@ -224,12 +221,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         key={idx}
                         style={{
                           backgroundColor: colorScheme.bg,
-                          borderColor: `${colorScheme.bg}ee`,
+                          borderColor: `${colorScheme.bg}dd`,
                         }}
-                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full ${
-                          isDarkText ? "text-stone-950" : "text-white"
-                        }`}
-                        title={`${s.athlete.name} - ${workoutTitle} ${
+                        className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full text-white"
+                        title={`${s.athlete.name}\n${workoutTitle} ${
                           isDone
                             ? "(Validée ✓)"
                             : isPast
@@ -237,16 +232,12 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                             : "(Prévue)"
                         }`}
                       >
-                        {/* Initiale de l'athlète + Titre exact */}
+                        {/* Initiale de l'athlète + Titre */}
                         <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
-                          <span
-                            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 ${
-                              isDarkText ? "bg-stone-950/20 text-stone-950" : "bg-black/25 text-white"
-                            }`}
-                          >
+                          <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 bg-black/30 text-white">
                             {initialLetter}
                           </span>
-                          <span className="truncate tracking-tight font-extrabold">
+                          <span className="truncate tracking-tight font-extrabold text-white">
                             {workoutTitle}
                           </span>
                         </div>
@@ -254,14 +245,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         {/* Statut d'exécution */}
                         {isDone ? (
                           <span
-                            className="text-[8.5px] font-black text-emerald-950 bg-white/95 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
+                            className="text-[8.5px] font-black text-emerald-950 bg-white px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
                             title="Validée"
                           >
                             ✓
                           </span>
                         ) : isPast ? (
                           <span
-                            className="text-[8.5px] font-black text-red-600 bg-white/95 border border-red-200 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
+                            className="text-[8.5px] font-black text-red-600 bg-white border border-red-200 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
                             title="Non débriefée / Manquée"
                           >
                             ✕
