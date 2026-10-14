@@ -7,7 +7,19 @@ const md5Hash = (str: string) => {
   return crypto.createHash("md5").update(str).digest("hex");
 };
 
-const parseDurationOrDist = (val: string): { mode: number; value: number } => {
+// Mode COROS : 1 = Temps (sec), 2 = Distance (m), 6 = Touche Lap / Manuel
+const parseDurationOrDist = (
+  val: string,
+  endCondition?: string
+): { mode: number; value: number } => {
+  if (
+    endCondition === "lap_button" ||
+    (val && val.toLowerCase().includes("lap")) ||
+    (val && val.toLowerCase().includes("bip"))
+  ) {
+    return { mode: 6, value: 0 };
+  }
+
   const clean = (val || "").toLowerCase().trim();
 
   if (clean.includes("km") || (clean.endsWith("k") && !clean.includes("min"))) {
@@ -18,6 +30,13 @@ const parseDurationOrDist = (val: string): { mode: number; value: number } => {
   if (clean.includes("m") && !clean.includes("min")) {
     const m = parseFloat(clean.replace(",", ".")) || 0;
     return { mode: 2, value: Math.round(m) };
+  }
+
+  if (clean.includes("h")) {
+    const parts = clean.split("h");
+    const hours = parseFloat(parts[0]) || 0;
+    const mins = parseFloat(parts[1]) || 0;
+    return { mode: 1, value: Math.round(hours * 3600 + mins * 60) };
   }
 
   if (clean.includes("min") || clean.includes("'")) {
@@ -54,6 +73,7 @@ const getCorosStepType = (type: string) => {
     case "echauffement":
       return 1;
     case "recup":
+    case "recup_marche":
       return 3;
     case "retour_calme":
       return 4;
@@ -90,20 +110,18 @@ export async function POST(request: Request) {
     }
 
     if (testOnly || workout?.title === "Test Connexion") {
-      return NextResponse.json({ success: true, message: "Authentification COROS réussie !" });
+      return NextResponse.json({ success: true, message: "Connexion COROS réussie !" });
     }
 
     if (!workout) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    // UTILISATION DU TITRE RÉEL SANS MENTION VOLARIS
     const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 30);
-
     const workoutStepList: any[] = [];
 
     const buildCorosStep = (step: any) => {
-      const parsed = parseDurationOrDist(step.durationOrDist || "");
+      const parsed = parseDurationOrDist(step.durationOrDist || "", step.endCondition);
       const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
       const slowSec = parsePaceToSeconds(step.paceMax);
 
@@ -130,14 +148,44 @@ export async function POST(request: Request) {
 
     if (workout.steps && workout.steps.length > 0) {
       workout.steps.forEach((step: any) => {
-        if (step.type === "repeat" && step.nestedSteps) {
+        if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
           const reps = parseInt(step.reps || "1", 10) || 1;
-          const subSteps = step.nestedSteps.map(buildCorosStep);
-          workoutStepList.push({
-            stepType: 5,
-            repeatCount: reps,
-            subStepList: subSteps,
-          });
+          const skipLast = Boolean(step.skipLastRecovery);
+
+          const lastNestedIndex = step.nestedSteps.length - 1;
+          const lastNested = step.nestedSteps[lastNestedIndex];
+          const hasRecoveryAtEnd =
+            lastNested &&
+            (lastNested.type === "recup" ||
+              lastNested.type === "recup_marche" ||
+              lastNested.type === "retour_calme");
+
+          if (skipLast && reps > 1 && hasRecoveryAtEnd) {
+            // (N - 1) répétitions complètes
+            if (reps - 1 === 1) {
+              step.nestedSteps.forEach((nStep: any) => {
+                workoutStepList.push(buildCorosStep(nStep));
+              });
+            } else {
+              workoutStepList.push({
+                stepType: 5,
+                repeatCount: reps - 1,
+                subStepList: step.nestedSteps.map(buildCorosStep),
+              });
+            }
+
+            // Dernière répétition sans la dernière récupération
+            const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
+            stepsWithoutLastRecovery.forEach((nStep: any) => {
+              workoutStepList.push(buildCorosStep(nStep));
+            });
+          } else {
+            workoutStepList.push({
+              stepType: 5,
+              repeatCount: reps,
+              subStepList: step.nestedSteps.map(buildCorosStep),
+            });
+          }
         } else {
           workoutStepList.push(buildCorosStep(step));
         }
@@ -155,12 +203,12 @@ export async function POST(request: Request) {
 
     const payload = {
       name: workoutTitle,
-      sportType: 1,
+      sportType: 1, // Course à pied
       workoutStepList: workoutStepList,
       description: workout.description || "",
     };
 
-    await fetch("https://open.coros.com/v2/coros/workout", {
+    const createRes = await fetch("https://open.coros.com/v2/coros/workout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -168,6 +216,11 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(payload),
     });
+
+    const createData = await createRes.json();
+    if (createData.result && createData.result !== "0000") {
+      throw new Error(createData?.message || "Erreur de création de séance sur COROS.");
+    }
 
     return NextResponse.json({
       success: true,
