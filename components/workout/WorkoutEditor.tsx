@@ -168,44 +168,69 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
           {step.type === "repeat" ? (
             <div className="space-y-2.5">
-              <div className="grid grid-cols-2 gap-2 bg-stone-900/50 p-2 rounded-xl border border-stone-800">
-                <div>
-                  <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                    Nombre de répétitions
-                  </label>
-                  {/* Champ répétition : autorise le vide total pour saisie immédiate */}
-                  <input
-                    type="number"
-                    min="1"
-                    value={step.reps ?? ""}
-                    placeholder="Ex: 5"
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      onUpdateStep(
-                        workout.id,
-                        currentPath,
-                        "reps",
-                        val === "" ? "" : Math.max(1, parseInt(val, 10))
-                      );
-                    }}
-                    style={{ color: themeColor }}
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 text-stone-100"
-                  />
+              <div className="space-y-2 bg-stone-900/50 p-2.5 rounded-xl border border-stone-800">
+                <div className="grid grid-cols-2 gap-2 items-center">
+                  <div>
+                    <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
+                      Nombre de répétitions
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={step.reps ?? ""}
+                      placeholder="Ex: 5"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onUpdateStep(
+                          workout.id,
+                          currentPath,
+                          "reps",
+                          val === "" ? "" : Math.max(1, parseInt(val, 10))
+                        );
+                      }}
+                      style={{ color: themeColor }}
+                      className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 text-stone-100"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => onAddStep(workout.id, currentPath)}
+                      style={{
+                        color: themeColor,
+                        borderColor: `${themeColor}40`,
+                        backgroundColor: `${themeColor}15`,
+                      }}
+                      className="w-full py-1.5 border rounded-lg text-[9px] font-bold uppercase transition cursor-pointer"
+                    >
+                      ➕ Sous-bloc
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={() => onAddStep(workout.id, currentPath)}
-                    style={{
-                      color: themeColor,
-                      borderColor: `${themeColor}40`,
-                      backgroundColor: `${themeColor}15`,
-                    }}
-                    className="w-full py-1.5 border rounded-lg text-[9px] font-bold uppercase transition cursor-pointer"
-                  >
-                    ➕ Sous-bloc
-                  </button>
-                </div>
+
+                {/* OPTION GARMIN : NE PAS INCLURE LA DERNIÈRE RÉCUPÉRATION */}
+                {Number(step.reps || 0) > 1 && (
+                  <div className="pt-2 border-t border-stone-800/60">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">
+                      <input
+                        type="checkbox"
+                        checked={Boolean((step as any).skipLastRecovery)}
+                        onChange={(e) =>
+                          onUpdateStep(
+                            workout.id,
+                            currentPath,
+                            "skipLastRecovery" as any,
+                            e.target.checked
+                          )
+                        }
+                        className="w-3.5 h-3.5 rounded border-stone-700 bg-stone-950 text-[#CF9A61] focus:ring-0 cursor-pointer accent-[#CF9A61]"
+                      />
+                      <span className="font-semibold leading-tight">
+                        Ne pas faire la dernière récupération (enchaîner directement)
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               {step.nestedSteps && step.nestedSteps.length > 0 && (

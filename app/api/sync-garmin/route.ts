@@ -172,7 +172,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Aucune séance fournie." }, { status: 400 });
     }
 
-    // UTILISATION DU TITRE RÉEL SANS MENTION VOLARIS
     const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 45);
     const workoutDesc = workout.description || "";
 
@@ -250,7 +249,7 @@ export async function POST(request: Request) {
             stepType: { stepTypeId: 6, stepTypeKey: "repeat" },
             numberOfIterations: reps,
             workoutSteps: repeatSteps,
-            smartRepeat: false,
+            smartRepeat: Boolean(step.skipLastRecovery), // Prise en compte de la case à cocher
           });
         } else {
           workoutSteps.push(buildStepDTO(step, stepOrder++));

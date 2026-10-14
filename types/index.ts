@@ -52,6 +52,7 @@ export interface WorkoutStep {
   reps?: number;
   nestedSteps?: WorkoutStep[];
   description?: string;
+  skipLastRecovery?: boolean;
 }
 
 export interface Workout {
