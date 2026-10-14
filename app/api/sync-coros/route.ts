@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const baseHeaders = {
       "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
       Accept: "application/json, text/plain, */*",
       origin: "https://training.coros.com",
       referer: "https://training.coros.com/",
@@ -135,7 +135,6 @@ export async function POST(request: Request) {
           body: loginPayload,
         });
         const data = await res.json();
-
         if (data?.result === "0000" && (data?.data?.accessToken || data?.data?.token)) {
           token = data.data.accessToken || data.data.token;
           userId = data.data.userId || data.data.id || data.data.account;
@@ -145,7 +144,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Essai sur le host suivant
+        // Essai cluster suivant
       }
     }
 
@@ -172,28 +171,28 @@ export async function POST(request: Request) {
       const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
       const slowSec = parsePaceToSeconds(step.paceMax);
 
-      let intensityType = 0;
-      let intensityMin = 0;
-      let intensityMax = 0;
+      let targetType = 0;
+      let targetMin = 0;
+      let targetMax = 0;
 
       if (fastSec && fastSec > 0) {
-        intensityType = 1;
+        targetType = 1;
         const speedFast = paceSecToCmPerSec(fastSec);
         const speedSlow = slowSec && slowSec > fastSec
           ? paceSecToCmPerSec(slowSec)
           : paceSecToCmPerSec(fastSec + 10);
 
-        intensityMin = Math.min(speedFast, speedSlow);
-        intensityMax = Math.max(speedFast, speedSlow);
+        targetMin = Math.min(speedFast, speedSlow);
+        targetMax = Math.max(speedFast, speedSlow);
       }
 
       return {
         stepType: getCorosStepType(step.type),
         mode: parsed.mode,
         targetValue: parsed.value,
-        intensityType: intensityType,
-        intensityMin: intensityMin,
-        intensityMax: intensityMax,
+        intensityType: targetType,
+        intensityMin: targetMin,
+        intensityMax: targetMax,
         note: step.description || "",
       };
     };
@@ -218,12 +217,10 @@ export async function POST(request: Request) {
                 workoutStepList.push(buildCorosStep(nStep));
               });
             } else {
-              const subSteps = step.nestedSteps.map(buildCorosStep);
               workoutStepList.push({
                 stepType: 5,
                 repeatCount: reps - 1,
-                subStepList: subSteps,
-                stepList: subSteps,
+                subStepList: step.nestedSteps.map(buildCorosStep),
               });
             }
 
@@ -232,12 +229,10 @@ export async function POST(request: Request) {
               workoutStepList.push(buildCorosStep(nStep));
             });
           } else {
-            const subSteps = step.nestedSteps.map(buildCorosStep);
             workoutStepList.push({
               stepType: 5,
               repeatCount: reps,
-              subStepList: subSteps,
-              stepList: subSteps,
+              subStepList: step.nestedSteps.map(buildCorosStep),
             });
           }
         } else {
@@ -261,34 +256,38 @@ export async function POST(request: Request) {
       accessToken: token,
     };
 
-    // Formats de payload à tenter (avec userId typé et structure directe)
-    const basePayload = {
+    const workoutPayload = {
       name: workoutTitle,
-      sportType: 1, // Running
+      sportType: 1, // Course à pied
       workoutStepList: workoutStepList,
       description: workout.description || "",
-      userId: Number(userId) || userId,
+      userId: userId ? Number(userId) : undefined,
     };
 
-    const requestsToTry = [
+    // Endpoints réels selon l'architecture COROS Training Hub & Open API
+    const endpointsToTry = [
       {
-        url: `${successfulHost}/workout/save`,
-        body: basePayload,
+        url: `${successfulHost}/training/program/save`,
+        body: { workout: workoutPayload, name: workoutTitle, sportType: 1 },
       },
       {
-        url: `${successfulHost}/workout/save`,
-        body: { ...basePayload, workout: basePayload },
+        url: `${successfulHost}/training/save`,
+        body: workoutPayload,
       },
       {
-        url: `${successfulHost}/program/workout/save`,
-        body: basePayload,
+        url: `https://open.coros.com/v2/coros/workout`,
+        body: workoutPayload,
+      },
+      {
+        url: `https://open-eu.coros.com/v2/coros/workout`,
+        body: workoutPayload,
       },
     ];
 
     let saveSuccess = false;
     let detailedErrors: string[] = [];
 
-    for (const req of requestsToTry) {
+    for (const req of endpointsToTry) {
       try {
         const res = await fetch(req.url, {
           method: "POST",
@@ -297,31 +296,29 @@ export async function POST(request: Request) {
         });
 
         const status = res.status;
-        const textResponse = await res.text();
-        let parsed: any = null;
+        if (status === 404) continue; // Route inexistante, test de la suivante
 
+        const text = await res.text();
+        let data: any = {};
         try {
-          parsed = JSON.parse(textResponse);
+          data = JSON.parse(text);
         } catch {
           // pas du JSON
         }
 
-        if (status === 200 && (parsed?.result === "0000" || parsed?.data?.workoutId || parsed?.data?.id)) {
+        if (status === 200 && (data?.result === "0000" || data?.data?.workoutId || data?.data?.id)) {
           saveSuccess = true;
           break;
         } else {
-          const msg = parsed?.message || parsed?.result || textResponse.substring(0, 120);
-          detailedErrors.push(`[${req.url.split("/").pop()} - HTTP ${status}]: ${msg}`);
+          detailedErrors.push(`[${req.url.replace(/https?:\/\/[^\/]+/, "")} - HTTP ${status}]: ${data?.message || text.slice(0, 80)}`);
         }
       } catch (err: any) {
-        detailedErrors.push(`Erreur réseau: ${err.message}`);
+        // Erreur réseau, poursuite
       }
     }
 
     if (!saveSuccess) {
-      const finalMsg = detailedErrors.join(" | ");
-      console.error("COROS Detailed Refusal:", finalMsg);
-      throw new Error(finalMsg || "Rejet de l'entraînement par le serveur COROS.");
+      throw new Error(detailedErrors.join(" | ") || "Rejet de la création de séance par COROS.");
     }
 
     return NextResponse.json({
