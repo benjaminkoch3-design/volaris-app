@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const baseHeaders = {
       "Content-Type": "application/json",
       "User-Agent":
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 COROS/3.4.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       Accept: "application/json, text/plain, */*",
       origin: "https://training.coros.com",
       referer: "https://training.coros.com/",
@@ -135,7 +135,10 @@ export async function POST(request: Request) {
           body: loginPayload,
         });
         const data = await res.json();
-        if ((data?.result === "0000" || data?.code === "0000") && (data?.data?.accessToken || data?.data?.token)) {
+        if (
+          (data?.result === "0000" || data?.code === "0000") &&
+          (data?.data?.accessToken || data?.data?.token)
+        ) {
           token = data.data.accessToken || data.data.token;
           userId = data.data.userId || data.data.id || data.data.account;
           successfulHost = host;
@@ -144,7 +147,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Poursuite vers le cluster suivant
+        // Cluster suivant
       }
     }
 
@@ -178,9 +181,10 @@ export async function POST(request: Request) {
       if (fastSec && fastSec > 0) {
         targetType = 1;
         const speedFast = paceSecToCmPerSec(fastSec);
-        const speedSlow = slowSec && slowSec > fastSec
-          ? paceSecToCmPerSec(slowSec)
-          : paceSecToCmPerSec(fastSec + 10);
+        const speedSlow =
+          slowSec && slowSec > fastSec
+            ? paceSecToCmPerSec(slowSec)
+            : paceSecToCmPerSec(fastSec + 10);
 
         targetMin = Math.min(speedFast, speedSlow);
         targetMax = Math.max(speedFast, speedSlow);
@@ -264,19 +268,23 @@ export async function POST(request: Request) {
       userId: userId ? Number(userId) : undefined,
     };
 
-    // Priorité aux endpoints Open API et Training Hub validés
+    // Endpoints réels sur le host validé lors du login
     const endpointsToTry = [
       {
-        url: `https://open-eu.coros.com/v2/coros/workout`,
+        url: `${successfulHost}/training/workout/create`,
         body: workoutPayload,
       },
       {
-        url: `https://open.coros.com/v2/coros/workout`,
+        url: `${successfulHost}/workout/create`,
         body: workoutPayload,
       },
       {
-        url: `${successfulHost}/training/save`,
-        body: workoutPayload,
+        url: `${successfulHost}/training/workout/save`,
+        body: { workout: workoutPayload },
+      },
+      {
+        url: `${successfulHost}/workout/save`,
+        body: { workout: workoutPayload },
       },
     ];
 
@@ -320,7 +328,7 @@ export async function POST(request: Request) {
           detailedErrors.push(`[${req.url.replace(/https?:\/\/[^\/]+/, "")} - HTTP ${status}]: ${errMsg}`);
         }
       } catch (err: any) {
-        detailedErrors.push(`Erreur réseau: ${err.message}`);
+        detailedErrors.push(`Erreur: ${err.message}`);
       }
     }
 
