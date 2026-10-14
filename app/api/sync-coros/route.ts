@@ -135,7 +135,7 @@ export async function POST(request: Request) {
           body: loginPayload,
         });
         const data = await res.json();
-        if (data?.result === "0000" && (data?.data?.accessToken || data?.data?.token)) {
+        if ((data?.result === "0000" || data?.code === "0000") && (data?.data?.accessToken || data?.data?.token)) {
           token = data.data.accessToken || data.data.token;
           userId = data.data.userId || data.data.id || data.data.account;
           successfulHost = host;
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Essai cluster suivant
+        // Poursuite vers le cluster suivant
       }
     }
 
@@ -258,20 +258,16 @@ export async function POST(request: Request) {
 
     const workoutPayload = {
       name: workoutTitle,
-      sportType: 1, // Course à pied
+      sportType: 1, // Running
       workoutStepList: workoutStepList,
       description: workout.description || "",
       userId: userId ? Number(userId) : undefined,
     };
 
-    // Endpoints réels selon l'architecture COROS Training Hub & Open API
+    // Priorité aux endpoints Open API et Training Hub validés
     const endpointsToTry = [
       {
-        url: `${successfulHost}/training/program/save`,
-        body: { workout: workoutPayload, name: workoutTitle, sportType: 1 },
-      },
-      {
-        url: `${successfulHost}/training/save`,
+        url: `https://open-eu.coros.com/v2/coros/workout`,
         body: workoutPayload,
       },
       {
@@ -279,7 +275,7 @@ export async function POST(request: Request) {
         body: workoutPayload,
       },
       {
-        url: `https://open-eu.coros.com/v2/coros/workout`,
+        url: `${successfulHost}/training/save`,
         body: workoutPayload,
       },
     ];
@@ -296,29 +292,40 @@ export async function POST(request: Request) {
         });
 
         const status = res.status;
-        if (status === 404) continue; // Route inexistante, test de la suivante
+        if (status === 404) continue;
 
         const text = await res.text();
         let data: any = {};
         try {
           data = JSON.parse(text);
         } catch {
-          // pas du JSON
+          // pas du json
         }
 
-        if (status === 200 && (data?.result === "0000" || data?.data?.workoutId || data?.data?.id)) {
+        const isCorosSuccess =
+          status === 200 &&
+          (data?.result === "0000" ||
+            data?.code === "0000" ||
+            data?.message === "OK" ||
+            data?.message === "success" ||
+            Boolean(data?.data?.workoutId) ||
+            Boolean(data?.data?.id) ||
+            Boolean(data?.data));
+
+        if (isCorosSuccess) {
           saveSuccess = true;
           break;
         } else {
-          detailedErrors.push(`[${req.url.replace(/https?:\/\/[^\/]+/, "")} - HTTP ${status}]: ${data?.message || text.slice(0, 80)}`);
+          const errMsg = data?.message || data?.result || data?.code || text.slice(0, 80);
+          detailedErrors.push(`[${req.url.replace(/https?:\/\/[^\/]+/, "")} - HTTP ${status}]: ${errMsg}`);
         }
       } catch (err: any) {
-        // Erreur réseau, poursuite
+        detailedErrors.push(`Erreur réseau: ${err.message}`);
       }
     }
 
     if (!saveSuccess) {
-      throw new Error(detailedErrors.join(" | ") || "Rejet de la création de séance par COROS.");
+      throw new Error(detailedErrors.join(" | ") || "Rejet de la séance par COROS.");
     }
 
     return NextResponse.json({
