@@ -92,21 +92,68 @@ export async function POST(request: Request) {
     }
 
     const pwdMd5 = md5Hash(password);
-    const loginRes = await fetch("https://open.coros.com/v2/coros/account/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        account: email,
-        accountType: 2,
-        pwd: pwdMd5,
-      }),
+
+    // En-têtes pour éviter les rejets bot/WAF
+    const headers = {
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "Accept": "application/json, text/plain, */*",
+    };
+
+    const loginPayload = JSON.stringify({
+      account: email,
+      accountType: 2,
+      pwd: pwdMd5,
     });
 
-    const loginData = await loginRes.json();
+    // Test de l'endpoint principal avec fallback sur le serveur Europe
+    const endpoints = [
+      "https://open.coros.com/v2/coros/account/login",
+      "https://open-eu.coros.com/v2/coros/account/login",
+      "https://teamcn.coros.com/v2/coros/account/login"
+    ];
+
+    let loginData = null;
+    let successfulBaseUrl = "https://open.coros.com";
+
+    for (const url of endpoints) {
+      try {
+        const loginRes = await fetch(url, {
+          method: "POST",
+          headers,
+          body: loginPayload,
+        });
+
+        const rawText = await loginRes.text();
+        if (rawText && rawText.trim().startsWith("{")) {
+          const parsed = JSON.parse(rawText);
+          if (parsed?.data?.accessToken || parsed?.data?.token || parsed.result === "0000") {
+            loginData = parsed;
+            successfulBaseUrl = new URL(url).origin;
+            break;
+          } else if (!loginData) {
+            loginData = parsed; // Conserver la réponse pour message d'erreur si échec
+          }
+        }
+      } catch (err) {
+        // Poursuite vers l'endpoint suivant
+      }
+    }
+
+    if (!loginData) {
+      return NextResponse.json(
+        { error: "Impossible de joindre les serveurs COROS (réponse vide ou bloquée)." },
+        { status: 502 }
+      );
+    }
+
     const token = loginData?.data?.accessToken || loginData?.data?.token;
 
     if (!token && loginData.result !== "0000") {
-      throw new Error(loginData?.message || "Identifiants COROS invalides.");
+      return NextResponse.json(
+        { error: loginData?.message || "Identifiants COROS invalides ou compte non reconnu." },
+        { status: 401 }
+      );
     }
 
     if (testOnly || workout?.title === "Test Connexion") {
@@ -161,7 +208,6 @@ export async function POST(request: Request) {
               lastNested.type === "retour_calme");
 
           if (skipLast && reps > 1 && hasRecoveryAtEnd) {
-            // (N - 1) répétitions complètes
             if (reps - 1 === 1) {
               step.nestedSteps.forEach((nStep: any) => {
                 workoutStepList.push(buildCorosStep(nStep));
@@ -174,7 +220,6 @@ export async function POST(request: Request) {
               });
             }
 
-            // Dernière répétition sans la dernière récupération
             const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
             stepsWithoutLastRecovery.forEach((nStep: any) => {
               workoutStepList.push(buildCorosStep(nStep));
@@ -203,23 +248,28 @@ export async function POST(request: Request) {
 
     const payload = {
       name: workoutTitle,
-      sportType: 1, // Course à pied
+      sportType: 1,
       workoutStepList: workoutStepList,
       description: workout.description || "",
     };
 
-    const createRes = await fetch("https://open.coros.com/v2/coros/workout", {
+    const createRes = await fetch(`${successfulBaseUrl}/v2/coros/workout`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        ...headers,
         accessToken: token,
       },
       body: JSON.stringify(payload),
     });
 
-    const createData = await createRes.json();
+    const createRaw = await createRes.text();
+    let createData: any = {};
+    if (createRaw && createRaw.trim().startsWith("{")) {
+      createData = JSON.parse(createRaw);
+    }
+
     if (createData.result && createData.result !== "0000") {
-      throw new Error(createData?.message || "Erreur de création de séance sur COROS.");
+      throw new Error(createData?.message || "Erreur lors de la création de la séance sur COROS.");
     }
 
     return NextResponse.json({
@@ -229,7 +279,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("COROS Sync Error:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur lors de la synchronisation COROS." },
+      { error: error?.message || "Erreur de communication avec COROS." },
       { status: 400 }
     );
   }
