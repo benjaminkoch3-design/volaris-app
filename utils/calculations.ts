@@ -314,11 +314,20 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
   }
 }
 
-// Convertisseur précis durée / distance
+// Convertisseur précis durée / distance avec support du bouton Lap
 export function parseStepMetricsValues(
   rawVal: string,
-  endCondition?: "distance" | "temps" | string
+  endCondition?: "distance" | "temps" | "lap_button" | string
 ): { km: number; seconds: number; hasParsed: boolean } {
+  // Prise en charge du bouton Lap : allocation nominale indicative de 2 min
+  if (
+    endCondition === "lap_button" ||
+    (rawVal && rawVal.toLowerCase().includes("lap")) ||
+    (rawVal && rawVal.toLowerCase().includes("bip"))
+  ) {
+    return { km: 0, seconds: 120, hasParsed: true };
+  }
+
   if (!rawVal) return { km: 0, seconds: 0, hasParsed: false };
 
   const str = rawVal.trim().toLowerCase().replace(",", ".");
@@ -585,8 +594,13 @@ export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
     const secs = Math.round(paceSec % 60);
     const paceFormatted = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
+    const labelText =
+      step.endCondition === "lap_button"
+        ? "Bouton Lap"
+        : step.durationOrDist || getStepTypeLabel(step.type);
+
     profile.push({
-      label: step.durationOrDist || getStepTypeLabel(step.type),
+      label: labelText,
       durationSec: durSec > 0 ? Math.round(durSec) : 60,
       paceSecPerKm: paceSec,
       paceFormatted,

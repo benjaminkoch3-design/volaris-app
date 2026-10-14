@@ -180,6 +180,11 @@ export async function POST(request: Request) {
     let stepOrder = 1;
 
     const buildStepDTO = (step: any, customOrder: number) => {
+      const isLapButton =
+        step.endCondition === "lap_button" ||
+        (step.durationOrDist || "").toLowerCase().includes("lap") ||
+        (step.durationOrDist || "").toLowerCase().includes("bip");
+
       const parsed = parseDurationOrDist(
         step.durationOrDist || step.distance || step.duration || ""
       );
@@ -210,6 +215,21 @@ export async function POST(request: Request) {
         targetValueTwo = paceRange.fastSpeedMs;
       }
 
+      // Configuration de la condition de fin : Bouton Lap ou Durée/Distance
+      const endConditionObj = isLapButton
+        ? {
+            conditionTypeId: 1,
+            conditionTypeKey: "lap.button",
+            displayOrder: 1,
+            displayable: true,
+          }
+        : {
+            conditionTypeId: isTime ? 2 : 3,
+            conditionTypeKey: isTime ? "time" : "distance",
+            displayOrder: isTime ? 2 : 3,
+            displayable: true,
+          };
+
       return {
         type: "ExecutableStepDTO",
         stepId: null,
@@ -217,13 +237,8 @@ export async function POST(request: Request) {
         stepType: getGarminStepType(step.type),
         childStepId: null,
         description: step.description || null,
-        endCondition: {
-          conditionTypeId: isTime ? 2 : 3,
-          conditionTypeKey: isTime ? "time" : "distance",
-          displayOrder: isTime ? 2 : 3,
-          displayable: true,
-        },
-        endConditionValue: parsed.value,
+        endCondition: endConditionObj,
+        endConditionValue: isLapButton ? null : parsed.value,
         endConditionCompare: null,
         endConditionZone: null,
         targetType: targetType,

@@ -91,6 +91,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   };
 
   const parseStepDurationOrDist = (raw?: string, endCondition?: string) => {
+    if (endCondition === "lap_button") {
+      return { val: "Bouton Lap", unit: "" };
+    }
     if (!raw) return { val: "", unit: endCondition === "distance" ? "m" : "min" };
     const str = raw.trim().toLowerCase();
     if (endCondition === "distance") {
@@ -247,88 +250,100 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                    Condition
+                    Condition de fin
                   </label>
                   <select
                     value={step.endCondition || "distance"}
                     onChange={(e) => {
                       const newCond = e.target.value;
                       onUpdateStep(workout.id, currentPath, "endCondition", newCond);
-                      onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                      if (newCond === "lap_button") {
+                        onUpdateStep(workout.id, currentPath, "durationOrDist", "Bouton Lap");
+                      } else {
+                        onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                      }
                     }}
                     className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-200 rounded-lg p-1.5 focus:outline-none cursor-pointer"
                   >
                     <option value="distance">Distance</option>
                     <option value="temps">Temps</option>
+                    <option value="lap_button">Bouton Lap (Bip montre)</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[8px] uppercase font-bold text-stone-500 mb-0.5">
-                    Valeur & Unité
+                    {step.endCondition === "lap_button" ? "Déclencheur" : "Valeur & Unité"}
                   </label>
-                  <div className="flex gap-1">
-                    <input
-                      type="text"
-                      placeholder={step.endCondition === "temps" ? "Ex: 10" : "Ex: 1000"}
-                      value={parsed.val}
-                      onChange={(e) => {
-                        const newVal = e.target.value;
-                        if (!newVal) {
-                          onUpdateStep(workout.id, currentPath, "durationOrDist", "");
-                          return;
-                        }
-                        const formatted =
-                          step.endCondition === "distance"
-                            ? parsed.unit === "km"
-                              ? `${newVal}km`
-                              : `${newVal}m`
-                            : parsed.unit === "s"
-                            ? `${newVal}s`
-                            : parsed.unit === "h"
-                            ? `${newVal}h`
-                            : `${newVal} min`;
-                        onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
-                      }}
-                      className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
-                    />
-                    <select
-                      value={parsed.unit}
-                      onChange={(e) => {
-                        const newUnit = e.target.value;
-                        if (!parsed.val) {
-                          onUpdateStep(workout.id, currentPath, "durationOrDist", "");
-                          return;
-                        }
-                        const formatted =
-                          step.endCondition === "distance"
-                            ? newUnit === "km"
-                              ? `${parsed.val}km`
-                              : `${parsed.val}m`
-                            : newUnit === "s"
-                            ? `${parsed.val}s`
-                            : newUnit === "h"
-                            ? `${parsed.val}h`
-                            : `${parsed.val} min`;
-                        onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
-                      }}
-                      style={{ color: themeColor }}
-                      className="w-20 bg-stone-900 border border-stone-800 text-[10px] font-bold rounded-lg p-1 focus:outline-none cursor-pointer"
-                    >
-                      {step.endCondition === "distance" ? (
-                        <>
-                          <option value="m">m</option>
-                          <option value="km">km</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="min">min</option>
-                          <option value="s">sec</option>
-                          <option value="h">h</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
+                  {step.endCondition === "lap_button" ? (
+                    <div className="w-full bg-stone-900/60 border border-stone-800 rounded-lg p-1.5 text-[10px] text-[#CF9A61] font-bold flex items-center gap-1.5">
+                      <span>🔘</span>
+                      <span>Appui sur touche Lap</span>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        placeholder={step.endCondition === "temps" ? "Ex: 10" : "Ex: 1000"}
+                        value={parsed.val}
+                        onChange={(e) => {
+                          const newVal = e.target.value;
+                          if (!newVal) {
+                            onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                            return;
+                          }
+                          const formatted =
+                            step.endCondition === "distance"
+                              ? parsed.unit === "km"
+                                ? `${newVal}km`
+                                : `${newVal}m`
+                              : parsed.unit === "s"
+                              ? `${newVal}s`
+                              : parsed.unit === "h"
+                              ? `${newVal}h`
+                              : `${newVal} min`;
+                          onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
+                        }}
+                        className="w-full bg-stone-900 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono"
+                      />
+                      <select
+                        value={parsed.unit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          if (!parsed.val) {
+                            onUpdateStep(workout.id, currentPath, "durationOrDist", "");
+                            return;
+                          }
+                          const formatted =
+                            step.endCondition === "distance"
+                              ? newUnit === "km"
+                                ? `${parsed.val}km`
+                                : `${parsed.val}m`
+                              : newUnit === "s"
+                              ? `${parsed.val}s`
+                              : newUnit === "h"
+                              ? `${parsed.val}h`
+                              : `${parsed.val} min`;
+                          onUpdateStep(workout.id, currentPath, "durationOrDist", formatted);
+                        }}
+                        style={{ color: themeColor }}
+                        className="w-20 bg-stone-900 border border-stone-800 text-[10px] font-bold rounded-lg p-1 focus:outline-none cursor-pointer"
+                      >
+                        {step.endCondition === "distance" ? (
+                          <>
+                            <option value="m">m</option>
+                            <option value="km">km</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="min">min</option>
+                            <option value="s">sec</option>
+                            <option value="h">h</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
