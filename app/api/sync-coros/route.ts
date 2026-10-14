@@ -7,6 +7,7 @@ const md5Hash = (str: string) => {
   return crypto.createHash("md5").update(str).digest("hex").toLowerCase();
 };
 
+// Mode COROS : 1 = Temps (sec), 2 = Distance (m), 6 = Manuel / Lap
 const parseDurationOrDist = (
   val: string,
   endCondition?: string
@@ -67,7 +68,7 @@ const parsePaceToSeconds = (str: string): number | null => {
   return null;
 };
 
-// Vitesse en cm/s pour COROS (100 000 / secPerKm)
+// 100 000 / secPerKm = cm/s
 const paceSecToCmPerSec = (secPerKm: number): number => {
   if (!secPerKm || secPerKm <= 0) return 0;
   return Math.round(100000 / secPerKm);
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
           lastError = data.message;
         }
       } catch (e) {
-        // Cluster suivant
+        // Essai sur le host suivant
       }
     }
 
@@ -174,29 +175,30 @@ export async function POST(request: Request) {
       const fastSec = parsePaceToSeconds(step.paceMin || step.goalValue);
       const slowSec = parsePaceToSeconds(step.paceMax);
 
-      let targetType = 0;
-      let targetMin = 0;
-      let targetMax = 0;
+      let intensityType = 0;
+      let intensityMin = 0;
+      let intensityMax = 0;
 
+      // COROS exige que intensityMin <= intensityMax
       if (fastSec && fastSec > 0) {
-        targetType = 1;
+        intensityType = 1;
         const speedFast = paceSecToCmPerSec(fastSec);
         const speedSlow =
           slowSec && slowSec > fastSec
             ? paceSecToCmPerSec(slowSec)
             : paceSecToCmPerSec(fastSec + 10);
 
-        targetMin = Math.min(speedFast, speedSlow);
-        targetMax = Math.max(speedFast, speedSlow);
+        intensityMin = Math.min(speedFast, speedSlow);
+        intensityMax = Math.max(speedFast, speedSlow);
       }
 
       return {
         stepType: getCorosStepType(step.type),
         mode: parsed.mode,
         targetValue: parsed.value,
-        intensityType: targetType,
-        intensityMin: targetMin,
-        intensityMax: targetMax,
+        intensityType: intensityType,
+        intensityMin: intensityMin,
+        intensityMax: intensityMax,
         note: step.description || "",
       };
     };
@@ -221,10 +223,11 @@ export async function POST(request: Request) {
                 workoutStepList.push(buildCorosStep(nStep));
               });
             } else {
+              const subList = step.nestedSteps.map(buildCorosStep);
               workoutStepList.push({
                 stepType: 5,
                 repeatCount: reps - 1,
-                subStepList: step.nestedSteps.map(buildCorosStep),
+                subStepList: subList,
               });
             }
 
@@ -233,10 +236,11 @@ export async function POST(request: Request) {
               workoutStepList.push(buildCorosStep(nStep));
             });
           } else {
+            const subList = step.nestedSteps.map(buildCorosStep);
             workoutStepList.push({
               stepType: 5,
               repeatCount: reps,
-              subStepList: step.nestedSteps.map(buildCorosStep),
+              subStepList: subList,
             });
           }
         } else {
@@ -260,36 +264,31 @@ export async function POST(request: Request) {
       accessToken: token,
     };
 
-    const workoutPayload = {
+    const workoutCore = {
       name: workoutTitle,
-      sportType: 1, // Running
+      sportType: 1,
+      workoutType: 1,
       workoutStepList: workoutStepList,
       description: workout.description || "",
-      userId: userId ? Number(userId) : undefined,
     };
 
-    // Endpoints réels sur le host validé lors du login
     const endpointsToTry = [
       {
-        url: `${successfulHost}/training/workout/create`,
-        body: workoutPayload,
+        url: `${successfulHost}/workout/save`,
+        body: workoutCore,
       },
       {
-        url: `${successfulHost}/workout/create`,
-        body: workoutPayload,
-      },
-      {
-        url: `${successfulHost}/training/workout/save`,
-        body: { workout: workoutPayload },
+        url: `${successfulHost}/training/save`,
+        body: workoutCore,
       },
       {
         url: `${successfulHost}/workout/save`,
-        body: { workout: workoutPayload },
+        body: { workout: workoutCore },
       },
     ];
 
     let saveSuccess = false;
-    let detailedErrors: string[] = [];
+    let errorDetails: string[] = [];
 
     for (const req of endpointsToTry) {
       try {
@@ -310,7 +309,7 @@ export async function POST(request: Request) {
           // pas du json
         }
 
-        const isCorosSuccess =
+        const isOk =
           status === 200 &&
           (data?.result === "0000" ||
             data?.code === "0000" ||
@@ -318,22 +317,22 @@ export async function POST(request: Request) {
             data?.message === "success" ||
             Boolean(data?.data?.workoutId) ||
             Boolean(data?.data?.id) ||
-            Boolean(data?.data));
+            (data?.data && typeof data?.data !== "object"));
 
-        if (isCorosSuccess) {
+        if (isOk) {
           saveSuccess = true;
           break;
         } else {
-          const errMsg = data?.message || data?.result || data?.code || text.slice(0, 80);
-          detailedErrors.push(`[${req.url.replace(/https?:\/\/[^\/]+/, "")} - HTTP ${status}]: ${errMsg}`);
+          const detail = data?.message || data?.result || data?.code || text.slice(0, 100);
+          errorDetails.push(`[${req.url.split("/").pop()} - HTTP ${status}]: ${detail}`);
         }
       } catch (err: any) {
-        detailedErrors.push(`Erreur: ${err.message}`);
+        errorDetails.push(`Erreur: ${err.message}`);
       }
     }
 
     if (!saveSuccess) {
-      throw new Error(detailedErrors.join(" | ") || "Rejet de la séance par COROS.");
+      throw new Error(errorDetails.join(" | ") || "Rejet de la séance par COROS.");
     }
 
     return NextResponse.json({
