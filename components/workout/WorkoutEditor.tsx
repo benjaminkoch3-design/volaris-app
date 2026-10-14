@@ -69,6 +69,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
   const handleApplyTemplate = (template: LibraryWorkout) => {
     onUpdateWorkout(workout.id, "title", template.title);
+    if ((template as any).type) {
+      onUpdateWorkout(workout.id, "type", (template as any).type);
+    }
     onUpdateWorkout(workout.id, "description", template.description || "");
     onUpdateWorkout(workout.id, "km", template.km || "");
     onUpdateWorkout(workout.id, "rpe", template.rpe || "5");
@@ -211,7 +214,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   </div>
                 </div>
 
-                {/* OPTION GARMIN : NE PAS INCLURE LA DERNIÈRE RÉCUPÉRATION */}
+                {/* OPTION : NE PAS INCLURE LA DERNIÈRE RÉCUPÉRATION */}
                 {Number(step.reps || 0) > 1 && (
                   <div className="pt-2 border-t border-stone-800/60">
                     <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">

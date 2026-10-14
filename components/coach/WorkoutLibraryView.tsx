@@ -35,6 +35,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   );
   const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
   const handleCreateCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +43,15 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
     onAddCategory(newCategoryLabel.trim());
     setNewCategoryLabel("");
     setShowAddCategoryInput(false);
+  };
+
+  const confirmDeleteCategory = (catId: string) => {
+    onDeleteCategory(catId);
+    setCategoryToDelete(null);
+    if (selectedCategoryId === catId) {
+      const remaining = categories.filter((c) => c.id !== catId);
+      setSelectedCategoryId(remaining[0]?.id || "");
+    }
   };
 
   const currentCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -113,16 +123,21 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
         <div className="flex overflow-x-auto gap-2 pb-1 custom-scrollbar">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-1">
-              Aucune catégorie créée. Cliquez sur "Nouvelle catégorie" ci-dessus.
+              Aucune catégorie créée. Cliquez sur « Nouvelle catégorie » ci-dessus.
             </p>
           ) : (
             categories.map((cat) => {
               const isSelected = selectedCategoryId === cat.id;
+              const isConfirming = categoryToDelete === cat.id;
+
               return (
-                <div key={cat.id} className="flex items-center gap-1">
+                <div key={cat.id} className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setSelectedCategoryId(cat.id)}
+                    onClick={() => {
+                      setSelectedCategoryId(cat.id);
+                      setCategoryToDelete(null);
+                    }}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase whitespace-nowrap transition cursor-pointer border ${
                       isSelected
                         ? "bg-[#CDCF61] text-stone-950 border-[#CDCF61] shadow-md"
@@ -132,15 +147,40 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     {cat.label}
                   </button>
 
+                  {/* BOUTON SUPPRESSION AVEC CONFIRMATION */}
                   {isSelected && (
-                    <button
-                      type="button"
-                      title="Supprimer la catégorie"
-                      onClick={() => onDeleteCategory(cat.id)}
-                      className="text-stone-500 hover:text-[#B34D4D] text-xs px-1 transition cursor-pointer"
-                    >
-                      ✕
-                    </button>
+                    <>
+                      {isConfirming ? (
+                        <div className="flex items-center gap-1 bg-stone-950 border border-[#B34D4D]/50 px-2 py-0.5 rounded-xl animate-fadeIn">
+                          <span className="text-[9px] text-[#B34D4D] font-bold">
+                            Supprimer ?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => confirmDeleteCategory(cat.id)}
+                            className="text-[9px] font-black text-white bg-[#B34D4D] hover:bg-[#993b3b] px-1.5 py-0.5 rounded-md uppercase"
+                          >
+                            Oui
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCategoryToDelete(null)}
+                            className="text-[9px] font-bold text-stone-400 hover:text-stone-200 px-1 py-0.5"
+                          >
+                            Non
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          title="Supprimer la catégorie"
+                          onClick={() => setCategoryToDelete(cat.id)}
+                          className="text-stone-600 hover:text-[#B34D4D] text-xs px-1.5 py-1 transition cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               );
