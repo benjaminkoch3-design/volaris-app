@@ -303,38 +303,60 @@ export default function Home() {
   };
 
   const handleMoveCategory = async (catId: string, direction: "left" | "right") => {
-    setCustomCategories((prev) => {
-      const index = prev.findIndex((c) => c.id === catId);
-      if (index === -1) return prev;
-      const targetIndex = direction === "left" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+    const index = customCategories.findIndex((c) => c.id === catId);
+    if (index === -1) return;
+    const targetIndex = direction === "left" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= customCategories.length) return;
 
-      const updated = [...prev];
-      const [movedItem] = updated.splice(index, 1);
-      updated.splice(targetIndex, 0, movedItem);
-      return updated;
-    });
+    const updated = [...customCategories];
+    const [movedItem] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setCustomCategories(updated);
+
+    if (session?.user) {
+      const baseTime = Date.now();
+      const updates = updated.map((cat, i) =>
+        supabase
+          .from("library_categories")
+          .update({ created_at: new Date(baseTime + i * 1000).toISOString() })
+          .eq("id", cat.id)
+      );
+      await Promise.all(updates);
+    }
   };
 
   const handleMoveWorkout = async (workoutId: string, direction: "up" | "down") => {
-    setLibraryWorkouts((prev) => {
-      const workout = prev.find((w) => w.id === workoutId);
-      if (!workout) return prev;
+    const workout = libraryWorkouts.find((w) => w.id === workoutId);
+    if (!workout) return;
 
-      const catWorkouts = prev.filter((w) => w.categoryId === workout.categoryId);
-      const indexInCat = catWorkouts.findIndex((w) => w.id === workoutId);
-      const targetIndexInCat = direction === "up" ? indexInCat - 1 : indexInCat + 1;
-      if (targetIndexInCat < 0 || targetIndexInCat >= catWorkouts.length) return prev;
+    const catWorkouts = libraryWorkouts.filter((w) => w.categoryId === workout.categoryId);
+    const indexInCat = catWorkouts.findIndex((w) => w.id === workoutId);
+    const targetIndexInCat = direction === "up" ? indexInCat - 1 : indexInCat + 1;
+    if (targetIndexInCat < 0 || targetIndexInCat >= catWorkouts.length) return;
 
-      const targetWorkout = catWorkouts[targetIndexInCat];
-      const originalIndex = prev.findIndex((w) => w.id === workoutId);
-      const originalTargetIndex = prev.findIndex((w) => w.id === targetWorkout.id);
+    const targetWorkout = catWorkouts[targetIndexInCat];
+    const originalIndex = libraryWorkouts.findIndex((w) => w.id === workoutId);
+    const originalTargetIndex = libraryWorkouts.findIndex((w) => w.id === targetWorkout.id);
 
-      const updated = [...prev];
-      updated[originalIndex] = targetWorkout;
-      updated[originalTargetIndex] = workout;
-      return updated;
-    });
+    const updated = [...libraryWorkouts];
+    updated[originalIndex] = targetWorkout;
+    updated[originalTargetIndex] = workout;
+
+    setLibraryWorkouts(updated);
+
+    if (session?.user) {
+      const updatedCatWorkouts = updated.filter((w) => w.categoryId === workout.categoryId);
+      const baseTime = Date.now();
+      const total = updatedCatWorkouts.length;
+      const updates = updatedCatWorkouts.map((w, i) =>
+        supabase
+          .from("library_workouts")
+          .update({ created_at: new Date(baseTime + (total - i) * 1000).toISOString() })
+          .eq("id", w.id)
+      );
+      await Promise.all(updates);
+    }
   };
 
   const handleCreateNewTemplate = async (categoryId: string) => {
@@ -353,7 +375,7 @@ export default function Home() {
       km: "",
       rpe: "5",
       steps: [],
-      createdAt: new Date().toISOString().split("T")[0],
+      createdAt: new Date().toISOString(),
     };
 
     setLibraryWorkouts((prev) => [newTemplate, ...prev]);
@@ -369,6 +391,7 @@ export default function Home() {
       km: newTemplate.km,
       rpe: newTemplate.rpe,
       steps: newTemplate.steps,
+      created_at: newTemplate.createdAt,
     };
 
     await supabase.from("library_workouts").insert([payload]);
@@ -1012,7 +1035,7 @@ export default function Home() {
           km: l.km || "",
           rpe: l.rpe || "5",
           steps: l.steps || [],
-          createdAt: l.created_at?.split("T")[0] || "",
+          createdAt: l.created_at || "",
         })));
       }
 
@@ -1938,7 +1961,6 @@ export default function Home() {
       return;
     }
 
-    // 1. Préparation du payload avec correspondance exacte snake_case
     const workoutsPayload = draftWorkouts.map((w, idx) => ({
       id: w.id || `w_${planId}_${w.weekNumber}_${w.dayIndex}_${idx}`,
       plan_id: planId,
@@ -1965,7 +1987,6 @@ export default function Home() {
       activity_telemetry: (w as any).activityTelemetry ?? (w as any).activity_telemetry ?? null,
     }));
 
-    // 2. Sauvegarde sécurisée : Upsert d'abord
     const { error: workoutsError } = await supabase
       .from("workouts")
       .upsert(workoutsPayload, { onConflict: "id" });
@@ -1976,7 +1997,6 @@ export default function Home() {
       return;
     }
 
-    // 3. Nettoyage différé : suppression uniquement des séances retirées du plan
     const currentWorkoutIds = workoutsPayload.map((w) => w.id);
     if (currentWorkoutIds.length > 0) {
       const idListStr = `(${currentWorkoutIds.map((id) => `"${id}"`).join(",")})`;
@@ -2001,7 +2021,6 @@ export default function Home() {
       workouts: draftWorkouts,
     } as any;
 
-    // SYNCHRONISATION DU CACHE GLOBAL COACH
     if (userRole === "coach") {
       setAllCoachAthletesWorkouts((prev) => [
         ...prev.filter((w) => (w.planId || (w as any).plan_id) !== planId),
