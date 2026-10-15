@@ -49,6 +49,11 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   if (!str) return null;
   const clean = str.toString().trim().toLowerCase();
 
+  // Ne pas parser si le texte fait référence à du temps de récupération (ex: "2 min")
+  if (clean.includes("min de recup") || clean.includes("recup")) {
+    return null;
+  }
+
   if (clean.includes("km/h")) {
     const kmh = parseFloat(clean.replace(",", ".")) || 0;
     return kmh > 0 ? 3600 / kmh : null;
@@ -61,19 +66,11 @@ const parsePaceStringToSeconds = (str: string): number | null => {
     return mins * 60 + secs;
   }
 
-  const raw = parseFloat(clean.replace(",", "."));
-  if (!isNaN(raw) && raw >= 2 && raw <= 15) {
-    const mins = Math.floor(raw);
-    const secs = Math.round((raw - mins) * 60);
-    return mins * 60 + secs;
-  }
-
   return null;
 };
 
 const extractPaceRangeInMetersPerSecond = (
-  step: any,
-  workoutFallback?: string
+  step: any
 ): { slowSpeedMs: number; fastSpeedMs: number } | null => {
   let fastSec: number | null = null;
   let slowSec: number | null = null;
@@ -81,6 +78,7 @@ const extractPaceRangeInMetersPerSecond = (
   const explicitMin = step.paceMin || step.targetPaceMin || step.minPace;
   const explicitMax = step.paceMax || step.targetPaceMax || step.maxPace;
 
+  // 1. Allures explicites min / max renseignées dans le bloc
   if (explicitMin && explicitMax) {
     const s1 = parsePaceStringToSeconds(explicitMin);
     const s2 = parsePaceStringToSeconds(explicitMax);
@@ -96,17 +94,13 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
+  // 2. Vérification ciblée dans les champs d'allure du bloc uniquement (pas de fallback parasite)
   if (!fastSec || !slowSec) {
     const textToScan = [
       step.pace,
       step.targetPace,
       step.goalValue,
       step.allure,
-      step.targetSpeed,
-      step.speed,
-      step.description,
-      step.title,
-      workoutFallback,
     ]
       .filter(Boolean)
       .join(" ");
@@ -129,7 +123,8 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  if (fastSec && slowSec && fastSec > 0 && slowSec > 0) {
+  // Validation d'une allure de course réaliste (entre 2:00/km et 11:40/km)
+  if (fastSec && slowSec && fastSec >= 120 && slowSec <= 700) {
     return {
       slowSpeedMs: 1000 / slowSec,
       fastSpeedMs: 1000 / fastSec,
@@ -190,10 +185,8 @@ export async function POST(request: Request) {
       );
       const isTime = parsed.type === "time";
 
-      const paceRange = extractPaceRangeInMetersPerSecond(
-        step,
-        workout.targetPace || workout.pace || workout.description
-      );
+      // Scan strict du bloc sans fallback parasite sur la description générale
+      const paceRange = extractPaceRangeInMetersPerSecond(step);
 
       let targetType = {
         workoutTargetTypeId: 1,
@@ -204,6 +197,7 @@ export async function POST(request: Request) {
       let targetValueOne = null;
       let targetValueTwo = null;
 
+      // Si une allure cible est bien définie sur CE bloc précis
       if (paceRange) {
         targetType = {
           workoutTargetTypeId: 6,
@@ -254,7 +248,6 @@ export async function POST(request: Request) {
           const reps = parseInt(step.reps || step.repeatCount || "1", 10) || 1;
           const skipLast = Boolean(step.skipLastRecovery);
 
-          // Vérifier si le dernier sous-bloc est une récupération
           const lastNestedIndex = step.nestedSteps.length - 1;
           const lastNested = step.nestedSteps[lastNestedIndex];
           const hasRecoveryAtEnd =
@@ -264,7 +257,6 @@ export async function POST(request: Request) {
               lastNested.type === "retour_calme");
 
           if (skipLast && reps > 1 && hasRecoveryAtEnd) {
-            // Sous-blocs sans la dernière récupération
             const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
 
             // 1. Première partie : boucle de (reps - 1) répétitions complètes
@@ -289,12 +281,11 @@ export async function POST(request: Request) {
               });
             }
 
-            // 2. Dernière répétition : uniquement le travail (sans la récupération)
+            // 2. Dernière répétition : uniquement le travail
             stepsWithoutLastRecovery.forEach((nStep: any) => {
               workoutSteps.push(buildStepDTO(nStep, stepOrder++));
             });
           } else {
-            // Boucle standard
             const repeatSteps: any[] = [];
             step.nestedSteps.forEach((nStep: any) => {
               repeatSteps.push(buildStepDTO(nStep, stepOrder++));
@@ -321,9 +312,8 @@ export async function POST(request: Request) {
           {
             type: "corps",
             durationOrDist: `${workout.km || 8}km`,
-            paceMin: workout.paceMin || workout.targetPaceMin || "",
-            paceMax: workout.paceMax || workout.targetPaceMax || "",
-            pace: workout.targetPace || workout.pace || "",
+            paceMin: workout.paceMin || "",
+            paceMax: workout.paceMax || "",
           },
           1
         )
