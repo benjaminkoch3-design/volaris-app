@@ -291,6 +291,52 @@ export default function Home() {
     await supabase.from("library_workouts").delete().eq("category_id", catId);
   };
 
+  const handleRenameCategory = async (catId: string, newLabel: string) => {
+    if (!session?.user) return;
+    setCustomCategories((prev) =>
+      prev.map((c) => (c.id === catId ? { ...c, label: newLabel } : c))
+    );
+    await supabase
+      .from("library_categories")
+      .update({ label: newLabel })
+      .eq("id", catId);
+  };
+
+  const handleMoveCategory = async (catId: string, direction: "left" | "right") => {
+    setCustomCategories((prev) => {
+      const index = prev.findIndex((c) => c.id === catId);
+      if (index === -1) return prev;
+      const targetIndex = direction === "left" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const updated = [...prev];
+      const [movedItem] = updated.splice(index, 1);
+      updated.splice(targetIndex, 0, movedItem);
+      return updated;
+    });
+  };
+
+  const handleMoveWorkout = async (workoutId: string, direction: "up" | "down") => {
+    setLibraryWorkouts((prev) => {
+      const workout = prev.find((w) => w.id === workoutId);
+      if (!workout) return prev;
+
+      const catWorkouts = prev.filter((w) => w.categoryId === workout.categoryId);
+      const indexInCat = catWorkouts.findIndex((w) => w.id === workoutId);
+      const targetIndexInCat = direction === "up" ? indexInCat - 1 : indexInCat + 1;
+      if (targetIndexInCat < 0 || targetIndexInCat >= catWorkouts.length) return prev;
+
+      const targetWorkout = catWorkouts[targetIndexInCat];
+      const originalIndex = prev.findIndex((w) => w.id === workoutId);
+      const originalTargetIndex = prev.findIndex((w) => w.id === targetWorkout.id);
+
+      const updated = [...prev];
+      updated[originalIndex] = targetWorkout;
+      updated[originalTargetIndex] = workout;
+      return updated;
+    });
+  };
+
   const handleCreateNewTemplate = async (categoryId: string) => {
     if (!session?.user) return;
     const newTemplateId = `lib_${Date.now()}`;
@@ -1071,7 +1117,6 @@ export default function Home() {
           );
         }
 
-        // Synchroniser toutes les séances effectuées dans completedWorkouts
         (workoutsData || []).forEach((w: any) => {
           if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
             completedMap[w.id] = true;
@@ -2412,7 +2457,6 @@ export default function Home() {
               onSelectAthlete={async (id) => {
                 setInspectingAthleteId(id);
 
-                // 1. Récupération des sorties effectuées pour alimenter les statistiques
                 const { data: runsData } = await supabase
                   .from("completed_runs")
                   .select("*")
@@ -2432,7 +2476,6 @@ export default function Home() {
                   setCompletedRuns([]);
                 }
 
-                // 2. Récupération directe du plan et des séances fraîches depuis Supabase
                 const { data: planData } = await supabase
                   .from("plans")
                   .select("*")
@@ -2530,6 +2573,9 @@ export default function Home() {
             categories={customCategories}
             onAddCategory={handleAddCategory}
             onDeleteCategory={handleDeleteCategory}
+            onRenameCategory={handleRenameCategory}
+            onMoveCategory={handleMoveCategory}
+            onMoveWorkout={handleMoveWorkout}
             onCreateNewTemplate={handleCreateNewTemplate}
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
