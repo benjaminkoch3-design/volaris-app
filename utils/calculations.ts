@@ -34,8 +34,9 @@ export const getStepTypeLabel = (type: string) => {
     case "corps":
       return "Course";
     case "recup":
-    case "recup_marche":
       return "Récupération";
+    case "recup_marche":
+      return "Récupération marchée";
     case "retour_calme":
       return "Retour au calme";
     case "repeat":
@@ -300,7 +301,16 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): 
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
-  // Détermination de l'allure par défaut à partir de 65 % de la VMA si disponible
+  // 1. Récupération à la marche : estimation fixée à 10'00 /km (600s)
+  const isWalking =
+    step.type === "recup_marche" ||
+    Boolean((step as any).isWalkingRecovery);
+
+  if (isWalking) {
+    return 600; // 10:00 min/km
+  }
+
+  // 2. Récupérations / Échauffement / Calme : 65% de la VMA par défaut si déclarée
   const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
   const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
   const pace65PctVma = hasValidVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
@@ -309,7 +319,6 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): 
     case "echauffement":
       return pace65PctVma !== null ? pace65PctVma : 340;
     case "recup":
-    case "recup_marche":
     case "retour_calme":
       return pace65PctVma !== null ? pace65PctVma : 360;
     case "corps":

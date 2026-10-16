@@ -119,6 +119,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     return steps.map((step, idx) => {
       const currentPath = [...parentPath, idx.toString()];
       const parsed = parseStepDurationOrDist(step.durationOrDist, step.endCondition);
+      const isRecoveryStep = step.type === "recup" || step.type === "recup_marche";
+      const isWalkingRecovery =
+        step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
 
       return (
         <div
@@ -127,15 +130,16 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         >
           <div className="flex justify-between items-center">
             <select
-              value={step.type}
-              onChange={(e) =>
+              value={step.type === "recup_marche" ? "recup" : step.type}
+              onChange={(e) => {
+                const nextType = e.target.value;
                 onUpdateStep(
                   workout.id,
                   currentPath,
                   "type",
-                  e.target.value
-                )
-              }
+                  nextType === "recup" && isWalkingRecovery ? "recup_marche" : nextType
+                );
+              }}
               style={{ color: themeColor }}
               className="bg-stone-900 border border-stone-800 text-[10px] font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
             >
@@ -394,6 +398,37 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   />
                 </div>
               </div>
+
+              {/* OPTION RÉCUPÉRATION À LA MARCHE */}
+              {isRecoveryStep && (
+                <div className="pt-1.5 border-t border-stone-800/40 flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={isWalkingRecovery}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        onUpdateStep(
+                          workout.id,
+                          currentPath,
+                          "type",
+                          checked ? "recup_marche" : "recup"
+                        );
+                        onUpdateStep(
+                          workout.id,
+                          currentPath,
+                          "isWalkingRecovery" as any,
+                          checked
+                        );
+                      }}
+                      className="w-3.5 h-3.5 rounded border-stone-700 bg-stone-950 text-[#CF9A61] focus:ring-0 cursor-pointer accent-[#CF9A61]"
+                    />
+                    <span className="font-semibold">
+                      🚶 Récupération à la marche (allure estimée : 10'00/km)
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
         </div>
