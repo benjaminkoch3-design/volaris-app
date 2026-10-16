@@ -362,27 +362,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   </p>
                 )}
 
-                {/* STRUCTURE DE LA SÉANCE */}
-                {workout.steps && workout.steps.length > 0 && (
-                  <div className="bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800 text-[10px] space-y-1">
-                    <span className="font-extrabold text-stone-400 uppercase block">
-                      Structure ({workout.steps.length} blocs) :
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {workout.steps.map((st, i) => (
-                        <span
-                          key={st.id || i}
-                          className="bg-stone-900 text-stone-300 px-2 py-0.5 rounded-md border border-stone-800 font-medium"
-                        >
-                          {st.type === "repeat"
-                            ? `${st.reps}x Intervalles`
-                            : `${st.durationOrDist || st.type}`}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* MÉTRIQUES : KM ET RPE */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800/80">
                   <div className="flex items-center gap-2">

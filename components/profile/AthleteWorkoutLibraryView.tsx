@@ -77,7 +77,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           type="button"
           disabled={categories.length === 0}
           onClick={() => onCreateNewTemplate(selectedCategoryId)}
-          className="text-[10px] font-extrabold text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] disabled:opacity-50 px-3 py-2 rounded-xl uppercase transition cursor-pointer shadow-lg"
+          className="text-[10px] font-extrabold text-stone-950 bg-[#CF9A61] hover:bg-[#b8bb52] disabled:opacity-50 px-3 py-2 rounded-xl uppercase transition cursor-pointer shadow-lg"
         >
           ➕ Créer une séance
         </button>
@@ -113,7 +113,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             />
             <button
               type="submit"
-              className="py-1.5 px-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+              className="py-1.5 px-3 bg-[#CF9A61] hover:bg-[#b8bb52] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
             >
               Ajouter
             </button>
@@ -124,7 +124,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
         <div className="flex overflow-x-auto gap-2 pb-1 custom-scrollbar">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-1">
-              Aucune catégorie. Cliquez sur "Nouvelle catégorie".
+              Aucune catégorie. Cliquez sur « Nouvelle catégorie ».
             </p>
           ) : (
             categories.map((cat) => {
@@ -176,8 +176,6 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           filteredWorkouts.map((workout) => {
             const rpeVal = parseInt(workout.rpe || "5", 10);
             const rpeColor = getRpeColor(rpeVal);
-
-            // On utilise la fonction standard de l'application
             const typeConfig = getWorkoutTypeConfig((workout as any).type || "footing");
 
             return (
@@ -208,26 +206,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                   </p>
                 )}
 
-                {workout.steps && workout.steps.length > 0 && (
-                  <div className="bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800 text-[10px] space-y-1">
-                    <span className="font-extrabold text-stone-400 uppercase block">
-                      Structure ({workout.steps.length} blocs) :
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {workout.steps.map((st, i) => (
-                        <span
-                          key={st.id || i}
-                          className="bg-stone-900 text-stone-300 px-2 py-0.5 rounded-md border border-stone-800 font-medium"
-                        >
-                          {st.type === "repeat"
-                            ? `${st.reps}x Intervalles`
-                            : `${st.durationOrDist || st.type}`}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
+                {/* MÉTRIQUES : KM ET RPE */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800/80">
                   <div className="flex items-center gap-2">
                     {workout.km && (
@@ -245,6 +224,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                     )}
                   </div>
 
+                  {/* BOUTONS ACTIONS */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
