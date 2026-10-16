@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
-import { calculateStepMetrics, getWorkoutTypeConfig } from "../../utils/calculations";
+import { calculateStepMetrics, getWorkoutTypeConfig, formatPaceFromSpeed } from "../../utils/calculations";
 import { PaceProfileChart } from "./PaceProfileChart";
 
 interface WorkoutEditorProps {
@@ -41,6 +41,13 @@ const getRpeColor = (rpe: number) => {
   return "#ef4444";
 };
 
+// Calcule l'allure formattée "M:SS" à partir de secondes par km
+const formatPaceFromSeconds = (totalSec: number) => {
+  const mins = Math.floor(totalSec / 60);
+  const secs = Math.round(totalSec % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
 export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   workout,
   onClose,
@@ -69,6 +76,47 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     (w) => !selectedCatId || w.categoryId === selectedCatId
   );
 
+  // Adapte récursivement les blocs à la VMA de l'athlète lors de l'import
+  const applyVmaToImportedSteps = (steps: WorkoutStep[], athleteVma?: number | string): WorkoutStep[] => {
+    const parsedVma = typeof athleteVma === "string" ? parseFloat(athleteVma.replace(",", ".")) : Number(athleteVma);
+    const hasVma = !isNaN(parsedVma) && parsedVma > 0;
+
+    // Vitesse à 65% de la VMA en km/h puis en secondes par km
+    const targetPaceSec65 = hasVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
+
+    return steps.map((step) => {
+      let updatedStep = { ...step };
+
+      if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
+        updatedStep.nestedSteps = applyVmaToImportedSteps(step.nestedSteps, athleteVma);
+        return updatedStep;
+      }
+
+      const isWalking = step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
+      const isRecoveryOrWarmupOrCalm =
+        step.type === "echauffement" ||
+        step.type === "recup" ||
+        step.type === "recup_marche" ||
+        step.type === "retour_calme";
+
+      if (isWalking) {
+        // Allure marche = 10'00/km si non spécifiée
+        if (!step.paceMin && !step.paceMax) {
+          updatedStep.paceMin = "10:00";
+          updatedStep.paceMax = "10:30";
+        }
+      } else if (isRecoveryOrWarmupOrCalm && targetPaceSec65) {
+        // Appliquer 65% de la VMA si aucune allure n'est imposée par le modèle
+        if (!step.paceMin && !step.paceMax && !step.targetPace) {
+          updatedStep.paceMin = formatPaceFromSeconds(targetPaceSec65 - 5);
+          updatedStep.paceMax = formatPaceFromSeconds(targetPaceSec65 + 5);
+        }
+      }
+
+      return updatedStep;
+    });
+  };
+
   const handleApplyTemplate = (template: LibraryWorkout) => {
     onUpdateWorkout(workout.id, "title", template.title);
     if ((template as any).type) {
@@ -77,7 +125,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     onUpdateWorkout(workout.id, "description", template.description || "");
     onUpdateWorkout(workout.id, "km", template.km || "");
     onUpdateWorkout(workout.id, "rpe", template.rpe || "5");
-    onUpdateWorkout(workout.id, "steps", template.steps || []);
+
+    // Adaptation des allures de récupération / échauffement à la VMA de l'athlète
+    const adjustedSteps = applyVmaToImportedSteps(template.steps || [], vma);
+    onUpdateWorkout(workout.id, "steps", adjustedSteps);
+
     setShowImportModal(false);
   };
 
@@ -420,6 +472,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           "isWalkingRecovery" as any,
                           checked
                         );
+                        if (checked && !step.paceMin && !step.paceMax) {
+                          onUpdateStep(workout.id, currentPath, "paceMin", "10:00");
+                          onUpdateStep(workout.id, currentPath, "paceMax", "10:30");
+                        }
                       }}
                       className="w-3.5 h-3.5 rounded border-stone-700 bg-stone-950 text-[#CF9A61] focus:ring-0 cursor-pointer accent-[#CF9A61]"
                     />

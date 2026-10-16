@@ -433,6 +433,11 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
+  // VMA active de l'athlète concerné
+  const currentAthleteVma = isCoachInspecting
+    ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
+    : vma;
+
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
@@ -1956,7 +1961,7 @@ export default function Home() {
     });
 
     if (planError) {
-      console.error("❌ Erreur sauvegarde plan:", planError.message);
+      console.error("❌ Erreur sauvegarde plan :", planError.message);
       alert(`Erreur de sauvegarde du plan : ${planError.message}`);
       return;
     }
@@ -1992,7 +1997,7 @@ export default function Home() {
       .upsert(workoutsPayload, { onConflict: "id" });
 
     if (workoutsError) {
-      console.error("❌ Erreur sauvegarde séances:", workoutsError.message);
+      console.error("❌ Erreur sauvegarde séances :", workoutsError.message);
       alert(`Erreur de sauvegarde des séances : ${workoutsError.message}`);
       return;
     }
@@ -2195,7 +2200,7 @@ export default function Home() {
             },
           ]);
         } catch (err) {
-          console.error("Erreur sauvegarde débriefing Supabase:", err);
+          console.error("Erreur sauvegarde débriefing Supabase :", err);
         }
       }
     }
@@ -2350,6 +2355,7 @@ export default function Home() {
         libraryWorkouts={libraryWorkouts}
         categories={customCategories}
         userRole={userRole}
+        vma={currentAthleteVma}
       />
     );
   }
@@ -2377,6 +2383,7 @@ export default function Home() {
         libraryWorkouts={libraryWorkouts}
         categories={customCategories}
         userRole={userRole}
+        vma={currentAthleteVma}
       />
     );
   }
@@ -2390,6 +2397,7 @@ export default function Home() {
         onClose={() => setSelectedWorkoutDetail(null)}
         onOpenDebrief={(workout) => setDebriefWorkout(workout)}
         userRole={userRole}
+        vma={currentAthleteVma}
       />
     );
   }
