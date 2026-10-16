@@ -22,6 +22,7 @@ interface WorkoutDetailProps {
   onClose: () => void;
   onOpenDebrief?: (workout: Workout) => void;
   userRole?: "athlete" | "coach";
+  vma?: number | string;
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
@@ -37,10 +38,11 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   onClose,
   onOpenDebrief,
   userRole = "athlete",
+  vma,
 }) => {
   const isCoach = userRole === "coach";
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
-  const metrics = calculateStepMetrics(workout.steps);
+  const metrics = calculateStepMetrics(workout.steps, vma);
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
@@ -360,7 +362,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         )}
 
-        {/* SYNCHRONISATION MONTRES (Garmin & COROS pour tout le monde) */}
+        {/* SYNCHRONISATION MONTRES */}
         {!isCoach && (
           <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
             <div className="flex justify-between items-center">
@@ -425,7 +427,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         )}
 
         {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
-        <PaceProfileChart steps={workout.steps} />
+        <PaceProfileChart steps={workout.steps} vma={vma} />
 
         {/* DESCRIPTION */}
         {workout.description && (

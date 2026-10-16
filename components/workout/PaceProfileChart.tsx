@@ -4,25 +4,38 @@ import React from "react";
 import { WorkoutStep } from "../../types";
 import { generatePaceProfile } from "../../utils/calculations";
 
-export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps }) => {
-  const profile = generatePaceProfile(steps);
+interface PaceProfileChartProps {
+  steps?: WorkoutStep[];
+  vma?: number | string;
+}
+
+export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }) => {
+  const profile = generatePaceProfile(steps, vma);
 
   if (!profile || profile.length === 0) return null;
 
   const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
   if (totalTimeSec <= 0) return null;
 
-  // Bornes d'allure
-  const minPaceSec = Math.min(...profile.map((p) => p.paceSecPerKm));
-  const maxPaceSec = Math.max(...profile.map((p) => p.paceSecPerKm));
-  const paceRange = maxPaceSec - minPaceSec || 60;
-
   // Formatage MM:SS
   const formatPace = (sec: number) => {
-    const mins = Math.floor(sec / 60);
-    const secs = Math.round(sec % 60);
+    const safeSec = Math.max(0, Math.round(sec));
+    const mins = Math.floor(safeSec / 60);
+    const secs = safeSec % 60;
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
+  // Bornes d'allure réelles
+  const allPaces = profile.map((p) => p.paceSecPerKm);
+  const minPaceSec = Math.min(...allPaces);
+  const maxPaceSec = Math.max(...allPaces);
+  const isSinglePace = minPaceSec === maxPaceSec;
+
+  // Si une seule allure, on encadre à +/- 30s pour un affichage cohérent et centré
+  const displayMinPace = isSinglePace ? Math.max(60, minPaceSec - 30) : minPaceSec;
+  const displayMaxPace = isSinglePace ? minPaceSec + 30 : maxPaceSec;
+  const paceRange = displayMaxPace - displayMinPace;
+  const midPace = displayMinPace + paceRange / 2;
 
   // Couleurs Volaris
   const getColor = (type: string) => {
@@ -32,6 +45,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
       case "corps":
         return "#CF9A61";
       case "recup":
+      case "recup_marche":
         return "#CDCF61";
       case "retour_calme":
         return "#3b82f6";
@@ -47,12 +61,12 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
     const x = currentX;
     currentX += barWidth;
 
-    const normalizedHeightPct =
-      paceRange === 0
-        ? 60
-        : 20 + ((maxPaceSec - point.paceSecPerKm) / paceRange) * 75;
+    // Plus l'allure en secondes/km est faible, plus le coureur va vite -> barre plus haute
+    const normalizedHeightPct = isSinglePace
+      ? 55
+      : 20 + ((displayMaxPace - point.paceSecPerKm) / paceRange) * 70;
 
-    const height = Math.max(8, normalizedHeightPct);
+    const height = Math.max(10, Math.min(95, normalizedHeightPct));
     const y = 100 - height;
 
     return {
@@ -76,11 +90,11 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
       </div>
 
       <div className="flex gap-2 items-stretch h-28 w-full">
-        {/* Axe Y (Allures) */}
-        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-500 py-1 text-right w-8 select-none border-r border-stone-800/80 pr-1 shrink-0">
-          <span className="text-[#CF9A61]">{formatPace(minPaceSec)}</span>
-          <span>{formatPace(minPaceSec + paceRange / 2)}</span>
-          <span className="text-stone-600">{formatPace(maxPaceSec)}</span>
+        {/* Axe Y (Allures ordonnées : plus rapide en haut, plus lente en bas) */}
+        <div className="flex flex-col justify-between text-[8px] font-extrabold text-stone-500 py-1 text-right w-9 select-none border-r border-stone-800/80 pr-1 shrink-0">
+          <span className="text-[#CF9A61]">{formatPace(displayMinPace)}</span>
+          <span>{formatPace(midPace)}</span>
+          <span className="text-stone-600">{formatPace(displayMaxPace)}</span>
         </div>
 
         {/* Zone graphique SVG adaptative */}
@@ -95,7 +109,7 @@ export const PaceProfileChart: React.FC<{ steps?: WorkoutStep[] }> = ({ steps })
                 <rect
                   x={bar.x}
                   y={bar.y}
-                  width={Math.max(bar.barWidth, 1.2)}
+                  width={Math.max(bar.barWidth, 1.5)}
                   height={bar.height}
                   fill={getColor(bar.type)}
                   rx="1.5"

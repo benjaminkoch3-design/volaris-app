@@ -31,6 +31,7 @@ interface WorkoutEditorProps {
   libraryWorkouts?: LibraryWorkout[];
   categories?: LibraryCategory[];
   userRole?: UserRole;
+  vma?: number | string;
 }
 
 const getRpeColor = (rpe: number) => {
@@ -51,12 +52,13 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   libraryWorkouts = [],
   categories = [],
   userRole = "athlete",
+  vma,
 }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState<string>(categories[0]?.id || "");
 
-  const metrics = calculateStepMetrics(workout.steps);
+  const metrics = calculateStepMetrics(workout.steps, vma);
   const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
 
   const isCoach = userRole === "coach";
@@ -560,7 +562,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         </div>
 
         {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
-        <PaceProfileChart steps={workout.steps} />
+        <PaceProfileChart steps={workout.steps} vma={vma} />
 
         {/* PARAMÈTRES GÉNÉRAUX */}
         <div className="space-y-3">
