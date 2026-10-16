@@ -288,7 +288,7 @@ export function parsePaceToSeconds(paceStr?: string): number {
   return !isNaN(val) && val > 0 ? Math.round(val * 60) : 300;
 }
 
-export function getStepPaceInSeconds(step: WorkoutStep): number {
+export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): number {
   const pMin = step.paceMin ? parsePaceToSeconds(step.paceMin) : null;
   const pMax = step.paceMax ? parsePaceToSeconds(step.paceMax) : null;
 
@@ -300,17 +300,22 @@ export function getStepPaceInSeconds(step: WorkoutStep): number {
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
+  // Détermination de l'allure par défaut à partir de 65 % de la VMA si disponible
+  const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
+  const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
+  const pace65PctVma = hasValidVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
+
   switch (step.type) {
     case "echauffement":
-      return 340; // 5:40 /km
+      return pace65PctVma !== null ? pace65PctVma : 340;
     case "recup":
     case "recup_marche":
     case "retour_calme":
-      return 360; // 6:00 /km
+      return pace65PctVma !== null ? pace65PctVma : 360;
     case "corps":
-      return 270; // 4:30 /km
+      return 270;
     default:
-      return 300; // 5:00 /km
+      return 300;
   }
 }
 
@@ -319,7 +324,6 @@ export function parseStepMetricsValues(
   rawVal: string,
   endCondition?: "distance" | "temps" | "lap_button" | string
 ): { km: number; seconds: number; hasParsed: boolean } {
-  // Prise en charge du bouton Lap : allocation nominale indicative de 2 min
   if (
     endCondition === "lap_button" ||
     (rawVal && rawVal.toLowerCase().includes("lap")) ||
@@ -366,7 +370,10 @@ export function parseStepMetricsValues(
 // VOLUME & STATS CALCULATIONS
 // ==========================================
 
-export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; totalMinutes: number } {
+export function calculateStepMetrics(
+  steps?: WorkoutStep[],
+  vma?: number | string
+): { totalKm: number; totalMinutes: number } {
   let totalKm = 0;
   let totalSeconds = 0;
 
@@ -375,7 +382,7 @@ export function calculateStepMetrics(steps?: WorkoutStep[]): { totalKm: number; 
   }
 
   const computeSingleStep = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step);
+    const paceSec = getStepPaceInSeconds(step, vma);
     const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
 
     if (hasParsed) {
@@ -569,13 +576,16 @@ export interface PaceProfilePoint {
   type: string;
 }
 
-export function generatePaceProfile(steps?: WorkoutStep[]): PaceProfilePoint[] {
+export function generatePaceProfile(
+  steps?: WorkoutStep[],
+  vma?: number | string
+): PaceProfilePoint[] {
   if (!steps || steps.length === 0) return [];
 
   const profile: PaceProfilePoint[] = [];
 
   const pushPoint = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step);
+    const paceSec = getStepPaceInSeconds(step, vma);
     const { km, seconds, hasParsed } = parseStepMetricsValues(
       step.durationOrDist || "",
       step.endCondition
