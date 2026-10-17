@@ -76,10 +76,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
 
-  // Modale plein écran (sur écran ordinateur)
+  // Modale plein écran (ordinateur)
   const [zoomedChart, setZoomedChart] = useState<ZoomableChartType | null>(null);
 
-  // Index du graphique actif dans le swipe mobile (0: Volume, 1: Charge, 2: Temps, 3: Dénivelé)
+  // Index du carrousel mobile
   const [activeMobileSlide, setActiveMobileSlide] = useState(0);
   const carouselScrollRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +123,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Suivi de l'index au scroll/swipe sur mobile
   const handleCarouselScroll = () => {
     if (carouselScrollRef.current) {
       const { scrollLeft, offsetWidth } = carouselScrollRef.current;
@@ -234,7 +233,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Agrégation précise des 7 jours de la semaine courante
+  // Données journalières de la semaine en cours
   const dailyMetricsData = Array.from({ length: 7 }, (_, dIdx) => {
     const dayWorkouts = (activePlan?.workouts || []).filter(
       (w) => Number(w.weekNumber) === currentWeekNum && Number(w.dayIndex) === dIdx && !w.isRest
@@ -265,7 +264,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       const pMin = stepM.totalMinutes || 0;
       plannedMinutes += pMin;
 
-      // RPE prévu (défaut 5)
+      // RPE prévu
       const pRpe = w.rpe ? parseInt(String(w.rpe), 10) || 5 : 5;
       plannedLoad += pMin * pRpe;
       dayPlannedRpes.push(pRpe);
@@ -287,7 +286,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           : pMin;
         completedMinutes += cMin;
 
-        // RPE réalisé & Charge réalisée = RPE x Temps
+        // RPE & Charge réalisée
         const cRpe = w.completedRpe !== undefined && w.completedRpe !== null
           ? Number(w.completedRpe)
           : pRpe;
@@ -355,7 +354,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const maxTimeMinutes = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedMinutes, d.completedMinutes)), 60);
   const maxElevationVal = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 150);
 
-  // Générateur d'histogramme sans pointillés
+  // Histogramme générique sans pointillés
   const renderGenericBarChart = (
     data: {
       plannedVal: number;
@@ -364,7 +363,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       tooltipText: string;
     }[],
     maxVal: number,
-    colorTheme: "green" | "gold" | "blue" | "purple",
+    colorTheme: "burgundy" | "gold" | "blue" | "green",
     isExpanded = false
   ) => {
     const svgWidth = isExpanded ? 750 : 540;
@@ -380,10 +379,14 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     const barWidth = isExpanded ? 26 : 18;
 
     const gradients = {
-      green: { from: "#4DB380", to: "#2e7d55", overFrom: "#CDCF61", overTo: "#4DB380" },
+      // Volume kilométrique en bordeaux / rouge Volaris
+      burgundy: { from: "#B34D4D", to: "#7f2b2b", overFrom: "#CF6361", overTo: "#B34D4D" },
+      // Charge en or / ambre
       gold: { from: "#CF9A61", to: "#9c6b35", overFrom: "#eab308", overTo: "#CF9A61" },
+      // Temps en bleu
       blue: { from: "#4D80B3", to: "#2d547d", overFrom: "#38bdf8", overTo: "#4D80B3" },
-      purple: { from: "#8B5CF6", to: "#6D28D9", overFrom: "#C084FC", overTo: "#8B5CF6" },
+      // Dénivelé en vert émeraude
+      green: { from: "#4DB380", to: "#2e7d55", overFrom: "#CDCF61", overTo: "#4DB380" },
     }[colorTheme];
 
     return (
@@ -402,7 +405,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           </linearGradient>
         </defs>
 
-        {/* AXE Y & GRADUATIONS (SANS POINTILLÉS) */}
+        {/* AXE Y (ORDONNÉES) SANS POINTILLÉS */}
         <line
           x1={paddingLeft}
           y1={paddingTop - 6}
@@ -484,7 +487,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Conteneur / Jauge de fond (Objectif prévu) */}
+              {/* Conteneur / Jauge de fond */}
               {containerH > 0 && (
                 <rect
                   x={barX}
@@ -512,7 +515,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Valeur réalisée affichée au-dessus de la barre */}
+              {/* Chiffre réalisé au-dessus de la barre */}
               {item.completedVal > 0 && (
                 <text
                   x={colCenterX}
@@ -558,7 +561,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     );
   };
 
-  // Données préparées pour chaque métrique
+  // Données prêtes
   const volumeChartItems = dailyMetricsData.map((d) => ({
     plannedVal: d.plannedKm,
     completedVal: d.completedKm,
@@ -820,10 +823,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (CARROUSEL SUR MOBILE, 2X2 SUR BUREAU) ===================== */}
+      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (1 SEUL GRAPHIQUE 100% VISIBLE SUR MOBILE AVEC SWIPE) ===================== */}
       {activePlan && (
-        <div className="space-y-2">
-          {/* Indicateur de swipe sur mobile */}
+        <div className="space-y-2 w-full">
+          {/* Indicateurs de swipe sur mobile */}
           <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
             <span className="flex items-center gap-1 text-[#CF9A61]">
               <span>👉</span> Glissez pour faire défiler les graphiques
@@ -846,12 +849,12 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           <div
             ref={carouselScrollRef}
             onScroll={handleCarouselScroll}
-            className="flex overflow-x-auto pb-4 snap-x snap-mandatory gap-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0"
+            className="w-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
           >
-            {/* 1. GRAPHIQUE VOLUME KILOMÉTRIQUE (VERT) */}
+            {/* 1. GRAPHIQUE VOLUME KILOMÉTRIQUE (ROUGE / BORDEAUX VOLARIS) */}
             <div
               onClick={() => handleOpenZoom("volume")}
-              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+              className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
             >
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
@@ -859,7 +862,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
                       Semaine {currentWeekNum}
                     </span>
-                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF6361] transition">
                       Volume kilométrique
                     </h3>
                   </div>
@@ -876,17 +879,17 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       <span>Stats Plan</span>
                       <span className="text-[#CF9A61]">➔</span>
                     </button>
-                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF6361] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                       <span>⛶</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 3 KPIs */}
+                {/* 3 KPIs Volume */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
-                    <div className="text-xs font-black text-[#4DB380] mt-0.5">
+                    <div className="text-xs font-black text-[#B34D4D] mt-0.5">
                       {weekVolumeCompleted} <span className="text-stone-500 font-normal text-[10px]">km</span>
                     </div>
                   </div>
@@ -906,12 +909,12 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
 
               <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-                {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", false)}
+                {renderGenericBarChart(volumeChartItems, maxVolumeKm, "burgundy", false)}
               </div>
 
               <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#B34D4D] inline-block shadow-sm"></span>
                   <span className="text-stone-200 font-bold">Volume réalisé</span>
                 </span>
                 <span className="flex items-center gap-1.5">
@@ -921,10 +924,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (DORÉ) */}
+            {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (OR / DORÉ) */}
             <div
               onClick={() => handleOpenZoom("load")}
-              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+              className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
             >
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
@@ -955,23 +958,23 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* 3 KPIs */}
+                {/* 3 KPIs Charge */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge réalisée</span>
                     <div className="text-xs font-black text-[#CF9A61] mt-0.5">
                       {weekLoadCompleted}
                     </div>
                   </div>
                   <div className="border-x border-stone-800/80">
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge prévue</span>
                     <div className="text-xs font-black text-stone-100 mt-0.5">
                       {weekLoadPlanned}
                     </div>
                   </div>
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
-                    <div className="text-xs font-black text-[#CDCF61] mt-0.5">
+                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
                       {weekLoadPct}%
                     </div>
                   </div>
@@ -997,7 +1000,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             {/* 3. GRAPHIQUE TEMPS PASSÉ À COURIR (BLEU) */}
             <div
               onClick={() => handleOpenZoom("time")}
-              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+              className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
             >
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
@@ -1005,28 +1008,28 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
                       Semaine {currentWeekNum}
                     </span>
-                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#4D80B3] transition">
                       Temps passé à courir
                     </h3>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4D80B3] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                       <span>⛶</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 3 KPIs */}
+                {/* 3 KPIs Temps */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps réalisé</span>
                     <div className="text-xs font-black text-[#4D80B3] mt-0.5">
                       {formatMinutesToHours(weekTimeCompleted)}
                     </div>
                   </div>
                   <div className="border-x border-stone-800/80">
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps prévu</span>
                     <div className="text-xs font-black text-stone-100 mt-0.5">
                       {formatMinutesToHours(weekTimePlanned)}
                     </div>
@@ -1056,10 +1059,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 4. GRAPHIQUE DÉNIVELÉ POSITIF (VIOLET) */}
+            {/* 4. GRAPHIQUE DÉNIVELÉ POSITIF (VERT ÉMERAUDE) */}
             <div
               onClick={() => handleOpenZoom("elevation")}
-              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+              className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
             >
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
@@ -1067,23 +1070,23 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
                       Semaine {currentWeekNum}
                     </span>
-                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#4DB380] transition">
                       Dénivelé positif
                     </h3>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4DB380] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                       <span>⛶</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 3 KPIs */}
+                {/* 3 KPIs Dénivelé */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Semaine</span>
-                    <div className="text-xs font-black text-[#8B5CF6] mt-0.5">
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total réalisé</span>
+                    <div className="text-xs font-black text-[#4DB380] mt-0.5">
                       {weekElevationTotal} <span className="text-stone-500 text-[10px] font-normal">m D+</span>
                     </div>
                   </div>
@@ -1103,12 +1106,12 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
 
               <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-                {renderGenericBarChart(elevationChartItems, maxElevationVal, "purple", false)}
+                {renderGenericBarChart(elevationChartItems, maxElevationVal, "green", false)}
               </div>
 
               <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] inline-block shadow-sm"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
                   <span className="text-stone-200 font-bold">Dénivelé réalisé (m D+)</span>
                 </span>
                 <span className="text-[8.5px] uppercase font-bold text-stone-500">
@@ -1151,13 +1154,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </button>
             </div>
 
-            {/* CONTENU SPÉCIFIQUE SELON LE GRAPHIQUE OUVERT */}
+            {/* CONTENU MODALE */}
             {zoomedChart === "volume" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
-                    <span className="text-xl font-black text-[#4DB380]">{weekVolumeCompleted} km</span>
+                    <span className="text-xl font-black text-[#B34D4D]">{weekVolumeCompleted} km</span>
                   </div>
                   <div className="border-x border-stone-800">
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
@@ -1170,7 +1173,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 </div>
 
                 <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
-                  {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", true)}
+                  {renderGenericBarChart(volumeChartItems, maxVolumeKm, "burgundy", true)}
                 </div>
 
                 <div className="grid grid-cols-7 gap-2 pt-2">
@@ -1178,10 +1181,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <div
                       key={d.dayIndex}
                       className={`p-2.5 rounded-xl border text-center space-y-1 ${
-                        d.isToday ? "bg-[#4DB380]/15 border-[#4DB380]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                        d.isToday ? "bg-[#B34D4D]/15 border-[#B34D4D]/50 shadow-md" : "bg-stone-950 border-stone-800"
                       }`}
                     >
-                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#CF6361]" : "text-stone-400"}`}>
                         {d.dayFull}
                       </span>
                       <div className="text-xs font-bold text-stone-100">
@@ -1197,16 +1200,16 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge réalisée</span>
                     <span className="text-xl font-black text-[#CF9A61]">{weekLoadCompleted}</span>
                   </div>
                   <div className="border-x border-stone-800">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge prévue</span>
                     <span className="text-xl font-black text-stone-200">{weekLoadPlanned}</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Taux d'accomplissement</span>
-                    <span className="text-xl font-black text-[#CDCF61]">{weekLoadPct}%</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekLoadPct}%</span>
                   </div>
                 </div>
 
@@ -1214,7 +1217,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   {renderGenericBarChart(loadChartItems, maxLoadVal, "gold", true)}
                 </div>
 
-                {/* DÉCOMPOSITION : RPE & TEMPS => CHARGE RÉALISÉE */}
                 <div className="space-y-2 pt-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-stone-400 block">
                     Décomposition Journalière (RPE × Durée = Charge)
@@ -1254,11 +1256,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps réalisé</span>
                     <span className="text-xl font-black text-[#4D80B3]">{formatMinutesToHours(weekTimeCompleted)}</span>
                   </div>
                   <div className="border-x border-stone-800">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps prévu</span>
                     <span className="text-xl font-black text-stone-200">{formatMinutesToHours(weekTimePlanned)}</span>
                   </div>
                   <div>
@@ -1298,21 +1300,21 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Total Semaine</span>
-                    <span className="text-xl font-black text-[#8B5CF6]">{weekElevationTotal} m D+</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Total réalisé</span>
+                    <span className="text-xl font-black text-[#4DB380]">{weekElevationTotal} m D+</span>
                   </div>
                   <div className="border-x border-stone-800">
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Max Journalier</span>
                     <span className="text-xl font-black text-stone-200">{weekElevationMax} m</span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Moyenne Journalière</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Moyenne / Jour</span>
                     <span className="text-xl font-black text-[#CF9A61]">{weekElevationAvg} m</span>
                   </div>
                 </div>
 
                 <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
-                  {renderGenericBarChart(elevationChartItems, maxElevationVal, "purple", true)}
+                  {renderGenericBarChart(elevationChartItems, maxElevationVal, "green", true)}
                 </div>
 
                 <div className="grid grid-cols-7 gap-2 pt-2">
@@ -1320,13 +1322,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <div
                       key={d.dayIndex}
                       className={`p-2.5 rounded-xl border text-center space-y-1 ${
-                        d.isToday ? "bg-[#8B5CF6]/15 border-[#8B5CF6]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                        d.isToday ? "bg-[#4DB380]/15 border-[#4DB380]/50 shadow-md" : "bg-stone-950 border-stone-800"
                       }`}
                     >
-                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#8B5CF6]" : "text-stone-400"}`}>
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
                         {d.dayFull}
                       </span>
-                      <div className="text-xs font-bold text-stone-100">
+                      <div className="text-xs font-black text-stone-100">
                         {d.completedElevation} <span className="text-[9px] text-stone-500 font-normal">m D+</span>
                       </div>
                     </div>
