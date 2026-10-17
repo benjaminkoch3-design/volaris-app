@@ -245,7 +245,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     10
   );
 
-  // Rendu de l'histogramme avec remplissage (Bar in Bar / Progress Bar)
+  // Rendu de l'histogramme avec remplissage (Bar in Bar / Progress Bar) sans pointillés de repères
   const renderDailyHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 750 : 540;
     const svgHeight = isExpanded ? 240 : 160;
@@ -336,18 +336,18 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* 1. CONTENEUR / GAUGE DE FOND (Objectif prévu) */}
+              {/* 1. CONTENEUR / JAUGE DE FOND (Objectif prévu) */}
               {containerH > 0 && (
                 <rect
                   x={barX}
                   y={containerY}
                   width={barWidth}
                   height={Math.max(4, containerH)}
-                  fill="#27272a"
-                  stroke="#3f3f46"
+                  fill="#1c1917"
+                  stroke="#292524"
                   strokeWidth="1"
                   rx="4"
-                  className="transition-colors group-hover:stroke-stone-500"
+                  className="transition-colors group-hover:stroke-stone-600"
                 />
               )}
 
@@ -361,19 +361,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   fill={isOvercompleted ? "url(#overflowBarGradient)" : "url(#fillBarGradient)"}
                   rx="4"
                   className="transition-all duration-200 group-hover:brightness-110"
-                />
-              )}
-
-              {/* Trait de repère cible si le remplissage dépasse le prévu */}
-              {isOvercompleted && (
-                <line
-                  x1={barX - 2}
-                  y1={baselineY - (d.plannedKm / maxDailyKm) * usableHeight}
-                  x2={barX + barWidth + 2}
-                  y2={baselineY - (d.plannedKm / maxDailyKm) * usableHeight}
-                  stroke="#CDCF61"
-                  strokeWidth="2"
-                  strokeDasharray="2,2"
                 />
               )}
 
@@ -400,8 +387,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Tooltip natif */}
-              <title>{`${d.dayFull} — Remplissage : ${d.completedKm} km courus / ${d.plannedKm} km prévus`}</title>
+              {/* Tooltip au format : Jour - volume réalisé / volume prévu */}
+              <title>{`${d.dayFull} - ${d.completedKm} km / ${d.plannedKm} km`}</title>
             </g>
           );
         })}
@@ -646,12 +633,12 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       {activePlan && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
           
-          {/* CARTE 3 : HISTOGRAMME À REMPLISSAGE PAR JOUR DE SEMAINE */}
+          {/* CARTE 3 : HISTOGRAMME DU VOLUME DE LA SEMAINE */}
           <div
             onClick={() => setZoomedChart("volume")}
             className="bg-stone-900/90 hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition cursor-pointer group"
           >
-            {/* Entête avec boîte KPI */}
+            {/* Entête avec métriques KPI et boutons d'action */}
             <div className="space-y-3 border-b border-stone-800/80 pb-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -663,9 +650,24 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </h3>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
-                  <span>⛶</span>
-                  <span className="text-[10px] uppercase">Agrandir</span>
+                <div className="flex items-center gap-2">
+                  {/* Bouton vers les stats du plan en cours */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigateToVolumeChart();
+                    }}
+                    className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  >
+                    <span>Stats Plan</span>
+                    <span className="text-[#CF9A61]">➔</span>
+                  </button>
+
+                  {/* Bouton Agrandir */}
+                  <div className="flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <span>⛶</span>
+                  </div>
                 </div>
               </div>
 
@@ -698,16 +700,16 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               {renderDailyHistogram(false)}
             </div>
 
-            {/* Légende */}
+            {/* Légende demandée : point vert pour réalisé, carré noir pour prévu */}
             <div className="flex justify-between items-center text-[9.5px] font-semibold text-stone-400 pt-1">
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#4DB380] inline-block shadow-sm"></span>
-                  <span className="text-stone-200 font-bold">Remplissage (Réalisé)</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Volume réalisé</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#27272a] border border-[#3f3f46] inline-block"></span>
-                  <span className="text-stone-400 font-medium">Conteneur (Prévu)</span>
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Volume prévu</span>
                 </span>
               </div>
               <span className="text-[8.5px] uppercase font-bold text-stone-500">
