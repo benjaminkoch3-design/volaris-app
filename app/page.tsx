@@ -72,6 +72,8 @@ export default function Home() {
   const [screen, setScreen] = useState<"landing" | "auth" | "profile_creation" | "app">("landing");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
+  
+  // Récupération de l'onglet précédent sauvegardé
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
@@ -91,36 +93,62 @@ export default function Home() {
 
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
-    setActiveTab("stats");
+    changeActiveTab("stats");
+  };
+
+  // Fonction centralisée pour changer d'onglet et mémoriser l'état
+  const changeActiveTab = (newTab: ActiveTab) => {
+    setActiveTab(newTab);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("volaris_active_tab", newTab);
+    }
   };
 
   useEffect(() => {
+    // 1. Initialisation de la session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        const roleFromMeta = session.user?.user_metadata?.role as UserRole;
-        if (roleFromMeta) {
-          setUserRole(roleFromMeta);
-          setActiveTab(roleFromMeta === "coach" ? "today" : "accueil");
+        const roleFromMeta = (session.user?.user_metadata?.role as UserRole) || "athlete";
+        setUserRole(roleFromMeta);
+
+        const savedTab = localStorage.getItem("volaris_active_tab") as ActiveTab | null;
+        if (savedTab) {
+          setActiveTab(savedTab);
+        } else {
+          const defaultTab = roleFromMeta === "coach" ? "today" : "accueil";
+          setActiveTab(defaultTab);
+          localStorage.setItem("volaris_active_tab", defaultTab);
         }
         setScreen("app");
       }
       setLoadingAuth(false);
     });
 
+    // 2. Écoute des changements d'authentification sans écraser l'onglet courant
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        const roleFromMeta = session.user?.user_metadata?.role as UserRole;
-        if (roleFromMeta) {
-          setUserRole(roleFromMeta);
-          setActiveTab(roleFromMeta === "coach" ? "today" : "accueil");
+        const roleFromMeta = (session.user?.user_metadata?.role as UserRole) || "athlete";
+        setUserRole(roleFromMeta);
+
+        // Ne réinitialiser l'onglet que lors d'un SIGNED_IN explicite
+        if (event === "SIGNED_IN") {
+          const savedTab = localStorage.getItem("volaris_active_tab") as ActiveTab | null;
+          if (savedTab) {
+            setActiveTab(savedTab);
+          } else {
+            const defaultTab = roleFromMeta === "coach" ? "today" : "accueil";
+            setActiveTab(defaultTab);
+            localStorage.setItem("volaris_active_tab", defaultTab);
+          }
         }
         setScreen("app");
       } else {
         setScreen("landing");
+        localStorage.removeItem("volaris_active_tab");
       }
       setLoadingAuth(false);
     });
@@ -179,7 +207,7 @@ export default function Home() {
 
     if (!signInError && signInData.session) {
       setUserRole(newRole);
-      setActiveTab(newRole === "coach" ? "today" : "accueil");
+      changeActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
       setActivePlan(null);
       setLoadingAuth(false);
@@ -205,7 +233,7 @@ export default function Home() {
 
     if (signUpData.session) {
       setUserRole(newRole);
-      setActiveTab(newRole === "coach" ? "today" : "accueil");
+      changeActiveTab(newRole === "coach" ? "today" : "accueil");
       setInspectingAthleteId(null);
       setActivePlan(null);
     }
@@ -433,7 +461,7 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
-  // VMA active de l'athlète concerné
+  // VMA active
   const currentAthleteVma = isCoachInspecting
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
@@ -487,10 +515,10 @@ export default function Home() {
       ]);
 
       if (error) {
-        console.error("Erreur insertion message:", error.message);
+        console.error("Erreur insertion message :", error.message);
       }
     } catch (err: any) {
-      console.error("Exception message:", err);
+      console.error("Exception message :", err);
     }
   };
 
@@ -500,7 +528,7 @@ export default function Home() {
       try {
         await supabase.from("messages").delete().eq("id", messageId);
       } catch (err) {
-        console.error("Erreur suppression message:", err);
+        console.error("Erreur suppression message :", err);
       }
     }
   };
@@ -565,11 +593,11 @@ export default function Home() {
         .eq("id", targetUserId);
 
       if (error) {
-        console.error("Erreur mise à jour avatar Supabase:", error.message);
+        console.error("Erreur mise à jour avatar Supabase :", error.message);
         alert(`Erreur photo : ${error.message}`);
       }
     } catch (err: any) {
-      console.error("Exception avatar:", err);
+      console.error("Exception avatar :", err);
     }
   };
 
@@ -595,7 +623,7 @@ export default function Home() {
         .update({ coach_id: coachId, custom_coach_name: coachNameStr })
         .eq("id", session.user.id);
     } catch (err) {
-      console.error("Erreur coach_id:", err);
+      console.error("Erreur coach_id :", err);
     }
   };
 
@@ -1213,7 +1241,7 @@ export default function Home() {
             });
           }
         } catch (e) {
-          console.warn("Erreur calcul date séance coach:", e);
+          console.warn("Erreur calcul date séance coach :", e);
         }
       });
     });
@@ -1259,11 +1287,11 @@ export default function Home() {
       }
 
       if (error) {
-        console.error("❌ Erreur sauvegarde profil:", error.message);
+        console.error("❌ Erreur sauvegarde profil :", error.message);
         alert(`Erreur de sauvegarde : ${error.message}`);
       }
     } catch (err) {
-      console.error("Erreur réseau profil:", err);
+      console.error("Erreur réseau profil :", err);
     }
   };
 
@@ -1369,7 +1397,7 @@ export default function Home() {
         },
       ]);
     } catch (err) {
-      console.error("Erreur réseau Supabase:", err);
+      console.error("Erreur réseau Supabase :", err);
     }
   };
 
@@ -1437,7 +1465,7 @@ export default function Home() {
         if (error) throw error;
 
         if (userRole === "coach") {
-          setActiveTab("today");
+          changeActiveTab("today");
           setScreen("app");
         } else {
           setProfileStep(1);
@@ -1450,7 +1478,7 @@ export default function Home() {
         });
         if (error) throw error;
 
-        setActiveTab(userRole === "coach" ? "today" : "accueil");
+        changeActiveTab(userRole === "coach" ? "today" : "accueil");
         setScreen("app");
       }
     } catch (err: any) {
@@ -2052,7 +2080,7 @@ export default function Home() {
     setPlanCreationStep(1);
     setSelectedPlanWeek(currentWeekNum);
     setOpenWeeks({ [currentWeekNum]: true });
-    setActiveTab("plan");
+    changeActiveTab("plan");
   };
 
   const toggleWorkout = (id: string) => {
@@ -2439,7 +2467,7 @@ export default function Home() {
               setSelectedWorkoutDetail(workout);
               if (plan) setActivePlan(plan);
             }}
-            onBackToCalendar={() => setActiveTab("calendar")}
+            onBackToCalendar={() => changeActiveTab("calendar")}
           />
         )}
 
@@ -2450,7 +2478,7 @@ export default function Home() {
             allWorkouts={allCoachAthletesWorkouts}
             onSelectDate={(dateStr) => {
               setSelectedCalendarDate(dateStr);
-              setActiveTab("today");
+              changeActiveTab("today");
             }}
           />
         )}
@@ -2585,7 +2613,7 @@ export default function Home() {
                   setActivePlan(null);
                 }
 
-                setActiveTab("plan");
+                changeActiveTab("plan");
               }}
               onInviteAthlete={() =>
                 alert(`Transmettez votre Code Coach (${coachCode}) à votre athlète pour qu'il le renseigne dans l'onglet Messages !`)
@@ -2632,7 +2660,7 @@ export default function Home() {
               onClick={() => {
                 setInspectingAthleteId(null);
                 setActivePlan(null);
-                setActiveTab("athletes");
+                changeActiveTab("athletes");
               }}
               className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800 transition cursor-pointer"
             >
@@ -2653,7 +2681,7 @@ export default function Home() {
                 onToggleWorkout={toggleWorkout}
                 onOpenDebrief={(workout) => setDebriefWorkout(workout)}
                 onCreatePlanRequest={() => {
-                  setActiveTab("plan");
+                  changeActiveTab("plan");
                   setIsCreatingPlan(true);
                   setPlanCreationStep(1);
                 }}
@@ -2796,7 +2824,7 @@ export default function Home() {
                 draftWeekTypes={draftWeekTypes}
                 goal={goal}
                 initialSubTab={statsSubTab}
-                onBackToDashboard={() => setActiveTab("accueil")}
+                onBackToDashboard={() => changeActiveTab("accueil")}
                 isReadOnly={isCoachInspecting}
               />
             )}
@@ -2891,7 +2919,7 @@ export default function Home() {
         inspectingAthleteId={inspectingAthleteId}
         onSelectTab={(tab) => {
           setScreen("app");
-          setActiveTab(tab);
+          changeActiveTab(tab);
           setShowAthleteLibrary(false);
         }}
       />
