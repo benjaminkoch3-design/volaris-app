@@ -7,8 +7,7 @@ import {
   getDaysUntilEvent,
   getCurrentWeekNumber,
   getWorkoutTypeConfig,
-  calculateWeeklyPlannedKm,
-  calculateWeeklyCompletedKm,
+  calculateStepMetrics,
 } from "../../utils/calculations";
 import { WeeklyLoadChart } from "../analytics/WeeklyLoadChart";
 
@@ -51,6 +50,9 @@ const getRpeGradientColor = (rpeStr?: string) => {
   return "#ef4444";
 };
 
+const DAYS_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const DAYS_FULL = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
 export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   activePlan,
   completedWorkouts,
@@ -63,6 +65,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 }) => {
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
+
+  // Modale plein écran pour les graphiques
+  const [zoomedChart, setZoomedChart] = useState<"volume" | "load" | null>(null);
 
   // Modale Garmin
   const [showGarminModal, setShowGarminModal] = useState<Workout | null>(null);
@@ -94,9 +99,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       )
     : 1;
 
-  const totalWeeks = activePlan
-    ? parseInt(String(activePlan.durationWeeks || "12"), 10)
-    : 12;
+  // Calcul du jour actuel (Lundi = 0 ... Dimanche = 6)
+  const currentJsDay = new Date().getDay();
+  const currentDayIndex = currentJsDay === 0 ? 6 : currentJsDay - 1;
 
   // Synchronisation Garmin
   const executeGarminSync = async (workout: Workout, emailToUse: string, pwdToUse: string) => {
@@ -187,9 +192,207 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
+  // Données journalières de la semaine en cours
+  const dailyVolumeData = Array.from({ length: 7 }, (_, dIdx) => {
+    const dayWorkouts = (activePlan?.workouts || []).filter(
+      (w) => Number(w.weekNumber) === currentWeekNum && Number(w.dayIndex) === dIdx && !w.isRest
+    );
+
+    const plannedKm = dayWorkouts.reduce((acc, w) => {
+      let val = 0;
+      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+        val = parseFloat(String(w.km).replace(",", "."));
+      } else if (w.steps && w.steps.length > 0) {
+        val = calculateStepMetrics(w.steps).totalKm;
+      }
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    const completedKm = dayWorkouts.reduce((acc, w) => {
+      const isDone = completedWorkouts[w.id] || w.completed;
+      if (!isDone) return acc;
+      let val = 0;
+      if (w.completedKm !== undefined && w.completedKm !== null && String(w.completedKm).trim() !== "") {
+        val = parseFloat(String(w.completedKm).replace(",", "."));
+      } else if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+        val = parseFloat(String(w.km).replace(",", "."));
+      } else if (w.steps && w.steps.length > 0) {
+        val = calculateStepMetrics(w.steps).totalKm;
+      }
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    return {
+      dayIndex: dIdx,
+      dayShort: DAYS_SHORT[dIdx],
+      dayFull: DAYS_FULL[dIdx],
+      isToday: dIdx === currentDayIndex,
+      plannedKm: Math.round(plannedKm * 10) / 10,
+      completedKm: Math.round(completedKm * 10) / 10,
+      hasWorkouts: dayWorkouts.length > 0,
+    };
+  });
+
+  const weekPlannedTotal = Math.round(dailyVolumeData.reduce((acc, d) => acc + d.plannedKm, 0) * 10) / 10;
+  const weekCompletedTotal = Math.round(dailyVolumeData.reduce((acc, d) => acc + d.completedKm, 0) * 10) / 10;
+  const weekCompletionPct = weekPlannedTotal > 0
+    ? Math.min(100, Math.round((weekCompletedTotal / weekPlannedTotal) * 100))
+    : (weekCompletedTotal > 0 ? 100 : 0);
+  const remainingKm = Math.max(0, Math.round((weekPlannedTotal - weekCompletedTotal) * 10) / 10);
+
+  const maxDailyKm = Math.max(
+    ...dailyVolumeData.map((d) => Math.max(d.plannedKm, d.completedKm)),
+    10
+  );
+
+  // Fonction de rendu de l'histogramme des 7 jours
+  const renderDailyHistogram = (isExpanded = false) => {
+    const svgWidth = isExpanded ? 750 : 540;
+    const svgHeight = isExpanded ? 240 : 160;
+    const paddingLeft = 35;
+    const paddingRight = 15;
+    const paddingTop = 20;
+    const paddingBottom = 30;
+    const usableHeight = svgHeight - paddingTop - paddingBottom;
+    const baselineY = svgHeight - paddingBottom;
+    const usableWidth = svgWidth - paddingLeft - paddingRight;
+    const colWidth = usableWidth / 7;
+    const barWidth = isExpanded ? 18 : 12;
+
+    return (
+      <svg
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="w-full h-auto overflow-visible select-none"
+      >
+        <defs>
+          <linearGradient id="completedBarGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#4DB380" stopOpacity="1" />
+            <stop offset="100%" stopColor="#3b9669" stopOpacity="0.85" />
+          </linearGradient>
+          <linearGradient id="plannedBarGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#52525b" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#3f3f46" stopOpacity="0.5" />
+          </linearGradient>
+        </defs>
+
+        {/* Lignes de quadrillage */}
+        {[0, 0.5, 1].map((pct, idx) => {
+          const y = paddingTop + usableHeight * (1 - pct);
+          const val = Math.round(maxDailyKm * pct);
+          return (
+            <g key={idx}>
+              <line
+                x1={paddingLeft}
+                y1={y}
+                x2={svgWidth - paddingRight}
+                y2={y}
+                stroke="#27272a"
+                strokeWidth="1"
+                strokeDasharray={pct === 0 ? "none" : "2,4"}
+              />
+              <text
+                x={paddingLeft - 6}
+                y={y + 3.5}
+                fill="#71717a"
+                fontSize={isExpanded ? "11" : "9"}
+                fontWeight="700"
+                textAnchor="end"
+                className="font-mono"
+              >
+                {val}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Colonnes par jour */}
+        {dailyVolumeData.map((d, i) => {
+          const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
+          const plannedBarH = (d.plannedKm / maxDailyKm) * usableHeight;
+          const completedBarH = (d.completedKm / maxDailyKm) * usableHeight;
+
+          const plannedX = colCenterX - barWidth - 1.5;
+          const completedX = colCenterX + 1.5;
+
+          const plannedY = baselineY - plannedBarH;
+          const completedY = baselineY - completedBarH;
+
+          return (
+            <g key={d.dayIndex} className="group cursor-pointer">
+              {/* Fond de colonne pour aujourd'hui */}
+              {d.isToday && (
+                <rect
+                  x={colCenterX - colWidth / 2 + 4}
+                  y={paddingTop - 6}
+                  width={colWidth - 8}
+                  height={usableHeight + 12}
+                  fill="#4DB380"
+                  fillOpacity="0.08"
+                  rx="10"
+                />
+              )}
+
+              {/* Barre Prévu */}
+              {d.plannedKm > 0 && (
+                <rect
+                  x={plannedX}
+                  y={plannedY}
+                  width={barWidth}
+                  height={Math.max(3, plannedBarH)}
+                  fill="url(#plannedBarGradient)"
+                  rx="3"
+                  className="transition-all duration-150 group-hover:opacity-90"
+                />
+              )}
+
+              {/* Barre Réalisé */}
+              {d.completedKm > 0 && (
+                <rect
+                  x={completedX}
+                  y={completedY}
+                  width={barWidth}
+                  height={Math.max(3, completedBarH)}
+                  fill="url(#completedBarGradient)"
+                  rx="3"
+                  className="transition-all duration-150 group-hover:scale-y-105"
+                />
+              )}
+
+              {/* Étiquette jour */}
+              <text
+                x={colCenterX}
+                y={baselineY + 16}
+                fill={d.isToday ? "#4DB380" : "#a1a1aa"}
+                fontSize={isExpanded ? "11" : "9.5"}
+                fontWeight={d.isToday ? "900" : "700"}
+                textAnchor="middle"
+                className="tracking-tight"
+              >
+                {d.dayShort}
+              </text>
+
+              {/* Point indicateur du jour actuel */}
+              {d.isToday && (
+                <circle
+                  cx={colCenterX}
+                  cy={baselineY + 23}
+                  r="2"
+                  fill="#4DB380"
+                />
+              )}
+
+              {/* Tooltip SVG natif */}
+              <title>{`${d.dayFull} — Réalisé : ${d.completedKm} km | Prévu : ${d.plannedKm} km`}</title>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
-      {/* ===================== 1. ÉVÉNEMENT CIBLE (PLEINE LARGEUR) ===================== */}
+      {/* ===================== 1. ÉVÉNEMENT CIBLE ===================== */}
       {activePlan && (
         <div className="bg-gradient-to-r from-[#CF6361]/20 via-[#CF6361]/10 to-stone-900 border border-[#CF6361]/30 p-4 md:p-5 rounded-3xl flex items-center justify-between shadow-lg w-full">
           <div className="space-y-1">
@@ -220,7 +423,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* ===================== 2. CARTE SÉANCE DU JOUR (PLEINE LARGEUR) ===================== */}
+      {/* ===================== 2. CARTE SÉANCE DU JOUR ===================== */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-2xl space-y-4 w-full">
         <div className="flex justify-between items-center border-b border-stone-800/80 pb-3">
           <div>
@@ -420,181 +623,199 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3 & 4. GRILLE 2 COLONNES (VOLUME DU PLAN & CHARGE DU PLAN) ===================== */}
-      {activePlan && (() => {
-        const safeTotalWeeks = Math.max(totalWeeks || 1, 1);
-
-        // Données d'évolution kilométrique par semaine
-        const volumeWeeklyData = Array.from({ length: safeTotalWeeks }, (_, i) => i + 1).map((wNum) => {
-          const plannedKm = calculateWeeklyPlannedKm(activePlan.workouts, wNum);
-          const completedKm = calculateWeeklyCompletedKm(activePlan.workouts, wNum, completedWorkouts);
-          return {
-            weekNum: wNum,
-            plannedKm: Math.round(plannedKm * 10) / 10,
-            completedKm: Math.round(completedKm * 10) / 10,
-          };
-        });
-
-        const currentWeekVolume = volumeWeeklyData.find((w) => w.weekNum === currentWeekNum) || {
-          plannedKm: 0,
-          completedKm: 0,
-        };
-
-        const maxVolumeKm = Math.max(
-          ...volumeWeeklyData.map((d) => Math.max(d.plannedKm, d.completedKm)),
-          20
-        );
-
-        // Paramètres SVG pour le volume
-        const vWidth = 600;
-        const vHeight = 160;
-        const vPaddingLeft = 45;
-        const vPaddingRight = 20;
-        const vPaddingTop = 20;
-        const vPaddingBottom = 35;
-        const vBaselineY = vHeight - vPaddingBottom;
-        const vUsableWidth = vWidth - vPaddingLeft - vPaddingRight;
-        const vUsableHeight = vBaselineY - vPaddingTop;
-
-        const getVX = (index: number) => {
-          if (safeTotalWeeks <= 1) return vPaddingLeft + vUsableWidth / 2;
-          return vPaddingLeft + (index / (safeTotalWeeks - 1)) * vUsableWidth;
-        };
-        const getVY = (value: number) => vBaselineY - (value / maxVolumeKm) * vUsableHeight;
-
-        const pointsVolumePlanned = volumeWeeklyData.map((d, i) => `${getVX(i)},${getVY(d.plannedKm)}`).join(" ");
-        const pointsVolumeCompleted = volumeWeeklyData.map((d, i) => `${getVX(i)},${getVY(d.completedKm)}`).join(" ");
-        const areaVolumeCompleted = `${getVX(0)},${vBaselineY} ${pointsVolumeCompleted} ${getVX(safeTotalWeeks - 1)},${vBaselineY}`;
-
-        const tickStep = safeTotalWeeks > 24 ? 4 : safeTotalWeeks > 14 ? 2 : 1;
-
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-            
-            {/* CARTE 3 : ÉVOLUTION KILOMÉTRIQUE DU PLAN */}
-            <div className="bg-stone-900 border border-stone-800 p-5 rounded-3xl space-y-3 shadow-xl font-sans w-full flex flex-col justify-between">
-              <div className="flex justify-between items-center border-b border-stone-800 pb-2">
+      {/* ===================== 3 & 4. GRILLE 2 COLONNES (HISTOGRAMME SEMAINE & CHARGE) ===================== */}
+      {activePlan && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+          
+          {/* CARTE 3 : HISTOGRAMME DU VOLUME DE LA SEMAINE */}
+          <div
+            onClick={() => setZoomedChart("volume")}
+            className="bg-stone-900/90 hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition cursor-pointer group"
+          >
+            {/* Entête avec métriques KPI demandées */}
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
                 <div>
-                  <span className="text-xs font-black uppercase text-stone-100 tracking-wider block">
-                    Évolution du Volume
+                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                    Semaine {currentWeekNum}
                   </span>
-                  <span className="text-[11px] font-bold text-stone-300">
-                    S{currentWeekNum} :{" "}
-                    <span className="text-[#4DB380] font-black">{currentWeekVolume.completedKm} km</span> /{" "}
-                    {currentWeekVolume.plannedKm} km prévus
-                  </span>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 group-hover:text-[#CF9A61] transition">
+                    Volume Journalier (Lun - Dim)
+                  </h3>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={onNavigateToVolumeChart}
-                  className="text-[10px] font-black text-stone-100 bg-stone-800 border border-stone-700 px-2.5 py-1 rounded-xl uppercase hover:bg-stone-750 transition cursor-pointer"
-                >
-                  Stats Plan ➔
-                </button>
-              </div>
-
-              {/* GRAPHIQUE SVG DU VOLUME */}
-              <div className="relative bg-stone-950/80 rounded-2xl p-2 border border-stone-800/80 w-full overflow-hidden">
-                <svg viewBox={`0 0 ${vWidth} ${vHeight}`} className="w-full h-auto overflow-visible select-none">
-                  <defs>
-                    <linearGradient id="dashboardVolumeGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4DB380" stopOpacity="0.35" />
-                      <stop offset="100%" stopColor="#4DB380" stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Axe Y (km) */}
-                  <text x={vPaddingLeft - 8} y={vPaddingTop + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
-                    {Math.round(maxVolumeKm)} km
-                  </text>
-                  <text x={vPaddingLeft - 8} y={vPaddingTop + vUsableHeight / 2 + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
-                    {Math.round(maxVolumeKm / 2)} km
-                  </text>
-                  <text x={vPaddingLeft - 8} y={vBaselineY + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
-                    0
-                  </text>
-
-                  {/* Lignes de quadrillage */}
-                  <line x1={vPaddingLeft} y1={vPaddingTop} x2={vWidth - vPaddingRight} y2={vPaddingTop} stroke="#3f3f46" strokeDasharray="3,3" />
-                  <line x1={vPaddingLeft} y1={vPaddingTop + vUsableHeight / 2} x2={vWidth - vPaddingRight} y2={vPaddingTop + vUsableHeight / 2} stroke="#3f3f46" strokeDasharray="3,3" />
-                  <line x1={vPaddingLeft} y1={vBaselineY} x2={vWidth - vPaddingRight} y2={vBaselineY} stroke="#52525b" strokeWidth="1.5" />
-
-                  {/* Dégradé et courbes */}
-                  <polygon points={areaVolumeCompleted} fill="url(#dashboardVolumeGradient)" />
-                  <polyline points={pointsVolumePlanned} fill="none" stroke="#737373" strokeWidth="2" strokeDasharray="4,4" />
-                  <polyline points={pointsVolumeCompleted} fill="none" stroke="#4DB380" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-                  {/* Repères et abscisses alignés */}
-                  {volumeWeeklyData.map((d, i) => {
-                    const cx = getVX(i);
-                    const cy = getVY(d.completedKm);
-                    const isCurrentWeek = d.weekNum === currentWeekNum;
-                    const showLabel = (d.weekNum - 1) % tickStep === 0 || d.weekNum === safeTotalWeeks;
-
-                    return (
-                      <g key={d.weekNum}>
-                        <line x1={cx} y1={vBaselineY} x2={cx} y2={vBaselineY + 4} stroke="#52525b" strokeWidth="1.5" />
-
-                        {showLabel && (
-                          <text
-                            x={cx}
-                            y={vBaselineY + 18}
-                            fill={isCurrentWeek ? "#4DB380" : "#a1a1aa"}
-                            fontSize="10"
-                            fontWeight={isCurrentWeek ? "900" : "bold"}
-                            textAnchor="middle"
-                          >
-                            S{d.weekNum}
-                          </text>
-                        )}
-
-                        <g className="group cursor-pointer">
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={isCurrentWeek ? "5.5" : d.completedKm > 0 ? "4" : "2.5"}
-                            style={{
-                              fill: isCurrentWeek ? "#4DB380" : "#09090b",
-                              stroke: "#4DB380",
-                            }}
-                            className="stroke-2 transition-all group-hover:r-7"
-                          />
-                          <title>{`Semaine ${d.weekNum} — Réalisé : ${d.completedKm} km | Prévu : ${d.plannedKm} km`}</title>
-                        </g>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-
-              {/* Légende Volume */}
-              <div className="flex justify-between items-center text-[9px] font-semibold text-stone-300 pt-1">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-0.5 bg-[#4DB380] inline-block"></span> Réalisé
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-0.5 bg-[#737373] inline-block border-t border-dashed border-[#737373]"></span> Prévu
-                  </span>
+                <div className="flex items-center gap-1.5 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
+                  <span>⛶</span>
+                  <span className="text-[10px] uppercase">Agrandir</span>
                 </div>
-                <span className="text-stone-400">Volume plan</span>
+              </div>
+
+              {/* Boîte de petites stats KPI */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Réalisé / Prévu</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    <span className="text-[#4DB380]">{weekCompletedTotal}</span>
+                    <span className="text-stone-500 font-normal"> / {weekPlannedTotal} km</span>
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {weekCompletionPct}%
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Reste à faire</span>
+                  <div className="text-xs font-black text-stone-300 mt-0.5">
+                    {remainingKm} <span className="text-stone-500 text-[10px] font-normal">km</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* CARTE 4 : ÉVOLUTION DE LA CHARGE */}
-            <div className="h-full">
-              <WeeklyLoadChart
-                workouts={activePlan.workouts}
-                currentWeekNum={currentWeekNum}
-                completedWorkouts={completedWorkouts}
-                onNavigateToVolumeChart={onNavigateToVolumeChart}
-              />
+            {/* HISTOGRAMME SVG */}
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderDailyHistogram(false)}
             </div>
 
+            {/* Légende */}
+            <div className="flex justify-between items-center text-[9.5px] font-semibold text-stone-400 pt-1">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#4DB380] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Réalisé</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#52525b] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Prévu</span>
+                </span>
+              </div>
+              <span className="text-[8.5px] uppercase font-bold text-stone-500">
+                Aujourd'hui surligné
+              </span>
+            </div>
           </div>
-        );
-      })()}
+
+          {/* CARTE 4 : ÉVOLUTION DE LA CHARGE (CLIQUABLE POUR AGRANDIR) */}
+          <div
+            onClick={() => setZoomedChart("load")}
+            className="h-full relative group cursor-pointer"
+          >
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-1 text-stone-400 group-hover:text-[#CDCF61] transition text-[10px] font-bold bg-stone-950/90 px-2.5 py-1 rounded-xl border border-stone-800">
+              <span>⛶</span>
+              <span className="uppercase">Agrandir</span>
+            </div>
+            <WeeklyLoadChart
+              workouts={activePlan.workouts}
+              currentWeekNum={currentWeekNum}
+              completedWorkouts={completedWorkouts}
+              onNavigateToVolumeChart={onNavigateToVolumeChart}
+            />
+          </div>
+
+        </div>
+      )}
+
+      {/* ===================== MODALE ZOOM PLEIN ÉCRAN ===================== */}
+      {zoomedChart && (
+        <div
+          onClick={() => setZoomedChart(null)}
+          className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-3xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+          >
+            <div className="flex justify-between items-center border-b border-stone-800 pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#CF9A61]">
+                  Vue détaillée grand format
+                </span>
+                <h3 className="text-base md:text-lg font-black uppercase text-stone-100">
+                  {zoomedChart === "volume"
+                    ? `Volume Quotidien de la Semaine ${currentWeekNum}`
+                    : "Charge d'Entraînement & Fatigue"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomedChart(null)}
+                className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {zoomedChart === "volume" ? (
+              <div className="space-y-4">
+                {/* Stats récapitulatives dans la modale */}
+                <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Distance réalisée</span>
+                    <span className="text-xl font-black text-[#4DB380]">{weekCompletedTotal} km</span>
+                  </div>
+                  <div className="border-x border-stone-800">
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Distance prévue</span>
+                    <span className="text-xl font-black text-stone-200">{weekPlannedTotal} km</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Taux d'accomplissement</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekCompletionPct}%</span>
+                  </div>
+                </div>
+
+                <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
+                  {renderDailyHistogram(true)}
+                </div>
+
+                {/* Détail jour par jour */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-2">
+                  {dailyVolumeData.map((d) => (
+                    <div
+                      key={d.dayIndex}
+                      className={`p-2.5 rounded-xl border text-center space-y-1 ${
+                        d.isToday
+                          ? "bg-[#4DB380]/15 border-[#4DB380]/50 shadow-md"
+                          : "bg-stone-950 border-stone-800"
+                      }`}
+                    >
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
+                        {d.dayFull}
+                      </span>
+                      <div className="text-xs font-bold text-stone-100">
+                        {d.completedKm} <span className="text-[9px] text-stone-500 font-normal">/ {d.plannedKm} km</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activePlan && (
+                  <WeeklyLoadChart
+                    workouts={activePlan.workouts}
+                    currentWeekNum={currentWeekNum}
+                    completedWorkouts={completedWorkouts}
+                    onNavigateToVolumeChart={() => {
+                      setZoomedChart(null);
+                      onNavigateToVolumeChart();
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setZoomedChart(null)}
+              className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+            >
+              Fermer la vue agrandie
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODALE DE CONNEXION GARMIN CONNECT */}
       {showGarminModal && (
