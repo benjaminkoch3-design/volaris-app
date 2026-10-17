@@ -83,7 +83,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
           </p>
         </div>
 
-        {/* PHASE D'ENTRAÎNEMENT & BOUTON MODIFIER (MASQUÉ SI COACH) */}
+        {/* PHASE D'ENTRAÎNEMENT & BOUTON MODIFIER */}
         <div className="flex justify-between items-center pt-2 border-t border-stone-950/10 flex-wrap gap-2">
           {(() => {
             const curWeekType = activePlan.weekTypes?.[currentWeekNum];
@@ -131,7 +131,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
             const isOpen = openWeeks[wNum] ?? isCurrentWeek;
 
-            // Filtrage et tri strict Lundi -> Dimanche
+            // Filtrage et tri Lundi -> Dimanche
             const rawWeekWorkouts = activePlan.workouts.filter(
               (w) => w.weekNumber === wNum
             );
@@ -143,7 +143,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
               wNum
             );
             
-            // Calcul dédupliqué sans double-comptage
             const weeklyCompletedKm = calculateWeeklyCompletedKmDeduplicated(
               activePlan.workouts,
               wNum,
@@ -245,12 +244,13 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           <div
                             key={w.id}
                             onClick={() => onSelectWorkoutDetail(w)}
-                            className={`p-3.5 rounded-2xl border border-l-4 transition space-y-2 cursor-pointer ${typeConfig.borderClass} ${
+                            className={`p-3.5 rounded-2xl border border-l-4 transition space-y-2.5 cursor-pointer ${typeConfig.borderClass} ${
                               isDone
                                 ? "bg-stone-950/40 border-stone-800 text-stone-500"
                                 : "bg-stone-950/90 border-stone-800 text-stone-100 hover:border-[#CF9A61]/60 shadow-md"
                             }`}
                           >
+                            {/* EN-TÊTE DE LA SÉANCE */}
                             <div className="flex justify-between items-center pb-1.5 border-b border-stone-800/60">
                               <div className="flex items-center gap-2">
                                 <span className="font-black text-xs text-stone-100 uppercase tracking-wide">
@@ -269,14 +269,15 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               )}
                             </div>
 
-                            <div className="flex items-center justify-between pt-0.5">
-                              <div className="flex items-center gap-2.5 flex-1">
+                            {/* TITRE ET STATUT RÉALISÉ */}
+                            <div className="flex items-center justify-between pt-0.5 gap-2">
+                              <div className="flex items-center gap-2.5 flex-1 min-w-0">
                                 <div
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onToggleWorkout(w.id);
                                   }}
-                                  className={`w-6 h-6 rounded-lg flex items-center justify-center border text-xs font-bold transition flex-shrink-0 ${
+                                  className={`w-6 h-6 rounded-lg flex items-center justify-center border text-xs font-bold transition flex-shrink-0 cursor-pointer ${
                                     isDone
                                       ? "bg-[#4DB380]/20 border-[#4DB380]/40 text-[#4DB380]"
                                       : "border-stone-700 text-stone-400 hover:border-[#CF9A61]"
@@ -286,7 +287,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                   {isDone ? "✓" : ""}
                                 </div>
                                 <h5
-                                  className={`text-xs font-bold ${
+                                  className={`text-xs font-bold truncate ${
                                     isDone
                                       ? "line-through text-stone-500"
                                       : "text-stone-100"
@@ -321,14 +322,33 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </div>
                             </div>
 
-                            <p
-                              className={`text-[11px] leading-relaxed line-clamp-2 ${
-                                isDone ? "text-stone-500" : "text-stone-300"
-                              }`}
-                            >
-                              {w.description}
-                            </p>
+                            {/* DESCRIPTION DU COACH / DE LA SÉANCE */}
+                            {w.description && (
+                              <div className="bg-stone-900/60 p-2.5 rounded-xl border border-stone-800/80 space-y-1">
+                                <span className="text-[8.5px] font-black uppercase text-[#CF9A61] tracking-wider block">
+                                  Consigne & Description
+                                </span>
+                                <p
+                                  className={`text-[11px] leading-relaxed ${
+                                    isDone ? "text-stone-500" : "text-stone-200"
+                                  }`}
+                                >
+                                  {w.description}
+                                </p>
+                              </div>
+                            )}
 
+                            {/* REMARQUE OPTIONNELLE */}
+                            {w.remark && (
+                              <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-2 rounded-xl text-[10.5px] text-[#CDCF61]">
+                                <span className="font-bold uppercase text-[8.5px] block">
+                                  💡 Remarque coach :
+                                </span>
+                                {w.remark}
+                              </div>
+                            )}
+
+                            {/* BLOCS D'ENTRAÎNEMENT */}
                             {w.steps && w.steps.length > 0 && (
                               <div className="flex items-center justify-between text-[10px] font-semibold text-[#CF9A61]/90 pt-1 border-t border-stone-800/80">
                                 <span>{w.steps.length} bloc(s)</span>
