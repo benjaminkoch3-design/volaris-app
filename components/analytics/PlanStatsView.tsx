@@ -33,6 +33,9 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
   const [activeMobileSlide, setActiveMobileSlide] = useState(0);
   const carouselScrollRef = useRef<HTMLDivElement>(null);
 
+  // État pour les accordéons semaine par semaine
+  const [openWeeks, setOpenWeeks] = useState<Record<number, boolean>>({});
+
   const durationWeeks =
     typeof activePlan.durationWeeks === "number"
       ? activePlan.durationWeeks
@@ -42,6 +45,10 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
     activePlan.startDate,
     String(activePlan.durationWeeks || "12")
   );
+
+  const toggleWeekAccordion = (wNum: number) => {
+    setOpenWeeks((prev) => ({ ...prev, [wNum]: !prev[wNum] }));
+  };
 
   const weeklyMetricsData = Array.from({ length: durationWeeks }, (_, i) => {
     const wNum = i + 1;
@@ -56,6 +63,7 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
     let plannedLoad = 0;
     let completedLoad = 0;
     let completedElevation = 0;
+    const weekCompletedRpes: number[] = [];
 
     weekWorkouts.forEach((w) => {
       const stepM =
@@ -63,15 +71,18 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
           ? calculateStepMetrics(w.steps, vma)
           : { totalKm: 0, totalMinutes: 0 };
 
+      // Distance
       if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
         plannedKm += parseFloat(String(w.km).replace(",", ".")) || 0;
       } else {
         plannedKm += stepM.totalKm || 0;
       }
 
+      // Durée
       const pMin = stepM.totalMinutes || 0;
       plannedMinutes += pMin;
 
+      // Charge
       const pRpe = w.rpe ? parseInt(String(w.rpe), 10) || 5 : 5;
       plannedLoad += pMin * pRpe;
 
@@ -100,6 +111,7 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
             ? Number(w.completedRpe)
             : pRpe;
         completedLoad += cMin * cRpe;
+        weekCompletedRpes.push(cRpe);
 
         const elev =
           (w as any).completedElevationGain ??
@@ -109,20 +121,35 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
       }
     });
 
+    const avgCompletedRpe =
+      weekCompletedRpes.length > 0
+        ? Math.round((weekCompletedRpes.reduce((a, b) => a + b, 0) / weekCompletedRpes.length) * 10) / 10
+        : null;
+
+    const volPct = plannedKm > 0 ? Math.min(100, Math.round((completedKm / plannedKm) * 100)) : completedKm > 0 ? 100 : 0;
+    const loadPct = plannedLoad > 0 ? Math.min(100, Math.round((completedLoad / plannedLoad) * 100)) : completedLoad > 0 ? 100 : 0;
+    const timePct = plannedMinutes > 0 ? Math.min(100, Math.round((completedMinutes / plannedMinutes) * 100)) : completedMinutes > 0 ? 100 : 0;
+
     return {
       weekNum: wNum,
       weekLabel: `S${wNum}`,
       isCurrent: wNum === currentWeekNum,
       plannedKm: Math.round(plannedKm * 10) / 10,
       completedKm: Math.round(completedKm * 10) / 10,
+      volPct,
       plannedMinutes: Math.round(plannedMinutes),
       completedMinutes: Math.round(completedMinutes),
+      timePct,
       plannedLoad: Math.round(plannedLoad),
       completedLoad: Math.round(completedLoad),
+      loadPct,
       completedElevation: Math.round(completedElevation),
+      avgCompletedRpe,
+      sessionCount: weekWorkouts.length,
     };
   });
 
+  // Totaux globaux
   const totalVolumePlanned =
     Math.round(weeklyMetricsData.reduce((acc, w) => acc + w.plannedKm, 0) * 10) / 10;
   const totalVolumeCompleted =
@@ -147,6 +174,8 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
       : totalTimeCompleted > 0 ? 100 : 0;
 
   const totalElevation = Math.round(weeklyMetricsData.reduce((acc, w) => acc + w.completedElevation, 0));
+  const maxWeeklyElevation = Math.max(...weeklyMetricsData.map((w) => w.completedElevation), 0);
+  const avgWeeklyElevation = Math.round(totalElevation / durationWeeks);
 
   const maxVol = Math.max(...weeklyMetricsData.map((w) => Math.max(w.plannedKm, w.completedKm)), 20);
   const maxLoad = Math.max(...weeklyMetricsData.map((w) => Math.max(w.plannedLoad, w.completedLoad)), 400);
@@ -380,212 +409,442 @@ export const PlanStatsView: React.FC<PlanStatsViewProps> = ({
   }));
 
   return (
-    <div className="space-y-3 w-full font-sans">
-      <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
-        <span className="flex items-center gap-1 text-[#CF9A61]">
-          <span>👉</span> Glissez pour faire défiler les graphiques
-        </span>
-        <div className="flex gap-1.5 items-center">
-          {[0, 1, 2, 3].map((idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => scrollToSlide(idx)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                activeMobileSlide === idx ? "bg-[#CF9A61] w-4" : "bg-stone-800"
-              }`}
-              aria-label={`Graphique ${idx + 1}`}
-            />
-          ))}
+    <div className="space-y-6 w-full font-sans animate-fadeIn">
+      {/* ===================== TITRE GÉNÉRAL DE LA PAGE ===================== */}
+      <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl flex items-center justify-between flex-wrap gap-3">
+        <div className="space-y-1">
+          <span className="text-[10px] md:text-[11px] font-black uppercase text-[#CF9A61] tracking-widest block">
+            Statistiques du plan
+          </span>
+          <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight text-stone-100">
+            {activePlan.name}
+          </h2>
+          <p className="text-xs text-stone-400 font-medium">
+            Objectif : <span className="text-stone-200 font-bold">{activePlan.targetDistance}</span>
+            {activePlan.targetTime ? ` en ${activePlan.targetTime}` : ""}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black uppercase px-3.5 py-1.5 rounded-xl border bg-stone-950 border-stone-700 text-stone-100">
+            {durationWeeks} Semaines au total
+          </span>
+          <span className="text-xs font-black uppercase px-3.5 py-1.5 rounded-xl border bg-[#CF9A61]/10 border-[#CF9A61]/40 text-[#CF9A61]">
+            Semaine {currentWeekNum} en cours
+          </span>
         </div>
       </div>
 
-      <div
-        ref={carouselScrollRef}
-        onScroll={handleCarouselScroll}
-        className="w-full flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
-      >
-        {/* 1. VOLUME KILOMÉTRIQUE */}
+      {/* ===================== LES 4 HISTOGRAMMES AVEC RECTANGLE D'INFOS ===================== */}
+      <div className="space-y-3 w-full">
+        <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
+          <span className="flex items-center gap-1 text-[#CF9A61]">
+            <span>👉</span> Glissez pour faire défiler les graphiques
+          </span>
+          <div className="flex gap-1.5 items-center">
+            {[0, 1, 2, 3].map((idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => scrollToSlide(idx)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  activeMobileSlide === idx ? "bg-[#CF9A61] w-4" : "bg-stone-800"
+                }`}
+                aria-label={`Graphique ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+
         <div
-          onClick={() => handleOpenZoom("volume")}
-          className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
+          ref={carouselScrollRef}
+          onScroll={handleCarouselScroll}
+          className="w-full flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
         >
-          <div className="border-b border-stone-800/80 pb-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xs md:text-sm font-black uppercase text-stone-100 tracking-wider block sm:group-hover:text-[#CF6361] transition">
-                  Évolution du Volume (Plan)
-                </h3>
-                <span className="text-[11px] md:text-xs font-bold text-stone-300 block mt-0.5">
-                  <span className="text-[#B34D4D] font-black">{totalVolumeCompleted} km</span> /{" "}
-                  {totalVolumePlanned} km réalisés
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-[#CF9A61] bg-stone-950 px-2 py-0.5 rounded-lg border border-stone-800 font-mono">
-                  {totalVolumePct}%
-                </span>
+          {/* 1. VOLUME KILOMÉTRIQUE */}
+          <div
+            onClick={() => handleOpenZoom("volume")}
+            className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight sm:group-hover:text-[#CF6361] transition">
+                    Évolution du Volume (Plan)
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">Cumul kilométrique total</span>
+                </div>
                 <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF6361] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                   <span>⛶</span>
                 </div>
               </div>
+
+              {/* RECTANGLE 3 INFOS */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                  <div className="text-xs font-black text-[#B34D4D] mt-0.5">
+                    {totalVolumeCompleted} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {totalVolumePlanned} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {totalVolumePct}%
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-            {renderWeeklyBarChart(volumeItems, maxVol, "burgundy", false)}
-          </div>
-
-          <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#B34D4D] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Prévu (Coach)</span>
-              </span>
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderWeeklyBarChart(volumeItems, maxVol, "burgundy", false)}
             </div>
-            <span className="text-stone-400 font-bold">Progression Plan</span>
-          </div>
-        </div>
 
-        {/* 2. CHARGE D'ENTRAÎNEMENT */}
-        <div
-          onClick={() => handleOpenZoom("load")}
-          className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
-        >
-          <div className="border-b border-stone-800/80 pb-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xs md:text-sm font-black uppercase text-stone-100 tracking-wider block sm:group-hover:text-[#CF9A61] transition">
-                  Charge Totale du Plan
-                </h3>
-                <span className="text-[11px] md:text-xs font-bold text-stone-300 block mt-0.5">
-                  <span className="text-[#CF9A61] font-black">{totalLoadCompleted}</span> /{" "}
-                  {totalLoadPlanned} pts réalisés
+            <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#B34D4D] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Prévu (Coach)</span>
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-[#CF9A61] bg-stone-950 px-2 py-0.5 rounded-lg border border-stone-800 font-mono">
-                  {totalLoadPct}%
-                </span>
+              <span className="text-stone-400 font-bold">Progression Plan</span>
+            </div>
+          </div>
+
+          {/* 2. CHARGE D'ENTRAÎNEMENT */}
+          <div
+            onClick={() => handleOpenZoom("load")}
+            className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight sm:group-hover:text-[#CF9A61] transition">
+                    Charge Totale du Plan
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">Points Foster cumulés</span>
+                </div>
                 <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                   <span>⛶</span>
                 </div>
               </div>
+
+              {/* RECTANGLE 3 INFOS */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge réalisée</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {totalLoadCompleted}
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge prévue</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {totalLoadPlanned}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {totalLoadPct}%
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-            {renderWeeklyBarChart(loadItems, maxLoad, "gold", false)}
-          </div>
-
-          <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Prévu (Coach)</span>
-              </span>
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderWeeklyBarChart(loadItems, maxLoad, "gold", false)}
             </div>
-            <span className="text-stone-400 font-bold">Progression Plan</span>
-          </div>
-        </div>
 
-        {/* 3. TEMPS PASSÉ À COURIR */}
-        <div
-          onClick={() => handleOpenZoom("time")}
-          className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
-        >
-          <div className="border-b border-stone-800/80 pb-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xs md:text-sm font-black uppercase text-stone-100 tracking-wider block sm:group-hover:text-[#4D80B3] transition">
-                  Temps Total de Course (Plan)
-                </h3>
-                <span className="text-[11px] md:text-xs font-bold text-stone-300 block mt-0.5">
-                  <span className="text-[#4D80B3] font-black">{formatMinutesToHours(totalTimeCompleted)}</span> /{" "}
-                  {formatMinutesToHours(totalTimePlanned)} réalisés
+            <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Prévu (Coach)</span>
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-[#CF9A61] bg-stone-950 px-2 py-0.5 rounded-lg border border-stone-800 font-mono">
-                  {totalTimePct}%
-                </span>
+              <span className="text-stone-400 font-bold">Progression Plan</span>
+            </div>
+          </div>
+
+          {/* 3. TEMPS PASSÉ À COURIR */}
+          <div
+            onClick={() => handleOpenZoom("time")}
+            className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight sm:group-hover:text-[#4D80B3] transition">
+                    Temps Total de Course (Plan)
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">Durée totale passée à courir</span>
+                </div>
                 <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4D80B3] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                   <span>⛶</span>
                 </div>
               </div>
+
+              {/* RECTANGLE 3 INFOS */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps réalisé</span>
+                  <div className="text-xs font-black text-[#4D80B3] mt-0.5">
+                    {formatMinutesToHours(totalTimeCompleted)}
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps prévu</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {formatMinutesToHours(totalTimePlanned)}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {totalTimePct}%
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-            {renderWeeklyBarChart(timeItems, maxTime, "blue", false)}
-          </div>
-
-          <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#4D80B3] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Prévu (Coach)</span>
-              </span>
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderWeeklyBarChart(timeItems, maxTime, "blue", false)}
             </div>
-            <span className="text-stone-400 font-bold">Progression Plan</span>
-          </div>
-        </div>
 
-        {/* 4. DÉNIVELÉ POSITIF */}
-        <div
-          onClick={() => handleOpenZoom("elevation")}
-          className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
-        >
-          <div className="border-b border-stone-800/80 pb-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-xs md:text-sm font-black uppercase text-stone-100 tracking-wider block sm:group-hover:text-[#4DB380] transition">
-                  Dénivelé Total du Plan
-                </h3>
-                <span className="text-[11px] md:text-xs font-bold text-stone-300 block mt-0.5">
-                  <span className="text-[#4DB380] font-black">{totalElevation} m D+</span> réalisés
+            <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4D80B3] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Prévu (Coach)</span>
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <span className="text-stone-400 font-bold">Progression Plan</span>
+            </div>
+          </div>
+
+          {/* 4. DÉNIVELÉ POSITIF */}
+          <div
+            onClick={() => handleOpenZoom("elevation")}
+            className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight sm:group-hover:text-[#4DB380] transition">
+                    Dénivelé Total du Plan
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">Cumul positif gravi (m D+)</span>
+                </div>
                 <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4DB380] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                   <span>⛶</span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-            {renderWeeklyBarChart(elevationItems, maxElev, "green", false)}
-          </div>
-
-          <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
-              </span>
-              <span className="text-[8.5px] uppercase font-bold text-stone-500">
-                Non prescrit dans le plan
-              </span>
+              {/* RECTANGLE 3 INFOS */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total réalisé</span>
+                  <div className="text-xs font-black text-[#4DB380] mt-0.5">
+                    {totalElevation} <span className="text-stone-500 text-[10px] font-normal">m D+</span>
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Max Semaine</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {maxWeeklyElevation} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Moyenne / Semaine</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {avgWeeklyElevation} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <span className="text-stone-400 font-bold">Progression Plan</span>
+
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderWeeklyBarChart(elevationItems, maxElev, "green", false)}
+            </div>
+
+            <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-300 pt-1">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Réalisé (Athlète)</span>
+                </span>
+                <span className="text-[8.5px] uppercase font-bold text-stone-500">
+                  Non prescrit dans le plan
+                </span>
+              </div>
+              <span className="text-stone-400 font-bold">Progression Plan</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* MODALE ZOOM PLEIN ÉCRAN */}
+      {/* ===================== MENU DÉROULANT : DÉTAIL SEMAINE APRÈS SEMAINE ===================== */}
+      <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4">
+        <div className="border-b border-stone-800 pb-3 flex justify-between items-center">
+          <div>
+            <h3 className="text-sm md:text-base font-black uppercase tracking-tight text-stone-100">
+              Détail des Métriques Semaine par Semaine
+            </h3>
+            <p className="text-[11px] text-stone-400 mt-0.5">
+              Déroulez une semaine pour consulter la répartition des 4 grandeurs (Volume, Charge, Durée, D+).
+            </p>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-stone-400 bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
+            {durationWeeks} sem.
+          </span>
+        </div>
+
+        <div className="space-y-2.5">
+          {weeklyMetricsData.map((w) => {
+            const isOpen = Boolean(openWeeks[w.weekNum]);
+
+            return (
+              <div
+                key={w.weekNum}
+                className={`rounded-2xl border transition-all ${
+                  w.isCurrent
+                    ? "border-[#CF9A61]/50 bg-stone-950/90"
+                    : "border-stone-800/90 bg-stone-950/50 hover:border-stone-700"
+                }`}
+              >
+                {/* Ligne d'en-tête cliquable */}
+                <button
+                  type="button"
+                  onClick={() => toggleWeekAccordion(w.weekNum)}
+                  className="w-full p-3.5 md:p-4 flex items-center justify-between gap-3 text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span
+                      className={`text-xs font-black uppercase px-2.5 py-1 rounded-lg ${
+                        w.isCurrent
+                          ? "bg-[#CF9A61] text-stone-950 shadow-sm"
+                          : "bg-stone-800 text-stone-200"
+                      }`}
+                    >
+                      {w.weekLabel}
+                    </span>
+                    <span className="text-xs font-black text-stone-100 uppercase">
+                      Semaine {w.weekNum}
+                    </span>
+                    {w.isCurrent && (
+                      <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-[#CF9A61] bg-[#CF9A61]/10 px-2 py-0.5 rounded-md border border-[#CF9A61]/30">
+                        En cours
+                      </span>
+                    )}
+                    <span className="text-[10px] text-stone-500 font-semibold">
+                      ({w.sessionCount} séance{w.sessionCount > 1 ? "s" : ""})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Mini résumé condensé sur la ligne */}
+                    <div className="hidden md:flex items-center gap-3 text-[10px] font-mono">
+                      <span className="text-[#B34D4D] font-bold">{w.completedKm} / {w.plannedKm} km</span>
+                      <span className="text-stone-600">•</span>
+                      <span className="text-[#CF9A61] font-bold">{w.completedLoad} pts</span>
+                      <span className="text-stone-600">•</span>
+                      <span className="text-[#4D80B3] font-bold">{formatMinutesToHours(w.completedMinutes)}</span>
+                    </div>
+
+                    <span className="text-xs font-bold text-stone-400">
+                      {isOpen ? "▲" : "▼"}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Contenu déroulé : Détail des 4 graphes pour cette semaine */}
+                {isOpen && (
+                  <div className="px-3.5 pb-4 md:px-4 pt-1 border-t border-stone-800/80 animate-fadeIn space-y-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      {/* 1. Volume */}
+                      <div className="bg-stone-900/80 border border-stone-800 p-3 rounded-xl space-y-1">
+                        <span className="text-[8.5px] font-bold uppercase tracking-wider text-[#B34D4D] block">
+                          Volume kilométrique
+                        </span>
+                        <div className="text-sm font-black text-stone-100">
+                          {w.completedKm} <span className="text-stone-500 font-normal text-xs">/ {w.plannedKm} km</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[9px] text-stone-400 pt-0.5">
+                          <span>Accomplissement</span>
+                          <span className="font-mono font-bold text-[#CF9A61]">{w.volPct}%</span>
+                        </div>
+                      </div>
+
+                      {/* 2. Charge */}
+                      <div className="bg-stone-900/80 border border-stone-800 p-3 rounded-xl space-y-1">
+                        <span className="text-[8.5px] font-bold uppercase tracking-wider text-[#CF9A61] block">
+                          Charge d'entraînement
+                        </span>
+                        <div className="text-sm font-black text-stone-100">
+                          {w.completedLoad} <span className="text-stone-500 font-normal text-xs">/ {w.plannedLoad} pts</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[9px] text-stone-400 pt-0.5">
+                          <span>RPE moyen : {w.avgCompletedRpe ?? "-"}</span>
+                          <span className="font-mono font-bold text-[#CF9A61]">{w.loadPct}%</span>
+                        </div>
+                      </div>
+
+                      {/* 3. Temps */}
+                      <div className="bg-stone-900/80 border border-stone-800 p-3 rounded-xl space-y-1">
+                        <span className="text-[8.5px] font-bold uppercase tracking-wider text-[#4D80B3] block">
+                          Temps de course
+                        </span>
+                        <div className="text-sm font-black text-stone-100">
+                          {formatMinutesToHours(w.completedMinutes)}{" "}
+                          <span className="text-stone-500 font-normal text-xs">/ {formatMinutesToHours(w.plannedMinutes)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[9px] text-stone-400 pt-0.5">
+                          <span>Accomplissement</span>
+                          <span className="font-mono font-bold text-[#CF9A61]">{w.timePct}%</span>
+                        </div>
+                      </div>
+
+                      {/* 4. Dénivelé */}
+                      <div className="bg-stone-900/80 border border-stone-800 p-3 rounded-xl space-y-1">
+                        <span className="text-[8.5px] font-bold uppercase tracking-wider text-[#4DB380] block">
+                          Dénivelé positif
+                        </span>
+                        <div className="text-sm font-black text-[#4DB380]">
+                          {w.completedElevation} <span className="text-stone-400 font-normal text-xs">m D+</span>
+                        </div>
+                        <span className="text-[8.5px] text-stone-500 block pt-0.5">
+                          {w.completedElevation > 0 ? "Sortie(s) avec dénivelé" : "Terrain plat"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ===================== MODALE ZOOM PLEIN ÉCRAN ===================== */}
       {zoomedChart && (
         <div
           onClick={() => setZoomedChart(null)}
