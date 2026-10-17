@@ -25,29 +25,31 @@ interface AnnualStatsProps {
   vma?: number | string;
 }
 
-// Palette professionnelle par saison
-const PRO_MONTH_COLORS: Record<number, string> = {
-  0: "#7DD3FC",  // Janvier - Bleu givre doux
-  1: "#93C5FD",  // Février - Bleu ciel ardoisé
-  2: "#67E8F9",  // Mars - Cyan glacier
-  3: "#86EFAC",  // Avril - Sauge douce
-  4: "#4ADE80",  // Mai - Vert menthe naturel
-  5: "#A3E635",  // Juin - Tilleul feutré
-  6: "#FBBF24",  // Juillet - Ambre doux
-  7: "#F59E0B",  // Août - Ocre solaire
-  8: "#FB923C",  // Septembre - Terracotta
-  9: "#F87171",  // Octobre - Brique douce
-  10: "#C084FC", // Novembre - Bruyère
-  11: "#A5B4FC", // Décembre - Indigo doux
+// 4 Couleurs plates unies (1 couleur nette par saison, aucun dégradé)
+const SEASON_COLORS = {
+  winter: "#38BDF8", // Hiver : Bleu ciel acier
+  spring: "#34D399", // Printemps : Vert menthe
+  summer: "#F59E0B", // Été : Ambre doré
+  autumn: "#FB923C", // Automne : Terracotta brique
 };
 
-const getMonthThemeColor = (monthIndex: number): string => {
-  return PRO_MONTH_COLORS[monthIndex] || "#93C5FD";
+const getSeasonColorByMonth = (monthIndex: number): string => {
+  if (monthIndex === 11 || monthIndex === 0 || monthIndex === 1) {
+    return SEASON_COLORS.winter; // Décembre, Janvier, Février
+  }
+  if (monthIndex >= 2 && monthIndex <= 4) {
+    return SEASON_COLORS.spring; // Mars, Avril, Mai
+  }
+  if (monthIndex >= 5 && monthIndex <= 7) {
+    return SEASON_COLORS.summer; // Juin, Juillet, Août
+  }
+  return SEASON_COLORS.autumn; // Septembre, Octobre, Novembre
 };
 
-const getMonthIndexForWeek = (weekNum: number): number => {
+const getSeasonColorByWeek = (weekNum: number): string => {
   const dayOfYear = (weekNum - 1) * 7 + 3;
-  return Math.min(11, Math.max(0, Math.floor(dayOfYear / 30.5)));
+  const monthIdx = Math.min(11, Math.max(0, Math.floor(dayOfYear / 30.5)));
+  return getSeasonColorByMonth(monthIdx);
 };
 
 export const AnnualStats: React.FC<AnnualStatsProps> = ({
@@ -74,7 +76,35 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
   );
 
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
-  const monthsSwipeRef = useRef<HTMLDivElement>(null);
+
+  // Gestion du swipe sur l'ensemble de la carte de détail mensuel
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleCardTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleCardTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Détection d'un swipe horizontal prédominant (seuil min : 40px)
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
+      if (deltaX < 0) {
+        // Swipe vers la gauche -> Mois suivant
+        setSelectedMonthIndex((prev) => (prev === 11 ? 0 : prev + 1));
+      } else {
+        // Swipe vers la droite -> Mois précédent
+        setSelectedMonthIndex((prev) => (prev === 0 ? 11 : prev - 1));
+      }
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   const [newRunForm, setNewRunForm] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -131,31 +161,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     exportAthleteStatsToExcel(completedRuns, "Athlete", selectedStatsYear);
   };
 
-  // Synchronisation du swipe mobile des mois
-  const handleMonthsScroll = () => {
-    if (monthsSwipeRef.current) {
-      const { scrollLeft, offsetWidth } = monthsSwipeRef.current;
-      if (offsetWidth > 0) {
-        const nextMonth = Math.round(scrollLeft / offsetWidth);
-        if (nextMonth !== selectedMonthIndex && nextMonth >= 0 && nextMonth <= 11) {
-          setSelectedMonthIndex(nextMonth);
-        }
-      }
-    }
-  };
-
-  const scrollToMonth = (mIdx: number) => {
-    setSelectedMonthIndex(mIdx);
-    if (monthsSwipeRef.current) {
-      const width = monthsSwipeRef.current.offsetWidth;
-      monthsSwipeRef.current.scrollTo({
-        left: mIdx * width,
-        behavior: "smooth",
-      });
-    }
-  };
-
-  const currentMonthColor = getMonthThemeColor(selectedMonthIndex);
+  const currentMonthColor = getSeasonColorByMonth(selectedMonthIndex);
 
   // =========================================================================
   // CALCULS STATISTIQUES ANNUELLES
@@ -209,7 +215,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     20
   );
 
-  // Histogramme annuel sans fond gris
+  // Histogramme annuel sans dégradé et sans fond gris
   const renderAnnualHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 1150 : 920;
     const svgHeight = isExpanded ? 260 : 190;
@@ -279,8 +285,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         {Array.from({ length: 52 }, (_, i) => {
           const wNum = i + 1;
           const wData = weekDataMap[wNum];
-          const mIdx = getMonthIndexForWeek(wNum);
-          const monthColor = PRO_MONTH_COLORS[mIdx];
+          const seasonColor = getSeasonColorByWeek(wNum);
 
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
@@ -296,13 +301,13 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   y={barY}
                   width={barWidth}
                   height={Math.max(3, barHeight)}
-                  fill={monthColor}
+                  fill={seasonColor}
                   rx="2"
                   className="transition-all duration-150 group-hover:brightness-125"
                 />
               )}
 
-              <title>{`Semaine ${wNum} (${MONTHS_LIST[mIdx]}) : ${wData.km.toFixed(1)} km • ${wData.count} sortie(s)`}</title>
+              <title>{`Semaine ${wNum} : ${wData.km.toFixed(1)} km • ${wData.count} sortie(s)`}</title>
             </g>
           );
         })}
@@ -335,14 +340,14 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           );
         })}
 
-        {/* Graduations Mois en bas */}
+        {/* Graduations Mois en bas avec couleur de leur saison */}
         {MONTHS_LIST.map((mName, mIdx) => {
           const mStartWeek = Math.round((mIdx * 52) / 12);
           const mEndWeek = Math.round(((mIdx + 1) * 52) / 12) - 1;
           const x1 = paddingLeft + mStartWeek * colWidth;
           const x2 = paddingLeft + mEndWeek * colWidth + colWidth;
           const centerX = (x1 + x2) / 2;
-          const color = PRO_MONTH_COLORS[mIdx];
+          const color = getSeasonColorByMonth(mIdx);
 
           return (
             <text
@@ -362,6 +367,31 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
       </svg>
     );
   };
+
+  // Données du mois actuellement sélectionné
+  const currentMonthRuns = yearRuns.filter((r) => {
+    const { month } = parseYMD(r.date);
+    return month === selectedMonthIndex;
+  });
+
+  const weekMap: Record<number, { km: number; hours: number; elev: number; count: number }> = {};
+  currentMonthRuns.forEach((run) => {
+    const { year, month, day } = parseYMD(run.date);
+    const wNum = getISOWeekNumberFromParts(year, month, day);
+    if (!weekMap[wNum]) {
+      weekMap[wNum] = { km: 0, hours: 0, elev: 0, count: 0 };
+    }
+    weekMap[wNum].km += run.km;
+    weekMap[wNum].hours += run.durationHours;
+    weekMap[wNum].elev += run.elevation || 0;
+    weekMap[wNum].count += 1;
+  });
+
+  const totalMonthKm = currentMonthRuns.reduce((sum, r) => sum + r.km, 0);
+  const totalMonthHours = currentMonthRuns.reduce((sum, r) => sum + r.durationHours, 0);
+  const totalMonthElev = currentMonthRuns.reduce((sum, r) => sum + (r.elevation || 0), 0);
+  const totalMonthRuns = currentMonthRuns.length;
+  const weekNumbersList = Object.keys(weekMap).map((w) => parseInt(w, 10)).sort((a, b) => a - b);
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
@@ -616,19 +646,23 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </table>
           </div>
 
-          {/* 1. DÉTAIL MENSUEL (SWIPE MOBILE COMME LES HISTOGRAMMES + FLÈCHES DESKTOP) */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-3">
+          {/* 1. DÉTAIL MENSUEL (SWIPE SUR L'ENSEMBLE DU RECTANGLE + BOUTONS DESKTOP) */}
+          <div
+            onTouchStart={handleCardTouchStart}
+            onTouchEnd={handleCardTouchEnd}
+            className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4 touch-pan-y"
+          >
             {/* Header mobile avec swipe et puces interactives */}
             <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
               <span className="flex items-center gap-1 text-[#CF9A61]">
-                <span>👉</span> Glissez pour faire défiler les mois
+                <span>👉</span> Glissez n'importe où pour changer de mois
               </span>
               <div className="flex gap-1 items-center">
                 {MONTHS_LIST.map((_, idx) => (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => scrollToMonth(idx)}
+                    onClick={() => setSelectedMonthIndex(idx)}
                     className={`h-2 rounded-full transition-all ${
                       selectedMonthIndex === idx ? "bg-[#CF9A61] w-4" : "bg-stone-800 w-1.5"
                     }`}
@@ -638,7 +672,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </div>
             </div>
 
-            {/* Header desktop professionnel avec chevrons vectoriels */}
+            {/* Header desktop professionnel */}
             <div className="hidden sm:flex items-center justify-between border-b border-stone-800 pb-3">
               <div>
                 <h4 className="text-sm md:text-base font-black uppercase tracking-tight text-stone-100">
@@ -652,7 +686,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               <div className="flex items-center gap-2 bg-stone-950 p-1 rounded-2xl border border-stone-800 shadow-inner">
                 <button
                   type="button"
-                  onClick={() => scrollToMonth(selectedMonthIndex === 0 ? 11 : selectedMonthIndex - 1)}
+                  onClick={() => setSelectedMonthIndex((prev) => (prev === 0 ? 11 : prev - 1))}
                   className="w-8 h-8 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-white flex items-center justify-center transition border border-stone-800/80 cursor-pointer shadow-sm"
                   title="Mois précédent"
                 >
@@ -663,12 +697,12 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
 
                 <select
                   value={selectedMonthIndex}
-                  onChange={(e) => scrollToMonth(parseInt(e.target.value, 10))}
+                  onChange={(e) => setSelectedMonthIndex(parseInt(e.target.value, 10))}
                   style={{ color: currentMonthColor }}
                   className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-1.5 text-xs font-black uppercase focus:outline-none cursor-pointer text-center min-w-[140px]"
                 >
                   {MONTHS_LIST.map((mName, idx) => (
-                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: PRO_MONTH_COLORS[idx] }}>
+                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: getSeasonColorByMonth(idx) }}>
                       {mName}
                     </option>
                   ))}
@@ -676,7 +710,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => scrollToMonth(selectedMonthIndex === 11 ? 0 : selectedMonthIndex + 1)}
+                  onClick={() => setSelectedMonthIndex((prev) => (prev === 11 ? 0 : prev + 1))}
                   className="w-8 h-8 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-white flex items-center justify-center transition border border-stone-800/80 cursor-pointer shadow-sm"
                   title="Mois suivant"
                 >
@@ -687,107 +721,66 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </div>
             </div>
 
-            {/* Carrousel swipeable mobile (snap-mandatory) et vue isolée desktop */}
-            <div
-              ref={monthsSwipeRef}
-              onScroll={handleMonthsScroll}
-              className="flex sm:block overflow-x-auto sm:overflow-visible snap-x snap-mandatory w-full custom-scrollbar"
-            >
-              {MONTHS_LIST.map((monthName, mIdx) => {
-                const monthRuns = yearRuns.filter((r) => {
-                  const { month } = parseYMD(r.date);
-                  return month === mIdx;
-                });
+            {/* En-tête mois en mobile */}
+            <div className="sm:hidden flex items-center justify-between border-b border-stone-800 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: currentMonthColor }} />
+                <span style={{ color: currentMonthColor }} className="text-sm font-black uppercase">
+                  {MONTHS_LIST[selectedMonthIndex]} {selectedStatsYear}
+                </span>
+              </div>
+              <span className="text-xs text-stone-300 font-bold font-mono">
+                {totalMonthKm.toFixed(1)} km
+              </span>
+            </div>
 
-                const weekMap: Record<number, { km: number; hours: number; elev: number; count: number }> = {};
-                monthRuns.forEach((run) => {
-                  const { year, month, day } = parseYMD(run.date);
-                  const wNum = getISOWeekNumberFromParts(year, month, day);
-                  if (!weekMap[wNum]) {
-                    weekMap[wNum] = { km: 0, hours: 0, elev: 0, count: 0 };
-                  }
-                  weekMap[wNum].km += run.km;
-                  weekMap[wNum].hours += run.durationHours;
-                  weekMap[wNum].elev += run.elevation || 0;
-                  weekMap[wNum].count += 1;
-                });
+            {/* Tableau du mois affiché */}
+            <div className="overflow-x-auto custom-scrollbar select-none">
+              <table className="w-full text-center border-collapse text-xs">
+                <thead>
+                  <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 font-extrabold text-[9.5px] uppercase">
+                    <th className="py-2 px-1.5 border border-stone-800/80">Semaine</th>
+                    <th className="py-2 px-1.5 border border-stone-800/80">Distance (km)</th>
+                    <th className="py-2 px-1.5 border border-stone-800/80">Temps (h)</th>
+                    <th className="py-2 px-1.5 border border-stone-800/80">Dénivelé (m)</th>
+                    <th className="py-2 px-1.5 border border-stone-800/80">Sorties (nb)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold">
+                  {weekNumbersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-xs text-stone-500 italic">
+                        Aucune sortie enregistrée en {MONTHS_LIST[selectedMonthIndex]}.
+                      </td>
+                    </tr>
+                  ) : (
+                    weekNumbersList.map((wNum) => {
+                      const data = weekMap[wNum];
+                      return (
+                        <tr key={wNum} className="hover:bg-stone-900/60 transition">
+                          <td style={{ color: currentMonthColor }} className="py-2 px-1.5 border border-stone-800/80 font-black text-xs font-mono">
+                            S{wNum}
+                          </td>
+                          <td className="py-2 px-1.5 border border-stone-800/80">{data.km.toFixed(2)}</td>
+                          <td className="py-2 px-1.5 border border-stone-800/80">{data.hours.toFixed(2)}</td>
+                          <td className="py-2 px-1.5 border border-stone-800/80">{Math.round(data.elev)}</td>
+                          <td className="py-2 px-1.5 border border-stone-800/80">{data.count}</td>
+                        </tr>
+                      );
+                    })
+                  )}
 
-                const totalMonthKm = monthRuns.reduce((sum, r) => sum + r.km, 0);
-                const totalMonthHours = monthRuns.reduce((sum, r) => sum + r.durationHours, 0);
-                const totalMonthElev = monthRuns.reduce((sum, r) => sum + (r.elevation || 0), 0);
-                const totalMonthRuns = monthRuns.length;
-
-                const weekNumbersList = Object.keys(weekMap).map((w) => parseInt(w, 10)).sort((a, b) => a - b);
-                const monthColor = PRO_MONTH_COLORS[mIdx];
-
-                const isHiddenOnDesktop = mIdx !== selectedMonthIndex;
-
-                return (
-                  <div
-                    key={monthName}
-                    className={`min-w-full w-full flex-shrink-0 snap-center ${
-                      isHiddenOnDesktop ? "hidden sm:hidden" : "block sm:block"
-                    }`}
-                  >
-                    <div className="sm:hidden mb-2 flex items-center justify-between border-b border-stone-800 pb-1.5">
-                      <span style={{ color: monthColor }} className="text-xs font-black uppercase">
-                        {monthName} {selectedStatsYear}
-                      </span>
-                      <span className="text-[10px] text-stone-400 font-bold font-mono">
-                        {totalMonthKm.toFixed(1)} km
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-center border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 font-extrabold text-[9.5px] uppercase">
-                            <th className="py-2 px-1.5 border border-stone-800/80">Semaine</th>
-                            <th className="py-2 px-1.5 border border-stone-800/80">Distance (km)</th>
-                            <th className="py-2 px-1.5 border border-stone-800/80">Temps (h)</th>
-                            <th className="py-2 px-1.5 border border-stone-800/80">Dénivelé (m)</th>
-                            <th className="py-2 px-1.5 border border-stone-800/80">Sorties (nb)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold">
-                          {weekNumbersList.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="py-5 text-xs text-stone-500 italic">
-                                Aucune sortie enregistrée en {monthName}.
-                              </td>
-                            </tr>
-                          ) : (
-                            weekNumbersList.map((wNum) => {
-                              const data = weekMap[wNum];
-                              return (
-                                <tr key={wNum} className="hover:bg-stone-900/60 transition">
-                                  <td style={{ color: monthColor }} className="py-2 px-1.5 border border-stone-800/80 font-black text-xs font-mono">
-                                    S{wNum}
-                                  </td>
-                                  <td className="py-2 px-1.5 border border-stone-800/80">{data.km.toFixed(2)}</td>
-                                  <td className="py-2 px-1.5 border border-stone-800/80">{data.hours.toFixed(2)}</td>
-                                  <td className="py-2 px-1.5 border border-stone-800/80">{Math.round(data.elev)}</td>
-                                  <td className="py-2 px-1.5 border border-stone-800/80">{data.count}</td>
-                                </tr>
-                              );
-                            })
-                          )}
-
-                          <tr style={{ backgroundColor: `${monthColor}18`, color: monthColor }} className="font-black">
-                            <td style={{ backgroundColor: `${monthColor}28` }} className="py-2 px-1.5 border border-stone-800 uppercase text-[10px]">
-                              Total
-                            </td>
-                            <td className="py-2 px-1.5 border border-stone-800 font-mono">{totalMonthKm.toFixed(2)}</td>
-                            <td className="py-2 px-1.5 border border-stone-800 font-mono">{totalMonthHours.toFixed(2)}</td>
-                            <td className="py-2 px-1.5 border border-stone-800 font-mono">{Math.round(totalMonthElev)}</td>
-                            <td className="py-2 px-2 border border-stone-800 font-mono">{totalMonthRuns}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
+                  <tr style={{ backgroundColor: `${currentMonthColor}18`, color: currentMonthColor }} className="font-black">
+                    <td style={{ backgroundColor: `${currentMonthColor}28` }} className="py-2 px-1.5 border border-stone-800 uppercase text-[10px]">
+                      Total
+                    </td>
+                    <td className="py-2 px-1.5 border border-stone-800 font-mono">{totalMonthKm.toFixed(2)}</td>
+                    <td className="py-2 px-1.5 border border-stone-800 font-mono">{totalMonthHours.toFixed(2)}</td>
+                    <td className="py-2 px-1.5 border border-stone-800 font-mono">{Math.round(totalMonthElev)}</td>
+                    <td className="py-2 px-2 border border-stone-800 font-mono">{totalMonthRuns}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -799,7 +792,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   Évolution du volume annuel
                 </h4>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  52 semaines réparties selon le nuancier saisonnier
+                  52 semaines colorées par saison (sans dégradé)
                 </p>
               </div>
 
@@ -841,13 +834,27 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               {renderAnnualHistogram(false)}
             </div>
 
-            {/* Légende */}
-            <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-400 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-[#7DD3FC] via-[#4ADE80] to-[#FB923C] inline-block shadow-sm"></span>
-                <span>Barres colorées par saison</span>
-              </span>
-              <span className="font-mono text-stone-500">52 semaines</span>
+            {/* Légende avec les 4 couleurs saisonnières plates */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[9.5px] md:text-xs font-semibold text-stone-400 pt-1">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.winter }} />
+                  <span>Hiver</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.spring }} />
+                  <span>Printemps</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.summer }} />
+                  <span>Été</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.autumn }} />
+                  <span>Automne</span>
+                </span>
+              </div>
+              <span className="font-mono text-stone-500 text-[10px]">52 semaines</span>
             </div>
           </div>
         </div>
