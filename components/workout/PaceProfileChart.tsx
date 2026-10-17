@@ -9,6 +9,15 @@ interface PaceProfileChartProps {
   vma?: number | string;
 }
 
+const formatMinutesToHours = (totalMinutes: number): string => {
+  if (!totalMinutes || totalMinutes <= 0) return "0'";
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.round(totalMinutes % 60);
+  if (h === 0) return `${m}'`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${m < 10 ? "0" : ""}${m}`;
+};
+
 export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }) => {
   const profile = generatePaceProfile(steps, vma);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -187,7 +196,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
             onMouseLeave={() => setHoveredIdx(null)}
           >
             <defs>
-              {/* Dégradés verticaux semi-transparents */}
               <linearGradient id="gradEchauff" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#CF6361" stopOpacity="0.45" />
                 <stop offset="100%" stopColor="#CF6361" stopOpacity="0.08" />
@@ -213,7 +221,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                 <stop offset="100%" stopColor="#4DB380" stopOpacity="0.08" />
               </linearGradient>
 
-              {/* Lueur subtile pour la crête */}
               <filter id="paceGlow" x="-10%" y="-30%" width="120%" height="160%">
                 <feGaussianBlur stdDeviation="2" result="blur" />
                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -235,7 +242,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                   onMouseEnter={() => setHoveredIdx(bar.index)}
                   onTouchStart={() => setHoveredIdx(bar.index)}
                 >
-                  {/* Corps du bloc */}
                   <rect
                     x={bar.x}
                     y={bar.y}
@@ -249,7 +255,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                     className="transition-all duration-150"
                   />
 
-                  {/* Ligne d'accent lumineuse au sommet du bloc */}
                   <line
                     x1={bar.x}
                     y1={bar.y}
@@ -263,7 +268,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
               );
             })}
 
-            {/* Ligne de crête continue (step-ribbon) */}
+            {/* Ligne de crête continue */}
             <path
               d={ribbonPath}
               fill="none"
@@ -274,7 +279,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
               pointerEvents="none"
             />
 
-            {/* Repère vertical sur le bloc survolé */}
+            {/* Repère vertical sur le bloc actif */}
             {activeBar && (
               <line
                 x1={activeBar.x + activeBar.barWidth / 2}
@@ -292,7 +297,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
         </div>
       </div>
 
-      {/* Légende épurée */}
+      {/* Légende */}
       <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/70">
         <div className="flex items-center gap-3.5 flex-wrap">
           <span className="flex items-center gap-1.5">
