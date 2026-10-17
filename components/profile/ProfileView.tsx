@@ -389,14 +389,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
 
-  // ACCORDÉONS
+  // ACCORDÉONS (tous fermés par défaut)
   const [openVmaSection, setOpenVmaSection] = useState(false);
   const [openCardioSection, setOpenCardioSection] = useState(false);
   const [openRecords, setOpenRecords] = useState(false);
   const [openPalmares, setOpenPalmares] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
   const [openShoesSection, setOpenShoesSection] = useState(false);
-  const [openDevicesSection, setOpenDevicesSection] = useState(true);
+  const [openDevicesSection, setOpenDevicesSection] = useState(false);
 
   // Formulaire chaussure
   const [newShoe, setNewShoe] = useState({
@@ -1974,7 +1974,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                               />
                             </div>
 
-                          <button
+                            <button
                               type="submit"
                               className="w-full py-2 bg-[#4DB380] hover:bg-[#3ea06f] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
                             >
