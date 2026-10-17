@@ -9,6 +9,7 @@ import {
   getWorkoutTypeConfig,
   calculateStepMetrics,
 } from "../../utils/calculations";
+import { PaceProfileChart } from "../workout/PaceProfileChart";
 
 interface AthleteDashboardProps {
   activePlan: Plan | null;
@@ -20,6 +21,7 @@ interface AthleteDashboardProps {
   onNavigateToVolumeChart: () => void;
   onOpenDebrief: (workout: Workout) => void;
   isReadOnly?: boolean;
+  vma?: number | string;
 }
 
 const getWorkoutTypeHexColor = (type: string) => {
@@ -72,6 +74,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   onNavigateToVolumeChart,
   onOpenDebrief,
   isReadOnly = false,
+  vma,
 }) => {
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
@@ -251,7 +254,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     let dayPlannedRpes: number[] = [];
 
     dayWorkouts.forEach((w) => {
-      const stepM = w.steps && w.steps.length > 0 ? calculateStepMetrics(w.steps) : { totalKm: 0, totalMinutes: 0 };
+      const stepM = w.steps && w.steps.length > 0 ? calculateStepMetrics(w.steps, vma) : { totalKm: 0, totalMinutes: 0 };
 
       // Distance
       if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
@@ -379,13 +382,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     const barWidth = isExpanded ? 26 : 18;
 
     const gradients = {
-      // Volume kilométrique en bordeaux / rouge Volaris
       burgundy: { from: "#B34D4D", to: "#7f2b2b", overFrom: "#CF6361", overTo: "#B34D4D" },
-      // Charge en or / ambre
       gold: { from: "#CF9A61", to: "#9c6b35", overFrom: "#eab308", overTo: "#CF9A61" },
-      // Temps en bleu
       blue: { from: "#4D80B3", to: "#2d547d", overFrom: "#38bdf8", overTo: "#4D80B3" },
-      // Dénivelé en vert émeraude
       green: { from: "#4DB380", to: "#2e7d55", overFrom: "#CDCF61", overTo: "#4DB380" },
     }[colorTheme];
 
@@ -675,7 +674,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {todayWorkouts.map((todayWorkout) => {
               const typeConfig = getWorkoutTypeConfig(todayWorkout.type);
               const typeHexColor = getWorkoutTypeHexColor(todayWorkout.type);
@@ -709,7 +708,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               return (
                 <div
                   key={todayWorkout.id}
-                  className={`p-4 md:p-5 rounded-2xl border border-l-8 ${typeConfig.borderClass} bg-stone-950/90 shadow-xl space-y-3 transition`}
+                  className={`p-4 md:p-5 rounded-2xl border border-l-8 ${typeConfig.borderClass} bg-stone-950/90 shadow-xl space-y-4 transition`}
                 >
                   <div className="flex justify-between items-start flex-wrap gap-2">
                     <div>
@@ -729,10 +728,33 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </span>
                   </div>
 
-                  {todayWorkout.description && (
-                    <p className="text-xs md:text-sm text-stone-300 leading-relaxed bg-stone-900/60 p-3 rounded-xl border border-stone-800/60">
-                      {todayWorkout.description}
-                    </p>
+                  {todayWorkout.steps && todayWorkout.steps.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-stone-400 block">
+                        Profil d'allure de la séance
+                      </span>
+                      <PaceProfileChart steps={todayWorkout.steps} vma={vma} />
+                    </div>
+                  )}
+
+                  {todayWorkout.description ? (
+                    <div className="bg-stone-900/70 p-3 rounded-xl border border-stone-800 space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#CF9A61] block">
+                        Description de la séance
+                      </span>
+                      <p className="text-xs md:text-sm text-stone-300 leading-relaxed">
+                        {todayWorkout.description}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {todayWorkout.remark && (
+                    <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-2.5 rounded-xl space-y-0.5">
+                      <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">
+                        💡 Conseil du Coach
+                      </span>
+                      <p className="text-xs text-[#CDCF61]/90">{todayWorkout.remark}</p>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800/80">
@@ -783,9 +805,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       >
                         <span className="shrink-0">{syncLoadingId === todayWorkout.id ? "⏳" : "⌚"}</span>
                         <span className="truncate">
-                          {syncLoadingId === todayWorkout.id
-                            ? "Synchronisation..."
-                            : "Synchroniser sur la montre"}
+                          {syncLoadingId === todayWorkout.id ? "Synchronisation..." : "Synchroniser sur la montre"}
                         </span>
                       </button>
 
@@ -823,10 +843,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (1 SEUL GRAPHIQUE 100% VISIBLE SUR MOBILE AVEC SWIPE) ===================== */}
+      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES ===================== */}
       {activePlan && (
         <div className="space-y-2 w-full">
-          {/* Indicateurs de swipe sur mobile */}
           <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
             <span className="flex items-center gap-1 text-[#CF9A61]">
               <span>👉</span> Glissez pour faire défiler les graphiques
@@ -849,9 +868,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           <div
             ref={carouselScrollRef}
             onScroll={handleCarouselScroll}
-            className="w-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
+            className="w-full flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
           >
-            {/* 1. GRAPHIQUE VOLUME KILOMÉTRIQUE (ROUGE / BORDEAUX VOLARIS) */}
+            {/* 1. VOLUME KILOMÉTRIQUE (BORDEAUX / ROUGE) */}
             <div
               onClick={() => handleOpenZoom("volume")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -885,7 +904,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* 3 KPIs Volume */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
@@ -924,7 +942,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (OR / DORÉ) */}
+            {/* 2. CHARGE D'ENTRAÎNEMENT (DORÉ) */}
             <div
               onClick={() => handleOpenZoom("load")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -958,7 +976,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* 3 KPIs Charge */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge réalisée</span>
@@ -997,7 +1014,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 3. GRAPHIQUE TEMPS PASSÉ À COURIR (BLEU) */}
+            {/* 3. TEMPS PASSÉ À COURIR (BLEU) */}
             <div
               onClick={() => handleOpenZoom("time")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -1020,7 +1037,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* 3 KPIs Temps */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps réalisé</span>
@@ -1059,7 +1075,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 4. GRAPHIQUE DÉNIVELÉ POSITIF (VERT ÉMERAUDE) */}
+            {/* 4. DÉNIVELÉ POSITIF (VERT ÉMERAUDE) */}
             <div
               onClick={() => handleOpenZoom("elevation")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -1082,7 +1098,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* 3 KPIs Dénivelé */}
                 <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                   <div>
                     <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total réalisé</span>
@@ -1154,7 +1169,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </button>
             </div>
 
-            {/* CONTENU MODALE */}
             {zoomedChart === "volume" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
