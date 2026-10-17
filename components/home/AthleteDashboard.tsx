@@ -18,7 +18,7 @@ interface AthleteDashboardProps {
   onSelectWorkoutDetail: (workout: Workout) => void;
   onToggleWorkout: (id: string) => void;
   onCreatePlanRequest: () => void;
-  onNavigateToVolumeChart: () => void;
+  onNavigateToVolumeChart: (chartType?: ZoomableChartType) => void;
   onOpenDebrief: (workout: Workout) => void;
   isReadOnly?: boolean;
   vma?: number | string;
@@ -894,7 +894,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onNavigateToVolumeChart();
+                        onNavigateToVolumeChart("volume");
                       }}
                       className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
                     >
@@ -966,7 +966,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onNavigateToVolumeChart();
+                        onNavigateToVolumeChart("load");
                       }}
                       className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
                     >
@@ -1034,6 +1034,17 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToVolumeChart("time");
+                      }}
+                      className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    >
+                      <span>Stats Plan</span>
+                      <span className="text-[#CF9A61]">➔</span>
+                    </button>
                     <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4D80B3] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                       <span>⛶</span>
                     </div>
@@ -1095,6 +1106,17 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToVolumeChart("elevation");
+                      }}
+                      className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    >
+                      <span>Stats Plan</span>
+                      <span className="text-[#CF9A61]">➔</span>
+                    </button>
                     <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#4DB380] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                       <span>⛶</span>
                     </div>
@@ -1345,7 +1367,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
                         {d.dayFull}
                       </span>
-                      <div className="text-xs font-bold text-stone-100">
+                      <div className="text-xs font-black text-stone-100">
                         {d.completedElevation} <span className="text-[9px] text-stone-500 font-normal">m D+</span>
                       </div>
                     </div>
