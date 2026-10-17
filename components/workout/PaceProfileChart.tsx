@@ -34,41 +34,13 @@ const formatDetailedDuration = (sec: number) => {
   return `${m} min ${remainingS}s`;
 };
 
-// Couleurs avec dégradés verticaux préservant les teintes Volaris
-const COLORS: Record<
-  string,
-  { light: string; dark: string; border: string; gradient: string }
-> = {
-  echauffement: {
-    light: "#C24E4C",
-    dark: "#CF6361",
-    border: "#CF6361",
-    gradient: "linear-gradient(180deg, rgba(207, 99, 97, 0.95) 0%, rgba(207, 99, 97, 0.25) 100%)",
-  },
-  corps: {
-    light: "#C07F36",
-    dark: "#CF9A61",
-    border: "#CF9A61",
-    gradient: "linear-gradient(180deg, rgba(207, 154, 97, 0.95) 0%, rgba(207, 154, 97, 0.25) 100%)",
-  },
-  recup: {
-    light: "#A3A62A",
-    dark: "#CDCF61",
-    border: "#CDCF61",
-    gradient: "linear-gradient(180deg, rgba(205, 207, 97, 0.95) 0%, rgba(205, 207, 97, 0.25) 100%)",
-  },
-  retour_calme: {
-    light: "#2563eb",
-    dark: "#3b82f6",
-    border: "#3b82f6",
-    gradient: "linear-gradient(180deg, rgba(59, 130, 246, 0.95) 0%, rgba(59, 130, 246, 0.25) 100%)",
-  },
-  default: {
-    light: "#059669",
-    dark: "#10b981",
-    border: "#10b981",
-    gradient: "linear-gradient(180deg, rgba(16, 185, 129, 0.95) 0%, rgba(16, 185, 129, 0.25) 100%)",
-  },
+// Couleurs unies (sans dégradé) définies pour les modes Sombre et Clair
+const COLORS: Record<string, { dark: string; light: string }> = {
+  echauffement: { dark: "#38BDF8", light: "#0284C7" },
+  corps: { dark: "#FB923C", light: "#EA580C" },
+  recup: { dark: "#A3E635", light: "#65A30D" },
+  retour_calme: { dark: "#2DD4BF", light: "#0D9488" },
+  default: { dark: "#A8A29E", light: "#78716C" },
 };
 
 const getColors = (type: string) => {
@@ -160,13 +132,16 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
           <div className="flex items-center gap-2 flex-wrap text-[10px] animate-fadeIn">
             <span
               className="h-2 w-2 rounded-full inline-block"
-              style={{ backgroundColor: active.colors.dark }}
+              style={{
+                backgroundColor: "var(--active-color, #FB923C)",
+                ["--active-color" as any]: active.colors.dark,
+              }}
             />
             <span className="font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200">
               {active.label}
             </span>
             <span className="text-stone-400 dark:text-stone-600">•</span>
-            <span className="font-mono font-bold text-[#CF9A61]">
+            <span className="font-mono font-bold text-[#FB923C] dark:text-[#FB923C]">
               {active.paceFormatted || formatPace(active.paceSecPerKm)} min/km
             </span>
             <span className="font-mono text-stone-500 dark:text-stone-400 text-[9.5px]">
@@ -210,7 +185,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
             className="relative h-32 select-none"
             onMouseLeave={() => setHovered(null)}
           >
-            {/* Barres d'allure avec dégradé vertical */}
+            {/* Barres d'allure unies (sans dégradé) */}
             {bars.map((bar, i) => {
               const isHovered = hovered === i;
               const isDimmed = hovered !== null && !isHovered;
@@ -228,14 +203,18 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                   onTouchStart={() => setHovered(i)}
                 >
                   <div
-                    className="absolute bottom-0 inset-x-[0.5px] rounded-t-[3px] border border-b-0 transition-all duration-150"
-                    style={{
-                      height: `${bar.height}%`,
-                      backgroundImage: bar.colors.gradient,
-                      borderColor: bar.colors.border,
-                      opacity: isDimmed ? 0.35 : 1,
-                      filter: isHovered ? "brightness(1.2)" : "none",
-                    }}
+                    className="absolute bottom-0 inset-x-[0.5px] rounded-t-[3px] transition-all duration-150 pace-bar-solid"
+                    style={
+                      {
+                        height: `${bar.height}%`,
+                        backgroundColor: "var(--bar-bg)",
+                        opacity: isDimmed ? 0.35 : 1,
+                        filter: isHovered ? "brightness(1.15)" : "none",
+                        ["--bar-bg-light" as any]: bar.colors.light,
+                        ["--bar-bg-dark" as any]: bar.colors.dark,
+                        ["--bar-bg" as any]: bar.colors.dark,
+                      } as React.CSSProperties
+                    }
                   />
                 </div>
               );
@@ -260,7 +239,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                   </span>
                 </div>
                 <div className="font-mono text-[10px] tabular-nums text-stone-600 dark:text-stone-300">
-                  <span className="text-[#CF9A61] font-bold">
+                  <span className="text-[#FB923C] font-bold">
                     {active.paceFormatted || formatPace(active.paceSecPerKm)} min/km
                   </span>
                   <span className="text-stone-400 dark:text-stone-500">
@@ -290,7 +269,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
         </div>
       </div>
 
-      {/* Légende */}
+      {/* Légende avec les couleurs unies */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-stone-100 dark:border-stone-900">
         {LEGEND.map((l) => (
           <span
