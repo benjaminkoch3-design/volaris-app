@@ -25,23 +25,24 @@ interface AnnualStatsProps {
   vma?: number | string;
 }
 
-const RAINBOW_PASTEL_COLORS: Record<number, string> = {
-  0: "#C084FC",
-  1: "#A78BFA",
-  2: "#93C5FD",
-  3: "#A5F3FC",
-  4: "#6EE7B7",
-  5: "#A3E635",
-  6: "#FDE047",
-  7: "#FDBA74",
-  8: "#FB923C",
-  9: "#F87171",
-  10: "#F472B6",
-  11: "#E879F9",
+// Palette professionnelle par saison
+const PRO_MONTH_COLORS: Record<number, string> = {
+  0: "#7DD3FC",  // Janvier - Bleu givre doux
+  1: "#93C5FD",  // Février - Bleu ciel ardoisé
+  2: "#67E8F9",  // Mars - Cyan glacier
+  3: "#86EFAC",  // Avril - Sauge douce
+  4: "#4ADE80",  // Mai - Vert menthe naturel
+  5: "#A3E635",  // Juin - Tilleul feutré
+  6: "#FBBF24",  // Juillet - Ambre doux
+  7: "#F59E0B",  // Août - Ocre solaire
+  8: "#FB923C",  // Septembre - Terracotta
+  9: "#F87171",  // Octobre - Brique douce
+  10: "#C084FC", // Novembre - Bruyère
+  11: "#A5B4FC", // Décembre - Indigo doux
 };
 
 const getMonthThemeColor = (monthIndex: number): string => {
-  return RAINBOW_PASTEL_COLORS[monthIndex] || "#93C5FD";
+  return PRO_MONTH_COLORS[monthIndex] || "#93C5FD";
 };
 
 const getMonthIndexForWeek = (weekNum: number): number => {
@@ -72,10 +73,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     () => new Date().getMonth()
   );
 
-  // Plein écran horizontal pour mobile / zoom grand format
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
-
-  // Référence du carrousel de mois mobile pour le swipe
   const monthsSwipeRef = useRef<HTMLDivElement>(null);
 
   const [newRunForm, setNewRunForm] = useState({
@@ -190,7 +188,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
   const moyMoisElev = totalElev / 12;
   const moyMoisRuns = totalRuns / 12;
 
-  // Calcul des données des 52 semaines pour l'histogramme
   const weekDataMap: Record<number, { km: number; count: number; hours: number; elev: number }> = {};
   for (let w = 1; w <= 52; w++) {
     weekDataMap[w] = { km: 0, count: 0, hours: 0, elev: 0 };
@@ -212,7 +209,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     20
   );
 
-  // Rendu de l'histogramme moderne des 52 semaines
+  // Histogramme annuel sans fond gris
   const renderAnnualHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 1150 : 920;
     const svgHeight = isExpanded ? 260 : 190;
@@ -224,7 +221,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     const baselineY = svgHeight - paddingBottom;
     const usableWidth = svgWidth - paddingLeft - paddingRight;
     const colWidth = usableWidth / 52;
-    const barWidth = Math.max(4, colWidth * 0.65);
+    const barWidth = Math.max(5, colWidth * 0.7);
 
     const tickWeeks = [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 52];
 
@@ -283,7 +280,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           const wNum = i + 1;
           const wData = weekDataMap[wNum];
           const mIdx = getMonthIndexForWeek(wNum);
-          const monthColor = RAINBOW_PASTEL_COLORS[mIdx];
+          const monthColor = PRO_MONTH_COLORS[mIdx];
 
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
@@ -293,18 +290,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
 
           return (
             <g key={wNum} className="group cursor-pointer">
-              {/* Fond de jauge sobre */}
-              <rect
-                x={barX}
-                y={paddingTop}
-                width={barWidth}
-                height={usableHeight}
-                fill="#1c1917"
-                rx="2"
-                opacity="0.3"
-              />
-
-              {/* Barre de volume effectif */}
               {barHeight > 0 && (
                 <rect
                   x={barX}
@@ -317,7 +302,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                 />
               )}
 
-              {/* Infobulle native */}
               <title>{`Semaine ${wNum} (${MONTHS_LIST[mIdx]}) : ${wData.km.toFixed(1)} km • ${wData.count} sortie(s)`}</title>
             </g>
           );
@@ -358,7 +342,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           const x1 = paddingLeft + mStartWeek * colWidth;
           const x2 = paddingLeft + mEndWeek * colWidth + colWidth;
           const centerX = (x1 + x2) / 2;
-          const color = RAINBOW_PASTEL_COLORS[mIdx];
+          const color = PRO_MONTH_COLORS[mIdx];
 
           return (
             <text
@@ -367,7 +351,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               y={baselineY + 31}
               fill={color}
               fontSize={isExpanded ? "10" : "8.5"}
-              fontWeight="900"
+              fontWeight="800"
               textAnchor="middle"
               className="uppercase tracking-wider"
             >
@@ -506,7 +490,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     type="number"
                     step="0.01"
                     required
-                    placeholder="Ex: 12.5"
+                    placeholder="Ex : 12.5"
                     value={newRunForm.km}
                     onChange={(e) => setNewRunForm({ ...newRunForm, km: e.target.value })}
                     className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
@@ -519,7 +503,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     type="number"
                     step="1"
                     required
-                    placeholder="Ex: 45"
+                    placeholder="Ex : 45"
                     value={newRunForm.durationMin}
                     onChange={(e) => setNewRunForm({ ...newRunForm, durationMin: e.target.value })}
                     className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
@@ -531,7 +515,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   <input
                     type="number"
                     step="1"
-                    placeholder="Ex: 150"
+                    placeholder="Ex : 150"
                     value={newRunForm.elevation}
                     onChange={(e) => setNewRunForm({ ...newRunForm, elevation: e.target.value })}
                     className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
@@ -553,7 +537,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                 {newRunForm.isRace && (
                   <input
                     type="text"
-                    placeholder="Intitulé (ex: Ronde du Salbert: 9,72km)"
+                    placeholder="Intitulé (ex : Ronde du Salbert : 9,72 km)"
                     value={newRunForm.raceNotes}
                     onChange={(e) => setNewRunForm({ ...newRunForm, raceNotes: e.target.value })}
                     className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
@@ -632,25 +616,40 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </table>
           </div>
 
-          {/* 1. DÉTAIL MENSUEL (AFFICHÉ EN PERMANENCE : SWIPE SUR MOBILE, FLÈCHES PRO SUR DESKTOP) */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
+          {/* 1. DÉTAIL MENSUEL (SWIPE MOBILE COMME LES HISTOGRAMMES + FLÈCHES DESKTOP) */}
+          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-3">
+            {/* Header mobile avec swipe et puces interactives */}
+            <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
+              <span className="flex items-center gap-1 text-[#CF9A61]">
+                <span>👉</span> Glissez pour faire défiler les mois
+              </span>
+              <div className="flex gap-1 items-center">
+                {MONTHS_LIST.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToMonth(idx)}
+                    className={`h-2 rounded-full transition-all ${
+                      selectedMonthIndex === idx ? "bg-[#CF9A61] w-4" : "bg-stone-800 w-1.5"
+                    }`}
+                    aria-label={`Aller au mois ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Header desktop professionnel avec chevrons vectoriels */}
+            <div className="hidden sm:flex items-center justify-between border-b border-stone-800 pb-3">
               <div>
                 <h4 className="text-sm md:text-base font-black uppercase tracking-tight text-stone-100">
                   Détail Mensuel
                 </h4>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  Consultez la synthèse hebdomadaire mois par mois
+                  Synthèse hebdomadaire mois par mois
                 </p>
               </div>
 
-              {/* Indicateur mobile swipe */}
-              <div className="sm:hidden text-[10px] font-bold text-[#CF9A61] flex items-center gap-1">
-                <span>👈 Glissez pour changer de mois 👉</span>
-              </div>
-
-              {/* Navigation professionnelle sur Ordinateur */}
-              <div className="hidden sm:flex items-center gap-2 bg-stone-950 p-1 rounded-2xl border border-stone-800 shadow-inner">
+              <div className="flex items-center gap-2 bg-stone-950 p-1 rounded-2xl border border-stone-800 shadow-inner">
                 <button
                   type="button"
                   onClick={() => scrollToMonth(selectedMonthIndex === 0 ? 11 : selectedMonthIndex - 1)}
@@ -669,7 +668,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-1.5 text-xs font-black uppercase focus:outline-none cursor-pointer text-center min-w-[140px]"
                 >
                   {MONTHS_LIST.map((mName, idx) => (
-                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: RAINBOW_PASTEL_COLORS[idx] }}>
+                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: PRO_MONTH_COLORS[idx] }}>
                       {mName}
                     </option>
                   ))}
@@ -688,25 +687,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </div>
             </div>
 
-            {/* Pagination par puces sur mobile */}
-            <div className="sm:hidden flex items-center justify-center gap-1.5 overflow-x-auto py-1">
-              {MONTHS_LIST.map((m, idx) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => scrollToMonth(idx)}
-                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md transition-all ${
-                    selectedMonthIndex === idx
-                      ? "bg-stone-100 text-stone-950 shadow-sm"
-                      : "text-stone-500 bg-stone-950"
-                  }`}
-                >
-                  {m.slice(0, 3)}
-                </button>
-              ))}
-            </div>
-
-            {/* Carrousel swipeable sur mobile / simple vue sur desktop */}
+            {/* Carrousel swipeable mobile (snap-mandatory) et vue isolée desktop */}
             <div
               ref={monthsSwipeRef}
               onScroll={handleMonthsScroll}
@@ -737,9 +718,8 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                 const totalMonthRuns = monthRuns.length;
 
                 const weekNumbersList = Object.keys(weekMap).map((w) => parseInt(w, 10)).sort((a, b) => a - b);
-                const monthColor = RAINBOW_PASTEL_COLORS[mIdx];
+                const monthColor = PRO_MONTH_COLORS[mIdx];
 
-                // Sur desktop, on n'affiche que le mois sélectionné
                 const isHiddenOnDesktop = mIdx !== selectedMonthIndex;
 
                 return (
@@ -793,8 +773,8 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                             })
                           )}
 
-                          <tr style={{ backgroundColor: `${monthColor}20`, color: monthColor }} className="font-black">
-                            <td style={{ backgroundColor: `${monthColor}30` }} className="py-2 px-1.5 border border-stone-800 uppercase text-[10px]">
+                          <tr style={{ backgroundColor: `${monthColor}18`, color: monthColor }} className="font-black">
+                            <td style={{ backgroundColor: `${monthColor}28` }} className="py-2 px-1.5 border border-stone-800 uppercase text-[10px]">
                               Total
                             </td>
                             <td className="py-2 px-1.5 border border-stone-800 font-mono">{totalMonthKm.toFixed(2)}</td>
@@ -811,7 +791,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </div>
           </div>
 
-          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (AFFICHÉ EN PERMANENCE, RECTANGLE KPI + HISTOGRAMME MODERNE) */}
+          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (RECTANGLE KPI + HISTOGRAMME SANS FOND GRIS) */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4 w-full">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
               <div>
@@ -819,11 +799,10 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   Évolution du volume annuel
                 </h4>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  52 semaines réparties selon le code couleur saisonnier
+                  52 semaines réparties selon le nuancier saisonnier
                 </p>
               </div>
 
-              {/* Bouton plein écran horizontal sur mobile / agrandir sur desktop */}
               <button
                 type="button"
                 onClick={() => setIsLandscapeFullscreen(true)}
@@ -835,7 +814,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </button>
             </div>
 
-            {/* RECTANGLE AVEC LES 3 INFOS CLÉS */}
+            {/* RECTANGLE 3 INFOS : "Max Semaine" en ambre #CF9A61 (non-vert) */}
             <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-3 rounded-2xl border border-stone-800/70 text-center shadow-inner">
               <div>
                 <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Année</span>
@@ -845,19 +824,19 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </div>
               <div className="border-x border-stone-800/80">
                 <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Max Semaine</span>
-                <div className="text-xs md:text-sm font-black text-[#A3E635] mt-0.5">
+                <div className="text-xs md:text-sm font-black text-[#CF9A61] mt-0.5">
                   {Math.round(maxWeekKm)} <span className="text-stone-500 font-normal text-[10px]">km</span>
                 </div>
               </div>
               <div>
                 <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Moyenne / Semaine</span>
-                <div className="text-xs md:text-sm font-black text-[#CF9A61] mt-0.5">
+                <div className="text-xs md:text-sm font-black text-stone-100 mt-0.5">
                   {moySemaineKm.toFixed(1)} <span className="text-stone-500 font-normal text-[10px]">km</span>
                 </div>
               </div>
             </div>
 
-            {/* HISTOGRAMME MODERNE */}
+            {/* HISTOGRAMME MODERNE (BARRES DIRECTES, SANS FOND GRIS) */}
             <div className="bg-stone-950 rounded-2xl p-3 md:p-4 border border-stone-800 relative w-full overflow-hidden shadow-inner">
               {renderAnnualHistogram(false)}
             </div>
@@ -865,7 +844,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             {/* Légende */}
             <div className="flex justify-between items-center text-[9px] md:text-xs font-semibold text-stone-400 pt-1">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-[#C084FC] via-[#A3E635] to-[#F87171] inline-block shadow-sm"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-[#7DD3FC] via-[#4ADE80] to-[#FB923C] inline-block shadow-sm"></span>
                 <span>Barres colorées par saison</span>
               </span>
               <span className="font-mono text-stone-500">52 semaines</span>
@@ -874,15 +853,12 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         </div>
       )}
 
-      {/* ========================================================================= */}
       {/* MODALE PLEIN ÉCRAN HORIZONTAL (PAYSAGE SUR MOBILE, GRAND FORMAT SUR PC) */}
-      {/* ========================================================================= */}
       {isLandscapeFullscreen && (
         <div
           onClick={() => setIsLandscapeFullscreen(false)}
           className="fixed inset-0 bg-stone-950/98 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fadeIn"
         >
-          {/* Conteneur avec classe forcée en rotation horizontale sur smartphone si besoin */}
           <div
             onClick={(e) => e.stopPropagation()}
             className="bg-stone-900 border border-stone-800 rounded-3xl p-5 md:p-6 w-full max-w-6xl shadow-2xl flex flex-col justify-between max-h-[96vh] overflow-hidden"
@@ -913,7 +889,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               <div className="flex items-center gap-3 text-xs text-stone-300 font-mono">
                 <span>Total : <strong className="text-white">{totalKm.toFixed(1)} km</strong></span>
                 <span>•</span>
-                <span>Record hebdo : <strong className="text-[#A3E635]">{Math.round(maxWeekKm)} km</strong></span>
+                <span>Record hebdo : <strong className="text-[#CF9A61]">{Math.round(maxWeekKm)} km</strong></span>
               </div>
               <button
                 type="button"
