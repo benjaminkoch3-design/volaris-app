@@ -34,13 +34,41 @@ const formatDetailedDuration = (sec: number) => {
   return `${m} min ${remainingS}s`;
 };
 
-// Couleurs adaptées au thème sombre et clair
-const COLORS: Record<string, { light: string; dark: string; border: string }> = {
-  echauffement: { light: "#C24E4C", dark: "#CF6361", border: "#B34D4D" },
-  corps: { light: "#C07F36", dark: "#CF9A61", border: "#B88652" },
-  recup: { light: "#A3A62A", dark: "#CDCF61", border: "#BFC152" },
-  retour_calme: { light: "#2563eb", dark: "#3b82f6", border: "#1d4ed8" },
-  default: { light: "#059669", dark: "#10b981", border: "#047857" },
+// Couleurs avec dégradés verticaux préservant les teintes Volaris
+const COLORS: Record<
+  string,
+  { light: string; dark: string; border: string; gradient: string }
+> = {
+  echauffement: {
+    light: "#C24E4C",
+    dark: "#CF6361",
+    border: "#CF6361",
+    gradient: "linear-gradient(180deg, rgba(207, 99, 97, 0.95) 0%, rgba(207, 99, 97, 0.25) 100%)",
+  },
+  corps: {
+    light: "#C07F36",
+    dark: "#CF9A61",
+    border: "#CF9A61",
+    gradient: "linear-gradient(180deg, rgba(207, 154, 97, 0.95) 0%, rgba(207, 154, 97, 0.25) 100%)",
+  },
+  recup: {
+    light: "#A3A62A",
+    dark: "#CDCF61",
+    border: "#CDCF61",
+    gradient: "linear-gradient(180deg, rgba(205, 207, 97, 0.95) 0%, rgba(205, 207, 97, 0.25) 100%)",
+  },
+  retour_calme: {
+    light: "#2563eb",
+    dark: "#3b82f6",
+    border: "#3b82f6",
+    gradient: "linear-gradient(180deg, rgba(59, 130, 246, 0.95) 0%, rgba(59, 130, 246, 0.25) 100%)",
+  },
+  default: {
+    light: "#059669",
+    dark: "#10b981",
+    border: "#10b981",
+    gradient: "linear-gradient(180deg, rgba(16, 185, 129, 0.95) 0%, rgba(16, 185, 129, 0.25) 100%)",
+  },
 };
 
 const getColors = (type: string) => {
@@ -64,7 +92,7 @@ const H_MAX = 90;
 
 const LEGEND = [
   { label: "Échauff.", ...COLORS.echauffement },
-  { label: "Allure cible", ...COLORS.corps },
+  { label: "Course", ...COLORS.corps },
   { label: "Récup.", ...COLORS.recup },
   { label: "Calme", ...COLORS.retour_calme },
 ];
@@ -163,7 +191,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
 
       {/* Graphique */}
       <div className="flex gap-2">
-        {/* Axe Y (Allures de référence) */}
+        {/* Axe Y : valeurs conservées à gauche sans ligne pointillée */}
         <div className="relative h-32 w-10 shrink-0">
           {yTicks.map((t, i) => (
             <span
@@ -177,21 +205,12 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Zone de tracé */}
+          {/* Zone de tracé sans pointillés */}
           <div
             className="relative h-32 select-none"
             onMouseLeave={() => setHovered(null)}
           >
-            {/* Lignes de repère horizontales discrètes */}
-            {yTicks.map((t, i) => (
-              <div
-                key={i}
-                className="absolute inset-x-0 border-t border-dashed border-stone-200 dark:border-stone-800/80 pointer-events-none"
-                style={{ bottom: `${t.h}%` }}
-              />
-            ))}
-
-            {/* Barres d'allure */}
+            {/* Barres d'allure avec dégradé vertical */}
             {bars.map((bar, i) => {
               const isHovered = hovered === i;
               const isDimmed = hovered !== null && !isHovered;
@@ -212,10 +231,10 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                     className="absolute bottom-0 inset-x-[0.5px] rounded-t-[3px] border border-b-0 transition-all duration-150"
                     style={{
                       height: `${bar.height}%`,
-                      backgroundColor: bar.colors.dark,
+                      backgroundImage: bar.colors.gradient,
                       borderColor: bar.colors.border,
                       opacity: isDimmed ? 0.35 : 1,
-                      filter: isHovered ? "brightness(1.15)" : "none",
+                      filter: isHovered ? "brightness(1.2)" : "none",
                     }}
                   />
                 </div>
@@ -244,7 +263,10 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
                   <span className="text-[#CF9A61] font-bold">
                     {active.paceFormatted || formatPace(active.paceSecPerKm)} min/km
                   </span>
-                  <span className="text-stone-400 dark:text-stone-500"> ({active.speedKmh} km/h)</span>
+                  <span className="text-stone-400 dark:text-stone-500">
+                    {" "}
+                    ({active.speedKmh} km/h)
+                  </span>
                 </div>
                 <div className="text-[9px] text-stone-500 dark:text-stone-400 mt-0.5">
                   Durée : {formatDetailedDuration(active.durationSec || 0)}
@@ -253,7 +275,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
             )}
           </div>
 
-          {/* Axe X (Graduation temporelle) */}
+          {/* Axe X (Graduation temporelle en bas) */}
           <div className="relative mt-1.5 h-3 border-t border-stone-200 dark:border-stone-800">
             {xTicks.map((t) => (
               <span
