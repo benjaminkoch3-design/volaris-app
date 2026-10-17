@@ -66,7 +66,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
 
-  // Modale plein écran pour les graphiques
+  // Modale plein écran pour les graphiques (sur écran ordinateur)
   const [zoomedChart, setZoomedChart] = useState<"volume" | "load" | null>(null);
 
   // Modale Garmin
@@ -102,6 +102,12 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   // Calcul du jour actuel (Lundi = 0 ... Dimanche = 6)
   const currentJsDay = new Date().getDay();
   const currentDayIndex = currentJsDay === 0 ? 6 : currentJsDay - 1;
+
+  const handleOpenZoom = (chartType: "volume" | "load") => {
+    if (typeof window !== "undefined" && window.innerWidth >= 640) {
+      setZoomedChart(chartType);
+    }
+  };
 
   // Synchronisation Garmin
   const executeGarminSync = async (workout: Workout, emailToUse: string, pwdToUse: string) => {
@@ -244,13 +250,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     10
   );
 
-  // Rendu de l'histogramme avec remplissage et valeurs affichées au-dessus
+  // Rendu de l'histogramme avec axe des ordonnées propre et sans pointillés
   const renderDailyHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 750 : 540;
     const svgHeight = isExpanded ? 240 : 165;
-    const paddingLeft = 35;
+    const paddingLeft = 38;
     const paddingRight = 15;
-    const paddingTop = 26; // Espace supplémentaire au sommet pour afficher les chiffres
+    const paddingTop = 26;
     const paddingBottom = 30;
     const usableHeight = svgHeight - paddingTop - paddingBottom;
     const baselineY = svgHeight - paddingBottom;
@@ -274,14 +280,54 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           </linearGradient>
         </defs>
 
-        {/* Ligne de base épurée sans pointillés */}
+        {/* AXE DES ORDONNÉES (AXE Y) & GRADUATIONS */}
+        <line
+          x1={paddingLeft}
+          y1={paddingTop - 6}
+          x2={paddingLeft}
+          y2={baselineY}
+          stroke="#3f3f46"
+          strokeWidth="1.2"
+        />
+
+        {/* Graduations sur l'axe Y */}
+        {[0, 0.5, 1].map((pct, idx) => {
+          const y = paddingTop + usableHeight * (1 - pct);
+          const val = Math.round(maxDailyKm * pct);
+          return (
+            <g key={idx}>
+              {/* Petit tiret sur l'axe Y */}
+              <line
+                x1={paddingLeft - 3}
+                y1={y}
+                x2={paddingLeft}
+                y2={y}
+                stroke="#52525b"
+                strokeWidth="1.2"
+              />
+              <text
+                x={paddingLeft - 6}
+                y={y + 3.5}
+                fill="#71717a"
+                fontSize={isExpanded ? "11" : "9"}
+                fontWeight="700"
+                textAnchor="end"
+                className="font-mono"
+              >
+                {val}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* AXE DES ABSCISSES (LIGNE DE BASE) */}
         <line
           x1={paddingLeft}
           y1={baselineY}
           x2={svgWidth - paddingRight}
           y2={baselineY}
-          stroke="#27272a"
-          strokeWidth="1"
+          stroke="#3f3f46"
+          strokeWidth="1.2"
         />
 
         {/* Colonnes par jour avec remplissage */}
@@ -289,18 +335,15 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
 
-          // Hauteur du conteneur (fond prévu, ou réalisé si supérieur)
           const baseTargetKm = Math.max(d.plannedKm, d.completedKm);
           const containerH = baseTargetKm > 0 ? (baseTargetKm / maxDailyKm) * usableHeight : 0;
           const containerY = baselineY - containerH;
 
-          // Hauteur du remplissage réalisé
           const fillH = d.completedKm > 0 ? (d.completedKm / maxDailyKm) * usableHeight : 0;
           const fillY = baselineY - fillH;
 
           const isOvercompleted = d.plannedKm > 0 && d.completedKm > d.plannedKm;
 
-          // Position de l'étiquette au-dessus de l'histogramme
           const topElementY = Math.min(
             containerH > 0 ? containerY : baselineY,
             fillH > 0 ? fillY : baselineY
@@ -635,8 +678,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           
           {/* CARTE 3 : HISTOGRAMME DU VOLUME DE LA SEMAINE */}
           <div
-            onClick={() => setZoomedChart("volume")}
-            className="bg-stone-900/90 hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition cursor-pointer group"
+            onClick={() => handleOpenZoom("volume")}
+            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
           >
             {/* Entête avec métriques KPI et boutons d'action */}
             <div className="space-y-3 border-b border-stone-800/80 pb-3">
@@ -645,7 +688,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
                     Semaine {currentWeekNum}
                   </span>
-                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 group-hover:text-[#CF9A61] transition">
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
                     Volume Journalier (Lun - Dim)
                   </h3>
                 </div>
@@ -664,14 +707,14 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <span className="text-[#CF9A61]">➔</span>
                   </button>
 
-                  {/* Bouton Agrandir */}
-                  <div className="flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                  {/* Bouton Agrandir (Masqué sur téléphone / affiché à partir de sm) */}
+                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                     <span>⛶</span>
                   </div>
                 </div>
               </div>
 
-              {/* Boîte de 3 stats KPI identiques */}
+              {/* Boîte de 3 stats KPI harmonisées */}
               <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                 <div>
                   <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
@@ -699,30 +742,26 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               {renderDailyHistogram(false)}
             </div>
 
-            {/* Légende demandée : point vert pour réalisé, carré noir pour prévu */}
-            <div className="flex justify-between items-center text-[9.5px] font-semibold text-stone-400 pt-1">
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
-                  <span className="text-stone-200 font-bold">Volume réalisé</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                  <span className="text-stone-400 font-medium">Volume prévu</span>
-                </span>
-              </div>
-              <span className="text-[8.5px] uppercase font-bold text-stone-500">
-                Aujourd'hui surligné
+            {/* Légende demandée : point vert pour réalisé, carré noir pour prévu (sans mention "aujourd'hui surligné") */}
+            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
+                <span className="text-stone-200 font-bold">Volume réalisé</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                <span className="text-stone-400 font-medium">Volume prévu</span>
               </span>
             </div>
           </div>
 
-          {/* CARTE 4 : ÉVOLUTION DE LA CHARGE (CLIQUABLE POUR AGRANDIR) */}
+          {/* CARTE 4 : ÉVOLUTION DE LA CHARGE (CLIQUABLE POUR AGRANDIR SUR ORDINATEUR) */}
           <div
-            onClick={() => setZoomedChart("load")}
-            className="h-full relative group cursor-pointer"
+            onClick={() => handleOpenZoom("load")}
+            className="h-full relative group sm:cursor-pointer"
           >
-            <div className="absolute top-4 right-4 z-10 flex items-center gap-1 text-stone-400 group-hover:text-[#CDCF61] transition text-[10px] font-bold bg-stone-950/90 px-2.5 py-1 rounded-xl border border-stone-800">
+            {/* Bouton Agrandir (Masqué sur téléphone) */}
+            <div className="hidden sm:flex absolute top-4 right-4 z-10 items-center gap-1 text-stone-400 group-hover:text-[#CDCF61] transition text-[10px] font-bold bg-stone-950/90 px-2.5 py-1 rounded-xl border border-stone-800">
               <span>⛶</span>
               <span className="uppercase">Agrandir</span>
             </div>
@@ -737,11 +776,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* ===================== MODALE ZOOM PLEIN ÉCRAN ===================== */}
+      {/* ===================== MODALE ZOOM PLEIN ÉCRAN (ORDINATEUR UNIQUEMENT) ===================== */}
       {zoomedChart && (
         <div
           onClick={() => setZoomedChart(null)}
-          className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn"
+          className="fixed inset-0 bg-stone-950/95 backdrop-blur-md hidden sm:flex items-center justify-center p-4 z-50 animate-fadeIn"
         >
           <div
             onClick={(e) => e.stopPropagation()}
