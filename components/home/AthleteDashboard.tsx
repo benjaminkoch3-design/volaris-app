@@ -1,6 +1,6 @@
 // src/components/home/AthleteDashboard.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Plan, Workout } from "../../types";
 import {
   safeFormatDateFr,
@@ -79,6 +79,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   // Modale plein écran (sur écran ordinateur)
   const [zoomedChart, setZoomedChart] = useState<ZoomableChartType | null>(null);
 
+  // Index du graphique actif dans le swipe mobile (0: Volume, 1: Charge, 2: Temps, 3: Dénivelé)
+  const [activeMobileSlide, setActiveMobileSlide] = useState(0);
+  const carouselScrollRef = useRef<HTMLDivElement>(null);
+
   // Modale Garmin
   const [showGarminModal, setShowGarminModal] = useState<Workout | null>(null);
   const [garminEmail, setGarminEmail] = useState("");
@@ -116,6 +120,28 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const handleOpenZoom = (chartType: ZoomableChartType) => {
     if (typeof window !== "undefined" && window.innerWidth >= 640) {
       setZoomedChart(chartType);
+    }
+  };
+
+  // Suivi de l'index au scroll/swipe sur mobile
+  const handleCarouselScroll = () => {
+    if (carouselScrollRef.current) {
+      const { scrollLeft, offsetWidth } = carouselScrollRef.current;
+      if (offsetWidth > 0) {
+        const nextIdx = Math.round(scrollLeft / offsetWidth);
+        setActiveMobileSlide(Math.max(0, Math.min(3, nextIdx)));
+      }
+    }
+  };
+
+  const scrollToSlide = (idx: number) => {
+    if (carouselScrollRef.current) {
+      const width = carouselScrollRef.current.offsetWidth;
+      carouselScrollRef.current.scrollTo({
+        left: idx * width,
+        behavior: "smooth",
+      });
+      setActiveMobileSlide(idx);
     }
   };
 
@@ -329,7 +355,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const maxTimeMinutes = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedMinutes, d.completedMinutes)), 60);
   const maxElevationVal = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 150);
 
-  // Générateur générique d'histogramme à jauge/remplissage sans pointillés
+  // Générateur d'histogramme sans pointillés
   const renderGenericBarChart = (
     data: {
       plannedVal: number;
@@ -338,7 +364,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       tooltipText: string;
     }[],
     maxVal: number,
-    colorTheme: "green" | "gold" | "blue" | "emerald",
+    colorTheme: "green" | "gold" | "blue" | "purple",
     isExpanded = false
   ) => {
     const svgWidth = isExpanded ? 750 : 540;
@@ -357,7 +383,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       green: { from: "#4DB380", to: "#2e7d55", overFrom: "#CDCF61", overTo: "#4DB380" },
       gold: { from: "#CF9A61", to: "#9c6b35", overFrom: "#eab308", overTo: "#CF9A61" },
       blue: { from: "#4D80B3", to: "#2d547d", overFrom: "#38bdf8", overTo: "#4D80B3" },
-      emerald: { from: "#10b981", to: "#047857", overFrom: "#34d399", overTo: "#059669" },
+      purple: { from: "#8B5CF6", to: "#6D28D9", overFrom: "#C084FC", overTo: "#8B5CF6" },
     }[colorTheme];
 
     return (
@@ -376,7 +402,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           </linearGradient>
         </defs>
 
-        {/* Axe Y (Ordonnées) & graduations sans pointillés horizontaux */}
+        {/* AXE Y & GRADUATIONS (SANS POINTILLÉS) */}
         <line
           x1={paddingLeft}
           y1={paddingTop - 6}
@@ -414,7 +440,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           );
         })}
 
-        {/* Axe X (Abscisses) */}
+        {/* AXE X (LIGNE DE BASE) */}
         <line
           x1={paddingLeft}
           y1={baselineY}
@@ -532,7 +558,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     );
   };
 
-  // Données prêtes pour chaque graphique
+  // Données préparées pour chaque métrique
   const volumeChartItems = dailyMetricsData.map((d) => ({
     plannedVal: d.plannedKm,
     completedVal: d.completedKm,
@@ -794,279 +820,303 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (VOLUME, CHARGE, TEMPS, DÉNIVELÉ) ===================== */}
+      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (CARROUSEL SUR MOBILE, 2X2 SUR BUREAU) ===================== */}
       {activePlan && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-          
-          {/* 1. GRAPHIQUE VOLUME */}
-          <div
-            onClick={() => handleOpenZoom("volume")}
-            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
-          >
-            <div className="space-y-3 border-b border-stone-800/80 pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                    Semaine {currentWeekNum}
-                  </span>
-                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
-                    Volume Kilométrique (Lun - Dim)
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigateToVolumeChart();
-                    }}
-                    className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
-                  >
-                    <span>Stats Plan</span>
-                    <span className="text-[#CF9A61]">➔</span>
-                  </button>
-                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
-                    <span>⛶</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3 KPIs */}
-              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
-                  <div className="text-xs font-black text-[#4DB380] mt-0.5">
-                    {weekVolumeCompleted} <span className="text-stone-500 font-normal text-[10px]">km</span>
-                  </div>
-                </div>
-                <div className="border-x border-stone-800/80">
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
-                  <div className="text-xs font-black text-stone-100 mt-0.5">
-                    {weekVolumePlanned} <span className="text-stone-500 font-normal text-[10px]">km</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
-                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekVolumePct}%
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-              {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", false)}
-            </div>
-
-            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Volume réalisé</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Volume prévu</span>
-              </span>
+        <div className="space-y-2">
+          {/* Indicateur de swipe sur mobile */}
+          <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
+            <span className="flex items-center gap-1 text-[#CF9A61]">
+              <span>👉</span> Glissez pour faire défiler les graphiques
+            </span>
+            <div className="flex gap-1.5 items-center">
+              {[0, 1, 2, 3].map((idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => scrollToSlide(idx)}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    activeMobileSlide === idx ? "bg-[#CF9A61] w-4" : "bg-stone-800"
+                  }`}
+                  aria-label={`Aller au graphique ${idx + 1}`}
+                />
+              ))}
             </div>
           </div>
 
-          {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (RPE x TEMPS) */}
           <div
-            onClick={() => handleOpenZoom("load")}
-            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
+            ref={carouselScrollRef}
+            onScroll={handleCarouselScroll}
+            className="flex overflow-x-auto pb-4 snap-x snap-mandatory gap-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:pb-0"
           >
-            <div className="space-y-3 border-b border-stone-800/80 pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                    Semaine {currentWeekNum}
-                  </span>
-                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
-                    Charge d'Entraînement (RPE × Durée)
-                  </h3>
+            {/* 1. GRAPHIQUE VOLUME KILOMÉTRIQUE (VERT) */}
+            <div
+              onClick={() => handleOpenZoom("volume")}
+              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+            >
+              <div className="space-y-3 border-b border-stone-800/80 pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                      Semaine {currentWeekNum}
+                    </span>
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                      Volume kilométrique
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToVolumeChart();
+                      }}
+                      className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    >
+                      <span>Stats Plan</span>
+                      <span className="text-[#CF9A61]">➔</span>
+                    </button>
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                      <span>⛶</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigateToVolumeChart();
-                    }}
-                    className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
-                  >
-                    <span>Stats Plan</span>
-                    <span className="text-[#CF9A61]">➔</span>
-                  </button>
-                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
-                    <span>⛶</span>
+                {/* 3 KPIs */}
+                <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                    <div className="text-xs font-black text-[#4DB380] mt-0.5">
+                      {weekVolumeCompleted} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                    </div>
+                  </div>
+                  <div className="border-x border-stone-800/80">
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                    <div className="text-xs font-black text-stone-100 mt-0.5">
+                      {weekVolumePlanned} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                      {weekVolumePct}%
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 3 KPIs */}
-              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge réalisée</span>
-                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekLoadCompleted}
-                  </div>
-                </div>
-                <div className="border-x border-stone-800/80">
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge prévue</span>
-                  <div className="text-xs font-black text-stone-100 mt-0.5">
-                    {weekLoadPlanned}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
-                  <div className="text-xs font-black text-[#CDCF61] mt-0.5">
-                    {weekLoadPct}%
-                  </div>
-                </div>
+              <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+                {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", false)}
+              </div>
+
+              <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Volume réalisé</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Volume prévu</span>
+                </span>
               </div>
             </div>
 
-            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-              {renderGenericBarChart(loadChartItems, maxLoadVal, "gold", false)}
+            {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (DORÉ) */}
+            <div
+              onClick={() => handleOpenZoom("load")}
+              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+            >
+              <div className="space-y-3 border-b border-stone-800/80 pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                      Semaine {currentWeekNum}
+                    </span>
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                      Charge d'entraînement
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToVolumeChart();
+                      }}
+                      className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                    >
+                      <span>Stats Plan</span>
+                      <span className="text-[#CF9A61]">➔</span>
+                    </button>
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                      <span>⛶</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 KPIs */}
+                <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                      {weekLoadCompleted}
+                    </div>
+                  </div>
+                  <div className="border-x border-stone-800/80">
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                    <div className="text-xs font-black text-stone-100 mt-0.5">
+                      {weekLoadPlanned}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                    <div className="text-xs font-black text-[#CDCF61] mt-0.5">
+                      {weekLoadPct}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+                {renderGenericBarChart(loadChartItems, maxLoadVal, "gold", false)}
+              </div>
+
+              <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Charge réalisée</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Charge prévue</span>
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Charge réalisée</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Charge prévue</span>
-              </span>
+            {/* 3. GRAPHIQUE TEMPS PASSÉ À COURIR (BLEU) */}
+            <div
+              onClick={() => handleOpenZoom("time")}
+              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+            >
+              <div className="space-y-3 border-b border-stone-800/80 pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                      Semaine {currentWeekNum}
+                    </span>
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                      Temps passé à courir
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                      <span>⛶</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 KPIs */}
+                <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                    <div className="text-xs font-black text-[#4D80B3] mt-0.5">
+                      {formatMinutesToHours(weekTimeCompleted)}
+                    </div>
+                  </div>
+                  <div className="border-x border-stone-800/80">
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                    <div className="text-xs font-black text-stone-100 mt-0.5">
+                      {formatMinutesToHours(weekTimePlanned)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                      {weekTimePct}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+                {renderGenericBarChart(timeChartItems, maxTimeMinutes, "blue", false)}
+              </div>
+
+              <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4D80B3] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Temps réalisé</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Temps prévu</span>
+                </span>
+              </div>
+            </div>
+
+            {/* 4. GRAPHIQUE DÉNIVELÉ POSITIF (VIOLET) */}
+            <div
+              onClick={() => handleOpenZoom("elevation")}
+              className="min-w-full sm:min-w-0 flex-shrink-0 snap-center bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
+            >
+              <div className="space-y-3 border-b border-stone-800/80 pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                      Semaine {currentWeekNum}
+                    </span>
+                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                      Dénivelé positif
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                      <span>⛶</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 KPIs */}
+                <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Semaine</span>
+                    <div className="text-xs font-black text-[#8B5CF6] mt-0.5">
+                      {weekElevationTotal} <span className="text-stone-500 text-[10px] font-normal">m D+</span>
+                    </div>
+                  </div>
+                  <div className="border-x border-stone-800/80">
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Max Journalier</span>
+                    <div className="text-xs font-black text-stone-100 mt-0.5">
+                      {weekElevationMax} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Moyenne / Jour</span>
+                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                      {weekElevationAvg} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+                {renderGenericBarChart(elevationChartItems, maxElevationVal, "purple", false)}
+              </div>
+
+              <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] inline-block shadow-sm"></span>
+                  <span className="text-stone-200 font-bold">Dénivelé réalisé (m D+)</span>
+                </span>
+                <span className="text-[8.5px] uppercase font-bold text-stone-500">
+                  Non prescrit dans le plan
+                </span>
+              </div>
             </div>
           </div>
-
-          {/* 3. GRAPHIQUE TEMPS PASSÉ À COURIR */}
-          <div
-            onClick={() => handleOpenZoom("time")}
-            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
-          >
-            <div className="space-y-3 border-b border-stone-800/80 pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                    Semaine {currentWeekNum}
-                  </span>
-                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
-                    Temps Passé à Courir
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
-                    <span>⛶</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3 KPIs */}
-              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps réalisé</span>
-                  <div className="text-xs font-black text-[#4D80B3] mt-0.5">
-                    {formatMinutesToHours(weekTimeCompleted)}
-                  </div>
-                </div>
-                <div className="border-x border-stone-800/80">
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps prévu</span>
-                  <div className="text-xs font-black text-stone-100 mt-0.5">
-                    {formatMinutesToHours(weekTimePlanned)}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
-                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekTimePct}%
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-              {renderGenericBarChart(timeChartItems, maxTimeMinutes, "blue", false)}
-            </div>
-
-            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#4D80B3] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Temps réalisé</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
-                <span className="text-stone-400 font-medium">Temps prévu</span>
-              </span>
-            </div>
-          </div>
-
-          {/* 4. GRAPHIQUE DÉNIVELÉ (AUCUN PRÉVU PAR LE COACH) */}
-          <div
-            onClick={() => handleOpenZoom("elevation")}
-            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
-          >
-            <div className="space-y-3 border-b border-stone-800/80 pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                    Semaine {currentWeekNum}
-                  </span>
-                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
-                    Dénivelé Positif (m D+)
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
-                    <span>⛶</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3 KPIs spécifiques au dénivelé */}
-              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Semaine</span>
-                  <div className="text-xs font-black text-[#10b981] mt-0.5">
-                    {weekElevationTotal} <span className="text-stone-500 text-[10px] font-normal">m D+</span>
-                  </div>
-                </div>
-                <div className="border-x border-stone-800/80">
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Max Journalier</span>
-                  <div className="text-xs font-black text-stone-100 mt-0.5">
-                    {weekElevationMax} <span className="text-stone-500 text-[10px] font-normal">m</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Moyenne / Jour</span>
-                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekElevationAvg} <span className="text-stone-500 text-[10px] font-normal">m</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-              {renderGenericBarChart(elevationChartItems, maxElevationVal, "emerald", false)}
-            </div>
-
-            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block shadow-sm"></span>
-                <span className="text-stone-200 font-bold">Dénivelé réalisé (m D+)</span>
-              </span>
-              <span className="text-[8.5px] uppercase font-bold text-stone-500">
-                Non prescrit dans le plan
-              </span>
-            </div>
-          </div>
-
         </div>
       )}
 
@@ -1086,10 +1136,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   Vue détaillée grand format
                 </span>
                 <h3 className="text-base md:text-lg font-black uppercase text-stone-100">
-                  {zoomedChart === "volume" && `Volume Kilométrique • Semaine ${currentWeekNum}`}
-                  {zoomedChart === "load" && `Charge d'Entraînement • Semaine ${currentWeekNum}`}
-                  {zoomedChart === "time" && `Temps de Course • Semaine ${currentWeekNum}`}
-                  {zoomedChart === "elevation" && `Dénivelé Réalisé • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "volume" && `Volume kilométrique • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "load" && `Charge d'entraînement • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "time" && `Temps passé à courir • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "elevation" && `Dénivelé positif • Semaine ${currentWeekNum}`}
                 </h3>
               </div>
               <button
@@ -1147,11 +1197,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge réalisée</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
                     <span className="text-xl font-black text-[#CF9A61]">{weekLoadCompleted}</span>
                   </div>
                   <div className="border-x border-stone-800">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge prévue</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
                     <span className="text-xl font-black text-stone-200">{weekLoadPlanned}</span>
                   </div>
                   <div>
@@ -1204,11 +1254,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps réalisé</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
                     <span className="text-xl font-black text-[#4D80B3]">{formatMinutesToHours(weekTimeCompleted)}</span>
                   </div>
                   <div className="border-x border-stone-800">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps prévu</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
                     <span className="text-xl font-black text-stone-200">{formatMinutesToHours(weekTimePlanned)}</span>
                   </div>
                   <div>
@@ -1249,7 +1299,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Total Semaine</span>
-                    <span className="text-xl font-black text-[#10b981]">{weekElevationTotal} m D+</span>
+                    <span className="text-xl font-black text-[#8B5CF6]">{weekElevationTotal} m D+</span>
                   </div>
                   <div className="border-x border-stone-800">
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Max Journalier</span>
@@ -1262,7 +1312,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 </div>
 
                 <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
-                  {renderGenericBarChart(elevationChartItems, maxElevationVal, "emerald", true)}
+                  {renderGenericBarChart(elevationChartItems, maxElevationVal, "purple", true)}
                 </div>
 
                 <div className="grid grid-cols-7 gap-2 pt-2">
@@ -1270,13 +1320,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <div
                       key={d.dayIndex}
                       className={`p-2.5 rounded-xl border text-center space-y-1 ${
-                        d.isToday ? "bg-[#10b981]/15 border-[#10b981]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                        d.isToday ? "bg-[#8B5CF6]/15 border-[#8B5CF6]/50 shadow-md" : "bg-stone-950 border-stone-800"
                       }`}
                     >
-                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#10b981]" : "text-stone-400"}`}>
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#8B5CF6]" : "text-stone-400"}`}>
                         {d.dayFull}
                       </span>
-                      <div className="text-xs font-black text-stone-100">
+                      <div className="text-xs font-bold text-stone-100">
                         {d.completedElevation} <span className="text-[9px] text-stone-500 font-normal">m D+</span>
                       </div>
                     </div>
