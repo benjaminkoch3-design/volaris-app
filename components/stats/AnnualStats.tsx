@@ -91,13 +91,10 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // Détection d'un swipe horizontal prédominant (seuil min : 40px)
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
       if (deltaX < 0) {
-        // Swipe vers la gauche -> Mois suivant
         setSelectedMonthIndex((prev) => (prev === 11 ? 0 : prev + 1));
       } else {
-        // Swipe vers la droite -> Mois précédent
         setSelectedMonthIndex((prev) => (prev === 0 ? 11 : prev - 1));
       }
     }
@@ -584,66 +581,101 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </form>
           )}
 
-          {/* TABLEAU RÉSUMÉ GLOBAL DE L'ANNÉE */}
-          <div className="bg-[#B34D4D]/10 border-2 border-[#B34D4D]/50 rounded-3xl p-4 space-y-3 shadow-xl overflow-x-auto custom-scrollbar">
-            <div className="text-center pb-1 border-b border-[#B34D4D]/30">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#B34D4D]">
-                Résumé global année {selectedStatsYear}
-              </span>
+          {/* ========================================================================= */}
+          {/* NOUVEAU RÉSUMÉ GLOBAL : PLUS GRAND, SANS ROUGE, HAUT DE GAMME */}
+          {/* ========================================================================= */}
+          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 space-y-4 shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
+              <div>
+                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-[#CF9A61] block">
+                  Bilan annuel • Synthèse
+                </span>
+                <h3 className="text-base md:text-lg font-black uppercase text-stone-100 tracking-tight mt-0.5">
+                  Résumé global année {selectedStatsYear}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-xs font-bold text-stone-400 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800">
+                <span>{totalRuns} sorties</span>
+                <span className="text-stone-600">•</span>
+                <span className="text-stone-200">{totalKm.toFixed(1)} km</span>
+              </div>
             </div>
 
-            <table className="w-full text-center border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#B34D4D] text-stone-100 font-black text-[10px] uppercase tracking-wider">
-                  <th className="py-2 px-2 border border-stone-800">Catégorie</th>
-                  <th className="py-2 px-2 border border-stone-800">Distance (km)</th>
-                  <th className="py-2 px-2 border border-stone-800">Temps (h)</th>
-                  <th className="py-2 px-2 border border-stone-800">Dénivelé (m)</th>
-                  <th className="py-2 px-2 border border-stone-800">Sorties (nb)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-800 bg-stone-950/80 font-bold text-stone-100">
-                <tr className="bg-[#B34D4D]/20 text-[#B34D4D] font-black">
-                  <td className="py-2 px-2 border border-stone-800 uppercase bg-[#B34D4D]/30 text-[#B34D4D]">Total</td>
-                  <td className="py-2 px-2 border border-stone-800 text-[#B34D4D]">{totalKm.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800 text-[#B34D4D]">{totalHours.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800 text-[#B34D4D]">{Math.round(totalElev)}</td>
-                  <td className="py-2 px-2 border border-stone-800 text-[#B34D4D]">{totalRuns}</td>
-                </tr>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-center border-collapse text-xs select-none">
+                <thead>
+                  <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 font-black text-[9.5px] uppercase tracking-wider">
+                    <th className="py-2.5 px-3 border border-stone-800/80">Catégorie</th>
+                    <th className="py-2.5 px-3 border border-stone-800/80">Distance (km)</th>
+                    <th className="py-2.5 px-3 border border-stone-800/80">Temps (h)</th>
+                    <th className="py-2.5 px-3 border border-stone-800/80">Dénivelé (m)</th>
+                    <th className="py-2.5 px-3 border border-stone-800/80">Sorties (nb)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold">
+                  {/* Ligne TOTAL mise en avant avec teinte ambre très subtile */}
+                  <tr className="bg-[#CF9A61]/10 text-stone-100 font-black">
+                    <td className="py-3 px-3 border border-stone-800 uppercase bg-[#CF9A61]/15 text-[#CF9A61] font-black tracking-wider text-[10.5px]">
+                      Total
+                    </td>
+                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
+                      {totalKm.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
+                      {totalHours.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
+                      {Math.round(totalElev)}
+                    </td>
+                    <td className="py-3 px-3 border border-stone-800 text-[#CF9A61] font-mono text-sm font-black">
+                      {totalRuns}
+                    </td>
+                  </tr>
 
-                <tr>
-                  <td className="py-2 px-2 border border-stone-800 bg-stone-900 text-stone-300 text-[10px] uppercase">Moy / sortie</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySortieKm.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySortieHours.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySortieElev.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800 text-stone-500">-</td>
-                </tr>
+                  <tr className="hover:bg-stone-900/60 transition">
+                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
+                      Moy / sortie
+                    </td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieKm.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieHours.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieElev.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 text-stone-500">-</td>
+                  </tr>
 
-                <tr>
-                  <td className="py-2 px-2 border border-stone-800 bg-stone-900 text-stone-300 text-[10px] uppercase">Moy / jour</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyJourKm.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyJourHours.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyJourElev.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800 text-stone-400 text-[10px]">{((totalRuns / 365) * 100).toFixed(1)}%</td>
-                </tr>
+                  <tr className="hover:bg-stone-900/60 transition">
+                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
+                      Moy / jour
+                    </td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourKm.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourHours.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourElev.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 text-stone-400 font-mono text-[10px]">
+                      {((totalRuns / 365) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
 
-                <tr>
-                  <td className="py-2 px-2 border border-stone-800 bg-stone-900 text-stone-300 text-[10px] uppercase">Moy / semaine</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySemaineKm.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySemaineHours.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySemaineElev.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moySemaineRuns.toFixed(2)}</td>
-                </tr>
+                  <tr className="hover:bg-stone-900/60 transition">
+                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
+                      Moy / semaine
+                    </td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineKm.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineHours.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineElev.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineRuns.toFixed(2)}</td>
+                  </tr>
 
-                <tr>
-                  <td className="py-2 px-2 border border-stone-800 bg-stone-900 text-stone-300 text-[10px] uppercase">Moy / mois</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyMoisKm.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyMoisHours.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyMoisElev.toFixed(2)}</td>
-                  <td className="py-2 px-2 border border-stone-800">{moyMoisRuns.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
+                  <tr className="hover:bg-stone-900/60 transition">
+                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
+                      Moy / mois
+                    </td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisKm.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisHours.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisElev.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisRuns.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* 1. DÉTAIL MENSUEL (SWIPE SUR L'ENSEMBLE DU RECTANGLE + BOUTONS DESKTOP) */}
