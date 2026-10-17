@@ -25,31 +25,31 @@ interface AnnualStatsProps {
   vma?: number | string;
 }
 
-// 4 Couleurs plates unies (1 couleur nette par saison, aucun dégradé)
-const SEASON_COLORS = {
-  winter: "#38BDF8", // Hiver : Bleu ciel acier
-  spring: "#34D399", // Printemps : Vert menthe
-  summer: "#F59E0B", // Été : Ambre doré
-  autumn: "#FB923C", // Automne : Terracotta brique
+// Les 4 couleurs officielles du projet (identiques aux histogrammes hebdo et plan)
+const CORE_METRIC_COLORS = {
+  blue: "#4D80B3",     // Trimestre 1 (Hiver : Jan, Fév, Mar)
+  green: "#4DB380",    // Trimestre 2 (Printemps : Avr, Mai, Juin)
+  gold: "#CF9A61",     // Trimestre 3 (Été : Juil, Aoû, Sep)
+  burgundy: "#B34D4D", // Trimestre 4 (Automne : Oct, Nov, Déc)
 };
 
-const getSeasonColorByMonth = (monthIndex: number): string => {
-  if (monthIndex === 11 || monthIndex === 0 || monthIndex === 1) {
-    return SEASON_COLORS.winter; // Décembre, Janvier, Février
+const getThemeColorByMonth = (monthIndex: number): string => {
+  if (monthIndex >= 0 && monthIndex <= 2) {
+    return CORE_METRIC_COLORS.blue; // Janvier, Février, Mars
   }
-  if (monthIndex >= 2 && monthIndex <= 4) {
-    return SEASON_COLORS.spring; // Mars, Avril, Mai
+  if (monthIndex >= 3 && monthIndex <= 5) {
+    return CORE_METRIC_COLORS.green; // Avril, Mai, Juin
   }
-  if (monthIndex >= 5 && monthIndex <= 7) {
-    return SEASON_COLORS.summer; // Juin, Juillet, Août
+  if (monthIndex >= 6 && monthIndex <= 8) {
+    return CORE_METRIC_COLORS.gold; // Juillet, Août, Septembre
   }
-  return SEASON_COLORS.autumn; // Septembre, Octobre, Novembre
+  return CORE_METRIC_COLORS.burgundy; // Octobre, Novembre, Décembre
 };
 
-const getSeasonColorByWeek = (weekNum: number): string => {
+const getThemeColorByWeek = (weekNum: number): string => {
   const dayOfYear = (weekNum - 1) * 7 + 3;
   const monthIdx = Math.min(11, Math.max(0, Math.floor(dayOfYear / 30.5)));
-  return getSeasonColorByMonth(monthIdx);
+  return getThemeColorByMonth(monthIdx);
 };
 
 export const AnnualStats: React.FC<AnnualStatsProps> = ({
@@ -77,7 +77,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
 
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
 
-  // Gestion du swipe sur l'ensemble de la carte de détail mensuel
+  // Swipe sur la totalité du cadre du détail mensuel
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -158,7 +158,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     exportAthleteStatsToExcel(completedRuns, "Athlete", selectedStatsYear);
   };
 
-  const currentMonthColor = getSeasonColorByMonth(selectedMonthIndex);
+  const currentMonthColor = getThemeColorByMonth(selectedMonthIndex);
 
   // =========================================================================
   // CALCULS STATISTIQUES ANNUELLES
@@ -212,7 +212,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     20
   );
 
-  // Histogramme annuel sans dégradé et sans fond gris
   const renderAnnualHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 1150 : 920;
     const svgHeight = isExpanded ? 260 : 190;
@@ -282,7 +281,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         {Array.from({ length: 52 }, (_, i) => {
           const wNum = i + 1;
           const wData = weekDataMap[wNum];
-          const seasonColor = getSeasonColorByWeek(wNum);
+          const themeColor = getThemeColorByWeek(wNum);
 
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
@@ -298,7 +297,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   y={barY}
                   width={barWidth}
                   height={Math.max(3, barHeight)}
-                  fill={seasonColor}
+                  fill={themeColor}
                   rx="2"
                   className="transition-all duration-150 group-hover:brightness-125"
                 />
@@ -309,7 +308,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           );
         })}
 
-        {/* Graduations Semaines */}
         {tickWeeks.map((wNum) => {
           const colCenterX = paddingLeft + (wNum - 1) * colWidth + colWidth / 2;
           return (
@@ -337,14 +335,13 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
           );
         })}
 
-        {/* Graduations Mois en bas avec couleur de leur saison */}
         {MONTHS_LIST.map((mName, mIdx) => {
           const mStartWeek = Math.round((mIdx * 52) / 12);
           const mEndWeek = Math.round(((mIdx + 1) * 52) / 12) - 1;
           const x1 = paddingLeft + mStartWeek * colWidth;
           const x2 = paddingLeft + mEndWeek * colWidth + colWidth;
           const centerX = (x1 + x2) / 2;
-          const color = getSeasonColorByMonth(mIdx);
+          const color = getThemeColorByMonth(mIdx);
 
           return (
             <text
@@ -365,7 +362,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
     );
   };
 
-  // Données du mois actuellement sélectionné
   const currentMonthRuns = yearRuns.filter((r) => {
     const { month } = parseYMD(r.date);
     return month === selectedMonthIndex;
@@ -419,7 +415,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         </button>
       </div>
 
-      {/* 1. ONGLET PLAN EN COURS */}
+      {/* 1. PLAN EN COURS */}
       {activeTab === "plan" && (
         <div className="animate-fadeIn w-full">
           {!activePlan ? (
@@ -444,58 +440,52 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         </div>
       )}
 
-      {/* 2. ONGLET BILAN ANNUEL */}
+      {/* 2. BILAN ANNUEL */}
       {activeTab === "annual" && (
         <div className="space-y-6 animate-fadeIn w-full">
-          {/* EN-TÊTE ANNÉE ET ACTIONS */}
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <h3 className="text-lg font-black uppercase text-stone-100">
-              Statistiques annuelles {selectedStatsYear}
-            </h3>
-
-            <div className="flex items-center gap-2">
-              {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-2 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-                  title="Télécharger le bilan au format Excel conforme"
-                >
-                  <span>Exporter Excel</span>
-                </button>
-              )}
-
-              <select
-                value={selectedStatsYear}
-                onChange={(e) => setSelectedStatsYear(parseInt(e.target.value, 10))}
-                className="bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-1.5 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#B34D4D] cursor-pointer"
+          {/* BARRE D'ACTIONS SANS LE TITRE 'STATISTIQUES ANNUELLES' */}
+          <div className="flex justify-end items-center flex-wrap gap-2.5">
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="text-[10px] md:text-xs font-bold text-emerald-100 bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-800/80 px-3.5 py-2 rounded-xl uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+                title="Télécharger le bilan au format Excel conforme"
               >
-                <option value={2026}>Année 2026</option>
-                <option value={2025}>Année 2025</option>
-              </select>
+                <span>Exporter Excel</span>
+              </button>
+            )}
 
-              {!isReadOnly && (
-                <button
-                  onClick={() => setShowAddRunForm(!showAddRunForm)}
-                  className={`text-[10px] font-black px-3 py-2 rounded-xl uppercase transition cursor-pointer border ${
-                    showAddRunForm
-                      ? "text-[#CF6361] bg-[#CF6361]/10 border-[#CF6361]/30 hover:bg-[#CF6361]/20"
-                      : "text-[#B34D4D] bg-[#B34D4D]/10 border-[#B34D4D]/30 hover:bg-[#B34D4D]/20"
-                  }`}
-                >
-                  {showAddRunForm ? "Fermer" : "Entrer une sortie"}
-                </button>
-              )}
-            </div>
+            <select
+              value={selectedStatsYear}
+              onChange={(e) => setSelectedStatsYear(parseInt(e.target.value, 10))}
+              className="bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61] cursor-pointer shadow-sm"
+            >
+              <option value={2026}>Année 2026</option>
+              <option value={2025}>Année 2025</option>
+            </select>
+
+            {!isReadOnly && (
+              <button
+                onClick={() => setShowAddRunForm(!showAddRunForm)}
+                className={`text-[10px] md:text-xs font-black px-3.5 py-2 rounded-xl uppercase transition cursor-pointer border shadow-sm ${
+                  showAddRunForm
+                    ? "text-[#CF6361] bg-[#CF6361]/10 border-[#CF6361]/30 hover:bg-[#CF6361]/20"
+                    : "text-stone-200 bg-stone-900 border-stone-800 hover:border-stone-700 hover:text-white"
+                }`}
+              >
+                {showAddRunForm ? "Fermer" : "Entrer une sortie"}
+              </button>
+            )}
           </div>
 
           {/* FORMULAIRE DE SAISIE SORTIE */}
           {!isReadOnly && showAddRunForm && (
             <form
               onSubmit={handleAddRunSubmit}
-              className="bg-stone-900/90 border border-[#B34D4D]/50 rounded-3xl p-4 space-y-3 shadow-2xl animate-fadeIn"
+              className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 space-y-3.5 shadow-2xl animate-fadeIn"
             >
-              <div className="text-xs font-black text-[#B34D4D] uppercase tracking-wider border-b border-stone-800 pb-2">
+              <div className="text-xs font-black text-[#CF9A61] uppercase tracking-wider border-b border-stone-800 pb-2">
                 Saisir une nouvelle sortie effectuée
               </div>
 
@@ -507,7 +497,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     required
                     value={newRunForm.date}
                     onChange={(e) => setNewRunForm({ ...newRunForm, date: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                   />
                 </div>
 
@@ -520,7 +510,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 12.5"
                     value={newRunForm.km}
                     onChange={(e) => setNewRunForm({ ...newRunForm, km: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                   />
                 </div>
 
@@ -533,7 +523,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 45"
                     value={newRunForm.durationMin}
                     onChange={(e) => setNewRunForm({ ...newRunForm, durationMin: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                   />
                 </div>
 
@@ -545,18 +535,18 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 150"
                     value={newRunForm.elevation}
                     onChange={(e) => setNewRunForm({ ...newRunForm, elevation: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5 pt-1">
-                <label className="flex items-center gap-2 text-xs font-bold text-[#B34D4D] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs font-bold text-stone-300 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={newRunForm.isRace}
                     onChange={(e) => setNewRunForm({ ...newRunForm, isRace: e.target.checked })}
-                    className="accent-[#B34D4D] rounded cursor-pointer"
+                    className="accent-[#CF9A61] rounded cursor-pointer"
                   />
                   <span>Il s'agit d'une course officielle</span>
                 </label>
@@ -567,23 +557,21 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Intitulé (ex : Ronde du Salbert : 9,72 km)"
                     value={newRunForm.raceNotes}
                     onChange={(e) => setNewRunForm({ ...newRunForm, raceNotes: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#B34D4D]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                   />
                 )}
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-[#B34D4D] hover:bg-[#993d3d] text-stone-100 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
+                className="w-full py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
               >
                 Enregistrer la sortie
               </button>
             </form>
           )}
 
-          {/* ========================================================================= */}
-          {/* NOUVEAU RÉSUMÉ GLOBAL : PLUS GRAND, SANS ROUGE, HAUT DE GAMME */}
-          {/* ========================================================================= */}
+          {/* RÉSUMÉ GLOBAL : HAUT DE GAMME */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 space-y-4 shadow-xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
               <div>
@@ -613,7 +601,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold">
-                  {/* Ligne TOTAL mise en avant avec teinte ambre très subtile */}
                   <tr className="bg-[#CF9A61]/10 text-stone-100 font-black">
                     <td className="py-3 px-3 border border-stone-800 uppercase bg-[#CF9A61]/15 text-[#CF9A61] font-black tracking-wider text-[10.5px]">
                       Total
@@ -678,13 +665,13 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </div>
           </div>
 
-          {/* 1. DÉTAIL MENSUEL (SWIPE SUR L'ENSEMBLE DU RECTANGLE + BOUTONS DESKTOP) */}
+          {/* 1. DÉTAIL MENSUEL (AVEC LES 4 COULEURS OFFICIELLES) */}
           <div
             onTouchStart={handleCardTouchStart}
             onTouchEnd={handleCardTouchEnd}
             className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4 touch-pan-y"
           >
-            {/* Header mobile avec swipe et puces interactives */}
+            {/* Header mobile avec swipe et puces */}
             <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
               <span className="flex items-center gap-1 text-[#CF9A61]">
                 <span>👉</span> Glissez n'importe où pour changer de mois
@@ -734,7 +721,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-1.5 text-xs font-black uppercase focus:outline-none cursor-pointer text-center min-w-[140px]"
                 >
                   {MONTHS_LIST.map((mName, idx) => (
-                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: getSeasonColorByMonth(idx) }}>
+                    <option key={mName} value={idx} className="bg-stone-900 font-bold" style={{ color: getThemeColorByMonth(idx) }}>
                       {mName}
                     </option>
                   ))}
@@ -766,7 +753,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </span>
             </div>
 
-            {/* Tableau du mois affiché */}
+            {/* Tableau du mois */}
             <div className="overflow-x-auto custom-scrollbar select-none">
               <table className="w-full text-center border-collapse text-xs">
                 <thead>
@@ -816,7 +803,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </div>
           </div>
 
-          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (RECTANGLE KPI + HISTOGRAMME SANS FOND GRIS) */}
+          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (AVEC LES 4 COULEURS OFFICIELLES) */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4 w-full">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
               <div>
@@ -824,7 +811,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   Évolution du volume annuel
                 </h4>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  52 semaines colorées par saison (sans dégradé)
+                  52 semaines colorées selon les 4 teintes de charge
                 </p>
               </div>
 
@@ -839,7 +826,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </button>
             </div>
 
-            {/* RECTANGLE 3 INFOS : "Max Semaine" en ambre #CF9A61 (non-vert) */}
+            {/* RECTANGLE 3 INFOS */}
             <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-3 rounded-2xl border border-stone-800/70 text-center shadow-inner">
               <div>
                 <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Année</span>
@@ -861,29 +848,29 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               </div>
             </div>
 
-            {/* HISTOGRAMME MODERNE (BARRES DIRECTES, SANS FOND GRIS) */}
+            {/* HISTOGRAMME ANNUEL */}
             <div className="bg-stone-950 rounded-2xl p-3 md:p-4 border border-stone-800 relative w-full overflow-hidden shadow-inner">
               {renderAnnualHistogram(false)}
             </div>
 
-            {/* Légende avec les 4 couleurs saisonnières plates */}
+            {/* Légende avec les 4 couleurs harmonisées */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-[9.5px] md:text-xs font-semibold text-stone-400 pt-1">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.winter }} />
-                  <span>Hiver</span>
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.blue }} />
+                  <span>Jan - Mar</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.spring }} />
-                  <span>Printemps</span>
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.green }} />
+                  <span>Avr - Juin</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.summer }} />
-                  <span>Été</span>
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.gold }} />
+                  <span>Juil - Sep</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: SEASON_COLORS.autumn }} />
-                  <span>Automne</span>
+                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.burgundy }} />
+                  <span>Oct - Déc</span>
                 </span>
               </div>
               <span className="font-mono text-stone-500 text-[10px]">52 semaines</span>
@@ -892,7 +879,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
         </div>
       )}
 
-      {/* MODALE PLEIN ÉCRAN HORIZONTAL (PAYSAGE SUR MOBILE, GRAND FORMAT SUR PC) */}
+      {/* MODALE PLEIN ÉCRAN HORIZONTAL */}
       {isLandscapeFullscreen && (
         <div
           onClick={() => setIsLandscapeFullscreen(false)}
