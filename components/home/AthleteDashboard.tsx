@@ -245,7 +245,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     10
   );
 
-  // Fonction de rendu de l'histogramme des 7 jours
+  // Rendu de l'histogramme avec remplissage (Bar in Bar / Progress Bar)
   const renderDailyHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 750 : 540;
     const svgHeight = isExpanded ? 240 : 160;
@@ -257,7 +257,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     const baselineY = svgHeight - paddingBottom;
     const usableWidth = svgWidth - paddingLeft - paddingRight;
     const colWidth = usableWidth / 7;
-    const barWidth = isExpanded ? 18 : 12;
+    const barWidth = isExpanded ? 26 : 18;
 
     return (
       <svg
@@ -265,13 +265,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         className="w-full h-auto overflow-visible select-none"
       >
         <defs>
-          <linearGradient id="completedBarGradient" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="fillBarGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#4DB380" stopOpacity="1" />
-            <stop offset="100%" stopColor="#3b9669" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#2e7d55" stopOpacity="0.9" />
           </linearGradient>
-          <linearGradient id="plannedBarGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#52525b" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#3f3f46" stopOpacity="0.5" />
+          <linearGradient id="overflowBarGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#CDCF61" stopOpacity="1" />
+            <stop offset="100%" stopColor="#4DB380" stopOpacity="0.95" />
           </linearGradient>
         </defs>
 
@@ -305,26 +305,30 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           );
         })}
 
-        {/* Colonnes par jour */}
+        {/* Colonnes par jour avec remplissage */}
         {dailyVolumeData.map((d, i) => {
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
-          const plannedBarH = (d.plannedKm / maxDailyKm) * usableHeight;
-          const completedBarH = (d.completedKm / maxDailyKm) * usableHeight;
+          const barX = colCenterX - barWidth / 2;
 
-          const plannedX = colCenterX - barWidth - 1.5;
-          const completedX = colCenterX + 1.5;
+          // Hauteur du conteneur (fond prévu, ou réalisé si pas de prévu)
+          const baseTargetKm = Math.max(d.plannedKm, d.completedKm);
+          const containerH = baseTargetKm > 0 ? (baseTargetKm / maxDailyKm) * usableHeight : 0;
+          const containerY = baselineY - containerH;
 
-          const plannedY = baselineY - plannedBarH;
-          const completedY = baselineY - completedBarH;
+          // Hauteur du remplissage réalisé
+          const fillH = d.completedKm > 0 ? (d.completedKm / maxDailyKm) * usableHeight : 0;
+          const fillY = baselineY - fillH;
+
+          const isOvercompleted = d.plannedKm > 0 && d.completedKm > d.plannedKm;
 
           return (
             <g key={d.dayIndex} className="group cursor-pointer">
               {/* Fond de colonne pour aujourd'hui */}
               {d.isToday && (
                 <rect
-                  x={colCenterX - colWidth / 2 + 4}
+                  x={colCenterX - colWidth / 2 + 3}
                   y={paddingTop - 6}
-                  width={colWidth - 8}
+                  width={colWidth - 6}
                   height={usableHeight + 12}
                   fill="#4DB380"
                   fillOpacity="0.08"
@@ -332,29 +336,44 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Barre Prévu */}
-              {d.plannedKm > 0 && (
+              {/* 1. CONTENEUR / GAUGE DE FOND (Objectif prévu) */}
+              {containerH > 0 && (
                 <rect
-                  x={plannedX}
-                  y={plannedY}
+                  x={barX}
+                  y={containerY}
                   width={barWidth}
-                  height={Math.max(3, plannedBarH)}
-                  fill="url(#plannedBarGradient)"
-                  rx="3"
-                  className="transition-all duration-150 group-hover:opacity-90"
+                  height={Math.max(4, containerH)}
+                  fill="#27272a"
+                  stroke="#3f3f46"
+                  strokeWidth="1"
+                  rx="4"
+                  className="transition-colors group-hover:stroke-stone-500"
                 />
               )}
 
-              {/* Barre Réalisé */}
-              {d.completedKm > 0 && (
+              {/* 2. REMPLISSAGE RÉALISÉ (Monte à l'intérieur de la jauge) */}
+              {fillH > 0 && (
                 <rect
-                  x={completedX}
-                  y={completedY}
+                  x={barX}
+                  y={fillY}
                   width={barWidth}
-                  height={Math.max(3, completedBarH)}
-                  fill="url(#completedBarGradient)"
-                  rx="3"
-                  className="transition-all duration-150 group-hover:scale-y-105"
+                  height={Math.max(4, fillH)}
+                  fill={isOvercompleted ? "url(#overflowBarGradient)" : "url(#fillBarGradient)"}
+                  rx="4"
+                  className="transition-all duration-200 group-hover:brightness-110"
+                />
+              )}
+
+              {/* Trait de repère cible si le remplissage dépasse le prévu */}
+              {isOvercompleted && (
+                <line
+                  x1={barX - 2}
+                  y1={baselineY - (d.plannedKm / maxDailyKm) * usableHeight}
+                  x2={barX + barWidth + 2}
+                  y2={baselineY - (d.plannedKm / maxDailyKm) * usableHeight}
+                  stroke="#CDCF61"
+                  strokeWidth="2"
+                  strokeDasharray="2,2"
                 />
               )}
 
@@ -371,7 +390,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 {d.dayShort}
               </text>
 
-              {/* Point indicateur du jour actuel */}
+              {/* Indicateur point pour aujourd'hui */}
               {d.isToday && (
                 <circle
                   cx={colCenterX}
@@ -381,8 +400,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Tooltip SVG natif */}
-              <title>{`${d.dayFull} — Réalisé : ${d.completedKm} km | Prévu : ${d.plannedKm} km`}</title>
+              {/* Tooltip natif */}
+              <title>{`${d.dayFull} — Remplissage : ${d.completedKm} km courus / ${d.plannedKm} km prévus`}</title>
             </g>
           );
         })}
@@ -623,16 +642,16 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3 & 4. GRILLE 2 COLONNES (HISTOGRAMME SEMAINE & CHARGE) ===================== */}
+      {/* ===================== 3 & 4. GRILLE 2 COLONNES (HISTOGRAMME AVEC REMPLISSAGE & CHARGE) ===================== */}
       {activePlan && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
           
-          {/* CARTE 3 : HISTOGRAMME DU VOLUME DE LA SEMAINE */}
+          {/* CARTE 3 : HISTOGRAMME À REMPLISSAGE PAR JOUR DE SEMAINE */}
           <div
             onClick={() => setZoomedChart("volume")}
             className="bg-stone-900/90 hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition cursor-pointer group"
           >
-            {/* Entête avec métriques KPI demandées */}
+            {/* Entête avec boîte KPI */}
             <div className="space-y-3 border-b border-stone-800/80 pb-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -674,7 +693,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* HISTOGRAMME SVG */}
+            {/* HISTOGRAMME SVG À REMPLISSAGE */}
             <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
               {renderDailyHistogram(false)}
             </div>
@@ -684,11 +703,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-[#4DB380] inline-block shadow-sm"></span>
-                  <span className="text-stone-200 font-bold">Réalisé</span>
+                  <span className="text-stone-200 font-bold">Remplissage (Réalisé)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#52525b] inline-block"></span>
-                  <span className="text-stone-400 font-medium">Prévu</span>
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#27272a] border border-[#3f3f46] inline-block"></span>
+                  <span className="text-stone-400 font-medium">Conteneur (Prévu)</span>
                 </span>
               </div>
               <span className="text-[8.5px] uppercase font-bold text-stone-500">
