@@ -51,28 +51,6 @@ const getRpeGradientColor = (rpeStr?: string) => {
   return "#ef4444";
 };
 
-// Générateur de spline monotone / Bézier lissée moderne
-const getSmoothSvgPath = (points: { x: number; y: number }[]): string => {
-  if (points.length === 0) return "";
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? 0 : i - 1];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2] || p2;
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-  }
-  return d;
-};
-
 export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   activePlan,
   completedWorkouts,
@@ -211,7 +189,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
-      {/* ===================== 1. ÉVÉNEMENT CIBLE ===================== */}
+      {/* ===================== 1. ÉVÉNEMENT CIBLE (PLEINE LARGEUR) ===================== */}
       {activePlan && (
         <div className="bg-gradient-to-r from-[#CF6361]/20 via-[#CF6361]/10 to-stone-900 border border-[#CF6361]/30 p-4 md:p-5 rounded-3xl flex items-center justify-between shadow-lg w-full">
           <div className="space-y-1">
@@ -242,7 +220,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* ===================== 2. CARTE SÉANCE DU JOUR ===================== */}
+      {/* ===================== 2. CARTE SÉANCE DU JOUR (PLEINE LARGEUR) ===================== */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-2xl space-y-4 w-full">
         <div className="flex justify-between items-center border-b border-stone-800/80 pb-3">
           <div>
@@ -442,10 +420,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3 & 4. GRILLE MODERNE TYPE BUSINESS / SAAS ===================== */}
+      {/* ===================== 3 & 4. GRILLE 2 COLONNES (VOLUME DU PLAN & CHARGE DU PLAN) ===================== */}
       {activePlan && (() => {
         const safeTotalWeeks = Math.max(totalWeeks || 1, 1);
 
+        // Données d'évolution kilométrique par semaine
         const volumeWeeklyData = Array.from({ length: safeTotalWeeks }, (_, i) => i + 1).map((wNum) => {
           const plannedKm = calculateWeeklyPlannedKm(activePlan.workouts, wNum);
           const completedKm = calculateWeeklyCompletedKm(activePlan.workouts, wNum, completedWorkouts);
@@ -461,22 +440,18 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           completedKm: 0,
         };
 
-        const totalPlannedKm = Math.round(volumeWeeklyData.reduce((acc, d) => acc + d.plannedKm, 0));
-        const totalCompletedKm = Math.round(volumeWeeklyData.reduce((acc, d) => acc + d.completedKm, 0));
-        const completionRate = totalPlannedKm > 0 ? Math.min(100, Math.round((totalCompletedKm / totalPlannedKm) * 100)) : 0;
-
         const maxVolumeKm = Math.max(
           ...volumeWeeklyData.map((d) => Math.max(d.plannedKm, d.completedKm)),
           20
         );
 
-        // Paramètres SVG
+        // Paramètres SVG pour le volume
         const vWidth = 600;
-        const vHeight = 175;
-        const vPaddingLeft = 40;
+        const vHeight = 160;
+        const vPaddingLeft = 45;
         const vPaddingRight = 20;
-        const vPaddingTop = 15;
-        const vPaddingBottom = 30;
+        const vPaddingTop = 20;
+        const vPaddingBottom = 35;
         const vBaselineY = vHeight - vPaddingBottom;
         const vUsableWidth = vWidth - vPaddingLeft - vPaddingRight;
         const vUsableHeight = vBaselineY - vPaddingTop;
@@ -487,146 +462,70 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         };
         const getVY = (value: number) => vBaselineY - (value / maxVolumeKm) * vUsableHeight;
 
-        // Points
-        const plannedPoints = volumeWeeklyData.map((d, i) => ({ x: getVX(i), y: getVY(d.plannedKm) }));
-        const completedPoints = volumeWeeklyData.map((d, i) => ({ x: getVX(i), y: getVY(d.completedKm) }));
+        const pointsVolumePlanned = volumeWeeklyData.map((d, i) => `${getVX(i)},${getVY(d.plannedKm)}`).join(" ");
+        const pointsVolumeCompleted = volumeWeeklyData.map((d, i) => `${getVX(i)},${getVY(d.completedKm)}`).join(" ");
+        const areaVolumeCompleted = `${getVX(0)},${vBaselineY} ${pointsVolumeCompleted} ${getVX(safeTotalWeeks - 1)},${vBaselineY}`;
 
-        // Courbes lissées
-        const smoothPlannedPath = getSmoothSvgPath(plannedPoints);
-        const smoothCompletedPath = getSmoothSvgPath(completedPoints);
-
-        // Aire lissée
-        const firstX = getVX(0);
-        const lastX = getVX(safeTotalWeeks - 1);
-        const smoothCompletedArea = `${smoothCompletedPath} L ${lastX} ${vBaselineY} L ${firstX} ${vBaselineY} Z`;
-
-        const tickStep = safeTotalWeeks > 20 ? 4 : safeTotalWeeks > 10 ? 2 : 1;
+        const tickStep = safeTotalWeeks > 24 ? 4 : safeTotalWeeks > 14 ? 2 : 1;
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
             
-            {/* CARTE 3 : ÉVOLUTION DU VOLUME (MODERNE BUSINESS / SAAS) */}
-            <div className="bg-stone-900/90 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between">
-              
-              {/* Entête avec métriques business */}
-              <div className="space-y-3 border-b border-stone-800/80 pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                      Analytique de Préparation
-                    </span>
-                    <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5">
-                      Volume Kilométrique
-                    </h3>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={onNavigateToVolumeChart}
-                    className="text-[10px] font-black text-stone-300 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
-                  >
-                    <span>Détails</span>
-                    <span className="text-[#CF9A61]">➔</span>
-                  </button>
+            {/* CARTE 3 : ÉVOLUTION KILOMÉTRIQUE DU PLAN */}
+            <div className="bg-stone-900 border border-stone-800 p-5 rounded-3xl space-y-3 shadow-xl font-sans w-full flex flex-col justify-between">
+              <div className="flex justify-between items-center border-b border-stone-800 pb-2">
+                <div>
+                  <span className="text-xs font-black uppercase text-stone-100 tracking-wider block">
+                    Évolution du Volume
+                  </span>
+                  <span className="text-[11px] font-bold text-stone-300">
+                    S{currentWeekNum} :{" "}
+                    <span className="text-[#4DB380] font-black">{currentWeekVolume.completedKm} km</span> /{" "}
+                    {currentWeekVolume.plannedKm} km prévus
+                  </span>
                 </div>
 
-                {/* Métriques KPI rapides */}
-                <div className="grid grid-cols-3 gap-2 bg-stone-950/70 p-2.5 rounded-2xl border border-stone-800/60 text-center">
-                  <div>
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Cette semaine</span>
-                    <div className="text-xs font-black text-stone-100 mt-0.5">
-                      <span className="text-[#4DB380]">{currentWeekVolume.completedKm}</span>
-                      <span className="text-stone-500 font-normal"> / {currentWeekVolume.plannedKm} km</span>
-                    </div>
-                  </div>
-                  <div className="border-x border-stone-800/80">
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Cumul Plan</span>
-                    <div className="text-xs font-black text-stone-100 mt-0.5">
-                      {totalCompletedKm} <span className="text-stone-500 font-normal text-[10px]">km</span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'atteinte</span>
-                    <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                      {completionRate}%
-                    </div>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={onNavigateToVolumeChart}
+                  className="text-[10px] font-black text-stone-100 bg-stone-800 border border-stone-700 px-2.5 py-1 rounded-xl uppercase hover:bg-stone-750 transition cursor-pointer"
+                >
+                  Stats Plan ➔
+                </button>
               </div>
 
-              {/* GRAPHIQUE SVG ULTRA MODERNE */}
-              <div className="relative bg-stone-950/90 rounded-2xl p-2.5 border border-stone-800/70 w-full overflow-hidden shadow-inner">
+              {/* GRAPHIQUE SVG DU VOLUME */}
+              <div className="relative bg-stone-950/80 rounded-2xl p-2 border border-stone-800/80 w-full overflow-hidden">
                 <svg viewBox={`0 0 ${vWidth} ${vHeight}`} className="w-full h-auto overflow-visible select-none">
                   <defs>
-                    {/* Dégradé doux vertical style Linear / Stripe */}
-                    <linearGradient id="modernVolumeGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4DB380" stopOpacity="0.32" />
-                      <stop offset="60%" stopColor="#4DB380" stopOpacity="0.08" />
+                    <linearGradient id="dashboardVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4DB380" stopOpacity="0.35" />
                       <stop offset="100%" stopColor="#4DB380" stopOpacity="0.0" />
                     </linearGradient>
-
-                    {/* Filtre de glow subtil */}
-                    <filter id="glowSubtle" x="-20%" y="-20%" width="140%" height="140%">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
                   </defs>
 
-                  {/* Lignes de quadrillage fines et sobres */}
-                  {[0, 0.5, 1].map((pct, idx) => {
-                    const y = vPaddingTop + vUsableHeight * (1 - pct);
-                    const labelVal = Math.round(maxVolumeKm * pct);
-                    return (
-                      <g key={idx}>
-                        <line
-                          x1={vPaddingLeft}
-                          y1={y}
-                          x2={vWidth - vPaddingRight}
-                          y2={y}
-                          stroke="#27272a"
-                          strokeWidth="1"
-                          strokeDasharray={pct === 0 ? "none" : "2,4"}
-                        />
-                        <text
-                          x={vPaddingLeft - 6}
-                          y={y + 3.5}
-                          fill="#71717a"
-                          fontSize="9"
-                          fontWeight="700"
-                          textAnchor="end"
-                          className="font-mono"
-                        >
-                          {labelVal}
-                        </text>
-                      </g>
-                    );
-                  })}
+                  {/* Axe Y (km) */}
+                  <text x={vPaddingLeft - 8} y={vPaddingTop + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
+                    {Math.round(maxVolumeKm)} km
+                  </text>
+                  <text x={vPaddingLeft - 8} y={vPaddingTop + vUsableHeight / 2 + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
+                    {Math.round(maxVolumeKm / 2)} km
+                  </text>
+                  <text x={vPaddingLeft - 8} y={vBaselineY + 4} fill="#737373" fontSize="10" textAnchor="end" fontWeight="bold">
+                    0
+                  </text>
 
-                  {/* Halo et aire sous la courbe réalisée */}
-                  <path d={smoothCompletedArea} fill="url(#modernVolumeGradient)" />
+                  {/* Lignes de quadrillage */}
+                  <line x1={vPaddingLeft} y1={vPaddingTop} x2={vWidth - vPaddingRight} y2={vPaddingTop} stroke="#3f3f46" strokeDasharray="3,3" />
+                  <line x1={vPaddingLeft} y1={vPaddingTop + vUsableHeight / 2} x2={vWidth - vPaddingRight} y2={vPaddingTop + vUsableHeight / 2} stroke="#3f3f46" strokeDasharray="3,3" />
+                  <line x1={vPaddingLeft} y1={vBaselineY} x2={vWidth - vPaddingRight} y2={vBaselineY} stroke="#52525b" strokeWidth="1.5" />
 
-                  {/* Courbe prévisionnelle en pointillés discrets */}
-                  <path
-                    d={smoothPlannedPath}
-                    fill="none"
-                    stroke="#52525b"
-                    strokeWidth="1.8"
-                    strokeDasharray="4,5"
-                    strokeLinecap="round"
-                  />
+                  {/* Dégradé et courbes */}
+                  <polygon points={areaVolumeCompleted} fill="url(#dashboardVolumeGradient)" />
+                  <polyline points={pointsVolumePlanned} fill="none" stroke="#737373" strokeWidth="2" strokeDasharray="4,4" />
+                  <polyline points={pointsVolumeCompleted} fill="none" stroke="#4DB380" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-                  {/* Courbe réalisée lissée avec halo lumineux */}
-                  <path
-                    d={smoothCompletedPath}
-                    fill="none"
-                    stroke="#4DB380"
-                    strokeWidth="2.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    filter="url(#glowSubtle)"
-                  />
-
-                  {/* Points interactifs de chaque semaine */}
+                  {/* Repères et abscisses alignés */}
                   {volumeWeeklyData.map((d, i) => {
                     const cx = getVX(i);
                     const cy = getVY(d.completedKm);
@@ -635,45 +534,33 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
                     return (
                       <g key={d.weekNum}>
-                        {/* Étiquettes semaine alignées */}
+                        <line x1={cx} y1={vBaselineY} x2={cx} y2={vBaselineY + 4} stroke="#52525b" strokeWidth="1.5" />
+
                         {showLabel && (
                           <text
                             x={cx}
-                            y={vBaselineY + 16}
+                            y={vBaselineY + 18}
                             fill={isCurrentWeek ? "#4DB380" : "#a1a1aa"}
-                            fontSize="9"
-                            fontWeight={isCurrentWeek ? "900" : "600"}
+                            fontSize="10"
+                            fontWeight={isCurrentWeek ? "900" : "bold"}
                             textAnchor="middle"
-                            className="font-mono tracking-tight"
                           >
                             S{d.weekNum}
                           </text>
                         )}
 
-                        {/* Halo pulsé pour la semaine en cours */}
-                        {isCurrentWeek && (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r="9"
-                            fill="#4DB380"
-                            fillOpacity="0.2"
-                            className="animate-pulse"
-                          />
-                        )}
-
-                        {/* Point micro-donut */}
                         <g className="group cursor-pointer">
                           <circle
                             cx={cx}
                             cy={cy}
-                            r={isCurrentWeek ? "5" : d.completedKm > 0 ? "3.5" : "2.5"}
-                            fill={isCurrentWeek ? "#4DB380" : "#09090b"}
-                            stroke={isCurrentWeek ? "#ffffff" : "#4DB380"}
-                            strokeWidth={isCurrentWeek ? "2" : "1.8"}
-                            className="transition-all duration-150 group-hover:scale-125"
+                            r={isCurrentWeek ? "5.5" : d.completedKm > 0 ? "4" : "2.5"}
+                            style={{
+                              fill: isCurrentWeek ? "#4DB380" : "#09090b",
+                              stroke: "#4DB380",
+                            }}
+                            className="stroke-2 transition-all group-hover:r-7"
                           />
-                          <title>{`Semaine ${d.weekNum} : ${d.completedKm} km réalisés sur ${d.plannedKm} km prévus`}</title>
+                          <title>{`Semaine ${d.weekNum} — Réalisé : ${d.completedKm} km | Prévu : ${d.plannedKm} km`}</title>
                         </g>
                       </g>
                     );
@@ -681,21 +568,17 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 </svg>
               </div>
 
-              {/* Légende minimaliste */}
-              <div className="flex justify-between items-center text-[9.5px] font-semibold text-stone-400 pt-1">
-                <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-1 bg-[#4DB380] rounded-full inline-block shadow-sm"></span>
-                    <span className="text-stone-200">Réalisé</span>
+              {/* Légende Volume */}
+              <div className="flex justify-between items-center text-[9px] font-semibold text-stone-300 pt-1">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-0.5 bg-[#4DB380] inline-block"></span> Réalisé
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-0 border-t border-dashed border-stone-500 inline-block"></span>
-                    <span className="text-stone-400">Objectif plan</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-0.5 bg-[#737373] inline-block border-t border-dashed border-[#737373]"></span> Prévu
                   </span>
                 </div>
-                <span className="text-[8.5px] uppercase font-bold text-stone-500 tracking-wider">
-                  Progression en km
-                </span>
+                <span className="text-stone-400">Volume plan</span>
               </div>
             </div>
 
