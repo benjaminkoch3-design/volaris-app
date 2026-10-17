@@ -9,7 +9,6 @@ import {
   getWorkoutTypeConfig,
   calculateStepMetrics,
 } from "../../utils/calculations";
-import { WeeklyLoadChart } from "../analytics/WeeklyLoadChart";
 
 interface AthleteDashboardProps {
   activePlan: Plan | null;
@@ -41,17 +40,28 @@ const getWorkoutTypeHexColor = (type: string) => {
   }
 };
 
-const getRpeGradientColor = (rpeStr?: string) => {
+const getRpeGradientColor = (rpeStr?: string | number) => {
   if (!rpeStr) return "#CF9A61";
-  const rpe = parseInt(rpeStr, 10);
+  const rpe = Number(rpeStr);
   if (rpe <= 3) return "#10b981";
   if (rpe <= 5) return "#f59e0b";
   if (rpe <= 7) return "#f97316";
   return "#ef4444";
 };
 
+const formatMinutesToHours = (totalMinutes: number): string => {
+  if (!totalMinutes || totalMinutes <= 0) return "0'";
+  const h = Math.floor(totalMinutes / 60);
+  const m = Math.round(totalMinutes % 60);
+  if (h === 0) return `${m}'`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${m < 10 ? "0" : ""}${m}`;
+};
+
 const DAYS_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAYS_FULL = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+type ZoomableChartType = "volume" | "load" | "time" | "elevation";
 
 export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   activePlan,
@@ -66,8 +76,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
 
-  // Modale plein écran pour les graphiques (sur écran ordinateur)
-  const [zoomedChart, setZoomedChart] = useState<"volume" | "load" | null>(null);
+  // Modale plein écran (sur écran ordinateur)
+  const [zoomedChart, setZoomedChart] = useState<ZoomableChartType | null>(null);
 
   // Modale Garmin
   const [showGarminModal, setShowGarminModal] = useState<Workout | null>(null);
@@ -103,7 +113,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const currentJsDay = new Date().getDay();
   const currentDayIndex = currentJsDay === 0 ? 6 : currentJsDay - 1;
 
-  const handleOpenZoom = (chartType: "volume" | "load") => {
+  const handleOpenZoom = (chartType: ZoomableChartType) => {
     if (typeof window !== "undefined" && window.innerWidth >= 640) {
       setZoomedChart(chartType);
     }
@@ -198,35 +208,79 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Données journalières de la semaine en cours
-  const dailyVolumeData = Array.from({ length: 7 }, (_, dIdx) => {
+  // Agrégation précise des 7 jours de la semaine courante
+  const dailyMetricsData = Array.from({ length: 7 }, (_, dIdx) => {
     const dayWorkouts = (activePlan?.workouts || []).filter(
       (w) => Number(w.weekNumber) === currentWeekNum && Number(w.dayIndex) === dIdx && !w.isRest
     );
 
-    const plannedKm = dayWorkouts.reduce((acc, w) => {
-      let val = 0;
-      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
-        val = parseFloat(String(w.km).replace(",", "."));
-      } else if (w.steps && w.steps.length > 0) {
-        val = calculateStepMetrics(w.steps).totalKm;
-      }
-      return acc + (isNaN(val) ? 0 : val);
-    }, 0);
+    let plannedKm = 0;
+    let completedKm = 0;
+    let plannedMinutes = 0;
+    let completedMinutes = 0;
+    let plannedLoad = 0;
+    let completedLoad = 0;
+    let completedElevation = 0;
 
-    const completedKm = dayWorkouts.reduce((acc, w) => {
-      const isDone = completedWorkouts[w.id] || w.completed;
-      if (!isDone) return acc;
-      let val = 0;
-      if (w.completedKm !== undefined && w.completedKm !== null && String(w.completedKm).trim() !== "") {
-        val = parseFloat(String(w.completedKm).replace(",", "."));
-      } else if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
-        val = parseFloat(String(w.km).replace(",", "."));
-      } else if (w.steps && w.steps.length > 0) {
-        val = calculateStepMetrics(w.steps).totalKm;
+    let dayCompletedRpes: number[] = [];
+    let dayPlannedRpes: number[] = [];
+
+    dayWorkouts.forEach((w) => {
+      const stepM = w.steps && w.steps.length > 0 ? calculateStepMetrics(w.steps) : { totalKm: 0, totalMinutes: 0 };
+
+      // Distance
+      if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+        plannedKm += parseFloat(String(w.km).replace(",", ".")) || 0;
+      } else {
+        plannedKm += stepM.totalKm || 0;
       }
-      return acc + (isNaN(val) ? 0 : val);
-    }, 0);
+
+      // Durée prévue
+      const pMin = stepM.totalMinutes || 0;
+      plannedMinutes += pMin;
+
+      // RPE prévu (défaut 5)
+      const pRpe = w.rpe ? parseInt(String(w.rpe), 10) || 5 : 5;
+      plannedLoad += pMin * pRpe;
+      dayPlannedRpes.push(pRpe);
+
+      const isDone = completedWorkouts[w.id] || w.completed;
+      if (isDone) {
+        // Distance réalisée
+        if (w.completedKm !== undefined && w.completedKm !== null && String(w.completedKm).trim() !== "") {
+          completedKm += parseFloat(String(w.completedKm).replace(",", ".")) || 0;
+        } else if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
+          completedKm += parseFloat(String(w.km).replace(",", ".")) || 0;
+        } else {
+          completedKm += stepM.totalKm || 0;
+        }
+
+        // Durée réalisée
+        const cMin = w.completedTimeMinutes !== undefined && w.completedTimeMinutes !== null
+          ? Number(w.completedTimeMinutes)
+          : pMin;
+        completedMinutes += cMin;
+
+        // RPE réalisé & Charge réalisée = RPE x Temps
+        const cRpe = w.completedRpe !== undefined && w.completedRpe !== null
+          ? Number(w.completedRpe)
+          : pRpe;
+        completedLoad += cMin * cRpe;
+        dayCompletedRpes.push(cRpe);
+
+        // Dénivelé
+        const elev = (w as any).completedElevationGain ?? (w as any).completed_elevation_gain ?? 0;
+        completedElevation += Number(elev) || 0;
+      }
+    });
+
+    const avgCompletedRpe = dayCompletedRpes.length > 0
+      ? Math.round((dayCompletedRpes.reduce((a, b) => a + b, 0) / dayCompletedRpes.length) * 10) / 10
+      : null;
+
+    const avgPlannedRpe = dayPlannedRpes.length > 0
+      ? Math.round((dayPlannedRpes.reduce((a, b) => a + b, 0) / dayPlannedRpes.length) * 10) / 10
+      : null;
 
     return {
       dayIndex: dIdx,
@@ -235,23 +289,58 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       isToday: dIdx === currentDayIndex,
       plannedKm: Math.round(plannedKm * 10) / 10,
       completedKm: Math.round(completedKm * 10) / 10,
+      plannedMinutes: Math.round(plannedMinutes),
+      completedMinutes: Math.round(completedMinutes),
+      plannedLoad: Math.round(plannedLoad),
+      completedLoad: Math.round(completedLoad),
+      completedElevation: Math.round(completedElevation),
+      avgCompletedRpe,
+      avgPlannedRpe,
       hasWorkouts: dayWorkouts.length > 0,
     };
   });
 
-  const weekPlannedTotal = Math.round(dailyVolumeData.reduce((acc, d) => acc + d.plannedKm, 0) * 10) / 10;
-  const weekCompletedTotal = Math.round(dailyVolumeData.reduce((acc, d) => acc + d.completedKm, 0) * 10) / 10;
-  const weekCompletionPct = weekPlannedTotal > 0
-    ? Math.min(100, Math.round((weekCompletedTotal / weekPlannedTotal) * 100))
-    : (weekCompletedTotal > 0 ? 100 : 0);
+  // Totaux hebdomadaires
+  const weekVolumePlanned = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.plannedKm, 0) * 10) / 10;
+  const weekVolumeCompleted = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.completedKm, 0) * 10) / 10;
+  const weekVolumePct = weekVolumePlanned > 0
+    ? Math.min(100, Math.round((weekVolumeCompleted / weekVolumePlanned) * 100))
+    : (weekVolumeCompleted > 0 ? 100 : 0);
 
-  const maxDailyKm = Math.max(
-    ...dailyVolumeData.map((d) => Math.max(d.plannedKm, d.completedKm)),
-    10
-  );
+  const weekLoadPlanned = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.plannedLoad, 0));
+  const weekLoadCompleted = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.completedLoad, 0));
+  const weekLoadPct = weekLoadPlanned > 0
+    ? Math.min(100, Math.round((weekLoadCompleted / weekLoadPlanned) * 100))
+    : (weekLoadCompleted > 0 ? 100 : 0);
 
-  // Rendu de l'histogramme avec axe des ordonnées propre et sans pointillés
-  const renderDailyHistogram = (isExpanded = false) => {
+  const weekTimePlanned = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.plannedMinutes, 0));
+  const weekTimeCompleted = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.completedMinutes, 0));
+  const weekTimePct = weekTimePlanned > 0
+    ? Math.min(100, Math.round((weekTimeCompleted / weekTimePlanned) * 100))
+    : (weekTimeCompleted > 0 ? 100 : 0);
+
+  const weekElevationTotal = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.completedElevation, 0));
+  const weekElevationMax = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 0);
+  const weekElevationAvg = Math.round(weekElevationTotal / 7);
+
+  // Maximums pour l'échelle SVG
+  const maxVolumeKm = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedKm, d.completedKm)), 10);
+  const maxLoadVal = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedLoad, d.completedLoad)), 300);
+  const maxTimeMinutes = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedMinutes, d.completedMinutes)), 60);
+  const maxElevationVal = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 150);
+
+  // Générateur générique d'histogramme à jauge/remplissage sans pointillés
+  const renderGenericBarChart = (
+    data: {
+      plannedVal: number;
+      completedVal: number;
+      labelValue: string;
+      tooltipText: string;
+    }[],
+    maxVal: number,
+    colorTheme: "green" | "gold" | "blue" | "emerald",
+    isExpanded = false
+  ) => {
     const svgWidth = isExpanded ? 750 : 540;
     const svgHeight = isExpanded ? 240 : 165;
     const paddingLeft = 38;
@@ -264,23 +353,30 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     const colWidth = usableWidth / 7;
     const barWidth = isExpanded ? 26 : 18;
 
+    const gradients = {
+      green: { from: "#4DB380", to: "#2e7d55", overFrom: "#CDCF61", overTo: "#4DB380" },
+      gold: { from: "#CF9A61", to: "#9c6b35", overFrom: "#eab308", overTo: "#CF9A61" },
+      blue: { from: "#4D80B3", to: "#2d547d", overFrom: "#38bdf8", overTo: "#4D80B3" },
+      emerald: { from: "#10b981", to: "#047857", overFrom: "#34d399", overTo: "#059669" },
+    }[colorTheme];
+
     return (
       <svg
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="w-full h-auto overflow-visible select-none"
       >
         <defs>
-          <linearGradient id="fillBarGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#4DB380" stopOpacity="1" />
-            <stop offset="100%" stopColor="#2e7d55" stopOpacity="0.9" />
+          <linearGradient id={`fillGrad_${colorTheme}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={gradients.from} stopOpacity="1" />
+            <stop offset="100%" stopColor={gradients.to} stopOpacity="0.9" />
           </linearGradient>
-          <linearGradient id="overflowBarGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#CDCF61" stopOpacity="1" />
-            <stop offset="100%" stopColor="#4DB380" stopOpacity="0.95" />
+          <linearGradient id={`overGrad_${colorTheme}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={gradients.overFrom} stopOpacity="1" />
+            <stop offset="100%" stopColor={gradients.overTo} stopOpacity="0.95" />
           </linearGradient>
         </defs>
 
-        {/* AXE DES ORDONNÉES (AXE Y) & GRADUATIONS */}
+        {/* Axe Y (Ordonnées) & graduations sans pointillés horizontaux */}
         <line
           x1={paddingLeft}
           y1={paddingTop - 6}
@@ -290,13 +386,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           strokeWidth="1.2"
         />
 
-        {/* Graduations sur l'axe Y */}
         {[0, 0.5, 1].map((pct, idx) => {
           const y = paddingTop + usableHeight * (1 - pct);
-          const val = Math.round(maxDailyKm * pct);
+          const val = Math.round(maxVal * pct);
           return (
             <g key={idx}>
-              {/* Petit tiret sur l'axe Y */}
               <line
                 x1={paddingLeft - 3}
                 y1={y}
@@ -320,7 +414,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           );
         })}
 
-        {/* AXE DES ABSCISSES (LIGNE DE BASE) */}
+        {/* Axe X (Abscisses) */}
         <line
           x1={paddingLeft}
           y1={baselineY}
@@ -330,41 +424,41 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           strokeWidth="1.2"
         />
 
-        {/* Colonnes par jour avec remplissage */}
-        {dailyVolumeData.map((d, i) => {
+        {/* Colonnes par jour */}
+        {data.map((item, i) => {
+          const d = dailyMetricsData[i];
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
 
-          const baseTargetKm = Math.max(d.plannedKm, d.completedKm);
-          const containerH = baseTargetKm > 0 ? (baseTargetKm / maxDailyKm) * usableHeight : 0;
+          const baseTarget = Math.max(item.plannedVal, item.completedVal);
+          const containerH = baseTarget > 0 ? (baseTarget / maxVal) * usableHeight : 0;
           const containerY = baselineY - containerH;
 
-          const fillH = d.completedKm > 0 ? (d.completedKm / maxDailyKm) * usableHeight : 0;
+          const fillH = item.completedVal > 0 ? (item.completedVal / maxVal) * usableHeight : 0;
           const fillY = baselineY - fillH;
 
-          const isOvercompleted = d.plannedKm > 0 && d.completedKm > d.plannedKm;
-
+          const isOver = item.plannedVal > 0 && item.completedVal > item.plannedVal;
           const topElementY = Math.min(
             containerH > 0 ? containerY : baselineY,
             fillH > 0 ? fillY : baselineY
           );
 
           return (
-            <g key={d.dayIndex} className="group cursor-pointer">
-              {/* Fond de colonne pour aujourd'hui */}
+            <g key={i} className="group cursor-pointer">
+              {/* Fond colonne jour actuel */}
               {d.isToday && (
                 <rect
                   x={colCenterX - colWidth / 2 + 3}
                   y={paddingTop - 12}
                   width={colWidth - 6}
                   height={usableHeight + 18}
-                  fill="#4DB380"
+                  fill={gradients.from}
                   fillOpacity="0.08"
                   rx="10"
                 />
               )}
 
-              {/* 1. CONTENEUR / JAUGE DE FOND (Objectif prévu) */}
+              {/* Conteneur / Jauge de fond (Objectif prévu) */}
               {containerH > 0 && (
                 <rect
                   x={barX}
@@ -379,31 +473,31 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* 2. REMPLISSAGE RÉALISÉ (Monte à l'intérieur de la jauge) */}
+              {/* Remplissage réalisé */}
               {fillH > 0 && (
                 <rect
                   x={barX}
                   y={fillY}
                   width={barWidth}
                   height={Math.max(4, fillH)}
-                  fill={isOvercompleted ? "url(#overflowBarGradient)" : "url(#fillBarGradient)"}
+                  fill={isOver ? `url(#overGrad_${colorTheme})` : `url(#fillGrad_${colorTheme})`}
                   rx="4"
                   className="transition-all duration-200 group-hover:brightness-110"
                 />
               )}
 
-              {/* 3. CHIFFRE DU VOLUME RÉALISÉ AU-DESSUS DE L'HISTOGRAMME */}
-              {d.completedKm > 0 && (
+              {/* Valeur réalisée affichée au-dessus de la barre */}
+              {item.completedVal > 0 && (
                 <text
                   x={colCenterX}
                   y={topElementY - 4}
-                  fill={d.isToday ? "#4DB380" : "#d4d4d8"}
+                  fill={d.isToday ? gradients.from : "#d4d4d8"}
                   fontSize={isExpanded ? "10.5" : "9"}
                   fontWeight="900"
                   textAnchor="middle"
                   className="font-mono tracking-tight"
                 >
-                  {d.completedKm}
+                  {item.labelValue}
                 </text>
               )}
 
@@ -411,7 +505,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <text
                 x={colCenterX}
                 y={baselineY + 16}
-                fill={d.isToday ? "#4DB380" : "#a1a1aa"}
+                fill={d.isToday ? gradients.from : "#a1a1aa"}
                 fontSize={isExpanded ? "11" : "9.5"}
                 fontWeight={d.isToday ? "900" : "700"}
                 textAnchor="middle"
@@ -426,18 +520,46 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   cx={colCenterX}
                   cy={baselineY + 23}
                   r="2"
-                  fill="#4DB380"
+                  fill={gradients.from}
                 />
               )}
 
-              {/* Tooltip au format : Jour - volume réalisé / volume prévu */}
-              <title>{`${d.dayFull} - ${d.completedKm} km / ${d.plannedKm} km`}</title>
+              <title>{item.tooltipText}</title>
             </g>
           );
         })}
       </svg>
     );
   };
+
+  // Données prêtes pour chaque graphique
+  const volumeChartItems = dailyMetricsData.map((d) => ({
+    plannedVal: d.plannedKm,
+    completedVal: d.completedKm,
+    labelValue: `${d.completedKm}`,
+    tooltipText: `${d.dayFull} - ${d.completedKm} km / ${d.plannedKm} km`,
+  }));
+
+  const loadChartItems = dailyMetricsData.map((d) => ({
+    plannedVal: d.plannedLoad,
+    completedVal: d.completedLoad,
+    labelValue: `${d.completedLoad}`,
+    tooltipText: `${d.dayFull} - ${d.completedLoad} charge / ${d.plannedLoad} charge`,
+  }));
+
+  const timeChartItems = dailyMetricsData.map((d) => ({
+    plannedVal: d.plannedMinutes,
+    completedVal: d.completedMinutes,
+    labelValue: formatMinutesToHours(d.completedMinutes),
+    tooltipText: `${d.dayFull} - ${formatMinutesToHours(d.completedMinutes)} / ${formatMinutesToHours(d.plannedMinutes)}`,
+  }));
+
+  const elevationChartItems = dailyMetricsData.map((d) => ({
+    plannedVal: 0,
+    completedVal: d.completedElevation,
+    labelValue: `${d.completedElevation}m`,
+    tooltipText: `${d.dayFull} - ${d.completedElevation} m D+ (réalisé)`,
+  }));
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
@@ -672,16 +794,15 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3 & 4. GRILLE 2 COLONNES (HISTOGRAMME AVEC REMPLISSAGE & CHARGE) ===================== */}
+      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES (VOLUME, CHARGE, TEMPS, DÉNIVELÉ) ===================== */}
       {activePlan && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
           
-          {/* CARTE 3 : HISTOGRAMME DU VOLUME DE LA SEMAINE */}
+          {/* 1. GRAPHIQUE VOLUME */}
           <div
             onClick={() => handleOpenZoom("volume")}
             className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
           >
-            {/* Entête avec métriques KPI et boutons d'action */}
             <div className="space-y-3 border-b border-stone-800/80 pb-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -689,12 +810,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     Semaine {currentWeekNum}
                   </span>
                   <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
-                    Volume Journalier (Lun - Dim)
+                    Volume Kilométrique (Lun - Dim)
                   </h3>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Bouton vers les stats du plan en cours */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -706,43 +826,39 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     <span>Stats Plan</span>
                     <span className="text-[#CF9A61]">➔</span>
                   </button>
-
-                  {/* Bouton Agrandir (Masqué sur téléphone / affiché à partir de sm) */}
                   <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
                     <span>⛶</span>
                   </div>
                 </div>
               </div>
 
-              {/* Boîte de 3 stats KPI harmonisées */}
+              {/* 3 KPIs */}
               <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                 <div>
                   <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
                   <div className="text-xs font-black text-[#4DB380] mt-0.5">
-                    {weekCompletedTotal} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                    {weekVolumeCompleted} <span className="text-stone-500 font-normal text-[10px]">km</span>
                   </div>
                 </div>
                 <div className="border-x border-stone-800/80">
                   <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
                   <div className="text-xs font-black text-stone-100 mt-0.5">
-                    {weekPlannedTotal} <span className="text-stone-500 font-normal text-[10px]">km</span>
+                    {weekVolumePlanned} <span className="text-stone-500 font-normal text-[10px]">km</span>
                   </div>
                 </div>
                 <div>
                   <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
                   <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekCompletionPct}%
+                    {weekVolumePct}%
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* HISTOGRAMME SVG À REMPLISSAGE */}
             <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
-              {renderDailyHistogram(false)}
+              {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", false)}
             </div>
 
-            {/* Légende demandée : point vert pour réalisé, carré noir pour prévu (sans mention "aujourd'hui surligné") */}
             <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#4DB380] inline-block shadow-sm"></span>
@@ -755,22 +871,200 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             </div>
           </div>
 
-          {/* CARTE 4 : ÉVOLUTION DE LA CHARGE (CLIQUABLE POUR AGRANDIR SUR ORDINATEUR) */}
+          {/* 2. GRAPHIQUE CHARGE D'ENTRAÎNEMENT (RPE x TEMPS) */}
           <div
             onClick={() => handleOpenZoom("load")}
-            className="h-full relative group sm:cursor-pointer"
+            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
           >
-            {/* Bouton Agrandir (Masqué sur téléphone) */}
-            <div className="hidden sm:flex absolute top-4 right-4 z-10 items-center gap-1 text-stone-400 group-hover:text-[#CDCF61] transition text-[10px] font-bold bg-stone-950/90 px-2.5 py-1 rounded-xl border border-stone-800">
-              <span>⛶</span>
-              <span className="uppercase">Agrandir</span>
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                    Semaine {currentWeekNum}
+                  </span>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    Charge d'Entraînement (RPE × Durée)
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigateToVolumeChart();
+                    }}
+                    className="text-[10px] font-black text-stone-200 hover:text-white bg-stone-950 border border-stone-800 hover:border-stone-700 px-2.5 py-1 rounded-xl uppercase transition cursor-pointer flex items-center gap-1 shadow-sm"
+                  >
+                    <span>Stats Plan</span>
+                    <span className="text-[#CF9A61]">➔</span>
+                  </button>
+                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <span>⛶</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 KPIs */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge réalisée</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {weekLoadCompleted}
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Charge prévue</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {weekLoadPlanned}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CDCF61] mt-0.5">
+                    {weekLoadPct}%
+                  </div>
+                </div>
+              </div>
             </div>
-            <WeeklyLoadChart
-              workouts={activePlan.workouts}
-              currentWeekNum={currentWeekNum}
-              completedWorkouts={completedWorkouts}
-              onNavigateToVolumeChart={onNavigateToVolumeChart}
-            />
+
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderGenericBarChart(loadChartItems, maxLoadVal, "gold", false)}
+            </div>
+
+            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61] inline-block shadow-sm"></span>
+                <span className="text-stone-200 font-bold">Charge réalisée</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                <span className="text-stone-400 font-medium">Charge prévue</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 3. GRAPHIQUE TEMPS PASSÉ À COURIR */}
+          <div
+            onClick={() => handleOpenZoom("time")}
+            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                    Semaine {currentWeekNum}
+                  </span>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    Temps Passé à Courir
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <span>⛶</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 KPIs */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps réalisé</span>
+                  <div className="text-xs font-black text-[#4D80B3] mt-0.5">
+                    {formatMinutesToHours(weekTimeCompleted)}
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Temps prévu</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {formatMinutesToHours(weekTimePlanned)}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {weekTimePct}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderGenericBarChart(timeChartItems, maxTimeMinutes, "blue", false)}
+            </div>
+
+            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#4D80B3] inline-block shadow-sm"></span>
+                <span className="text-stone-200 font-bold">Temps réalisé</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#1c1917] border border-[#3f3f46] inline-block"></span>
+                <span className="text-stone-400 font-medium">Temps prévu</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 4. GRAPHIQUE DÉNIVELÉ (AUCUN PRÉVU PAR LE COACH) */}
+          <div
+            onClick={() => handleOpenZoom("elevation")}
+            className="bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans w-full flex flex-col justify-between transition sm:cursor-pointer group"
+          >
+            <div className="space-y-3 border-b border-stone-800/80 pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                    Semaine {currentWeekNum}
+                  </span>
+                  <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
+                    Dénivelé Positif (m D+)
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="hidden sm:flex items-center gap-1 text-stone-400 group-hover:text-[#CF9A61] transition text-xs font-bold bg-stone-950 px-2 py-1 rounded-xl border border-stone-800">
+                    <span>⛶</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 KPIs spécifiques au dénivelé */}
+              <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Total Semaine</span>
+                  <div className="text-xs font-black text-[#10b981] mt-0.5">
+                    {weekElevationTotal} <span className="text-stone-500 text-[10px] font-normal">m D+</span>
+                  </div>
+                </div>
+                <div className="border-x border-stone-800/80">
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Max Journalier</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {weekElevationMax} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Moyenne / Jour</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {weekElevationAvg} <span className="text-stone-500 text-[10px] font-normal">m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-stone-950/90 rounded-2xl p-3 border border-stone-800/80 w-full overflow-hidden shadow-inner">
+              {renderGenericBarChart(elevationChartItems, maxElevationVal, "emerald", false)}
+            </div>
+
+            <div className="flex items-center gap-4 text-[9.5px] font-semibold text-stone-400 pt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block shadow-sm"></span>
+                <span className="text-stone-200 font-bold">Dénivelé réalisé (m D+)</span>
+              </span>
+              <span className="text-[8.5px] uppercase font-bold text-stone-500">
+                Non prescrit dans le plan
+              </span>
+            </div>
           </div>
 
         </div>
@@ -792,9 +1086,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   Vue détaillée grand format
                 </span>
                 <h3 className="text-base md:text-lg font-black uppercase text-stone-100">
-                  {zoomedChart === "volume"
-                    ? `Volume Quotidien de la Semaine ${currentWeekNum}`
-                    : "Charge d'Entraînement & Fatigue"}
+                  {zoomedChart === "volume" && `Volume Kilométrique • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "load" && `Charge d'Entraînement • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "time" && `Temps de Course • Semaine ${currentWeekNum}`}
+                  {zoomedChart === "elevation" && `Dénivelé Réalisé • Semaine ${currentWeekNum}`}
                 </h3>
               </div>
               <button
@@ -806,37 +1101,34 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </button>
             </div>
 
-            {zoomedChart === "volume" ? (
+            {/* CONTENU SPÉCIFIQUE SELON LE GRAPHIQUE OUVERT */}
+            {zoomedChart === "volume" && (
               <div className="space-y-4">
-                {/* 3 stats KPI identiques dans la modale agrandie */}
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
-                    <span className="text-xl font-black text-[#4DB380]">{weekCompletedTotal} km</span>
+                    <span className="text-xl font-black text-[#4DB380]">{weekVolumeCompleted} km</span>
                   </div>
                   <div className="border-x border-stone-800">
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
-                    <span className="text-xl font-black text-stone-200">{weekPlannedTotal} km</span>
+                    <span className="text-xl font-black text-stone-200">{weekVolumePlanned} km</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-stone-400 uppercase block">Taux d'accomplissement</span>
-                    <span className="text-xl font-black text-[#CF9A61]">{weekCompletionPct}%</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekVolumePct}%</span>
                   </div>
                 </div>
 
                 <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
-                  {renderDailyHistogram(true)}
+                  {renderGenericBarChart(volumeChartItems, maxVolumeKm, "green", true)}
                 </div>
 
-                {/* Détail jour par jour */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-2">
-                  {dailyVolumeData.map((d) => (
+                <div className="grid grid-cols-7 gap-2 pt-2">
+                  {dailyMetricsData.map((d) => (
                     <div
                       key={d.dayIndex}
                       className={`p-2.5 rounded-xl border text-center space-y-1 ${
-                        d.isToday
-                          ? "bg-[#4DB380]/15 border-[#4DB380]/50 shadow-md"
-                          : "bg-stone-950 border-stone-800"
+                        d.isToday ? "bg-[#4DB380]/15 border-[#4DB380]/50 shadow-md" : "bg-stone-950 border-stone-800"
                       }`}
                     >
                       <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
@@ -849,19 +1141,147 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   ))}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {zoomedChart === "load" && (
               <div className="space-y-4">
-                {activePlan && (
-                  <WeeklyLoadChart
-                    workouts={activePlan.workouts}
-                    currentWeekNum={currentWeekNum}
-                    completedWorkouts={completedWorkouts}
-                    onNavigateToVolumeChart={() => {
-                      setZoomedChart(null);
-                      onNavigateToVolumeChart();
-                    }}
-                  />
-                )}
+                <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge réalisée</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekLoadCompleted}</span>
+                  </div>
+                  <div className="border-x border-stone-800">
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Charge prévue</span>
+                    <span className="text-xl font-black text-stone-200">{weekLoadPlanned}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Taux d'accomplissement</span>
+                    <span className="text-xl font-black text-[#CDCF61]">{weekLoadPct}%</span>
+                  </div>
+                </div>
+
+                <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
+                  {renderGenericBarChart(loadChartItems, maxLoadVal, "gold", true)}
+                </div>
+
+                {/* DÉCOMPOSITION : RPE & TEMPS => CHARGE RÉALISÉE */}
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-stone-400 block">
+                    Décomposition Journalière (RPE × Durée = Charge)
+                  </span>
+                  <div className="grid grid-cols-7 gap-2">
+                    {dailyMetricsData.map((d) => (
+                      <div
+                        key={d.dayIndex}
+                        className={`p-2.5 rounded-xl border text-center space-y-1 ${
+                          d.isToday ? "bg-[#CF9A61]/15 border-[#CF9A61]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                        }`}
+                      >
+                        <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#CF9A61]" : "text-stone-400"}`}>
+                          {d.dayShort}
+                        </span>
+                        <div className="text-[11px] font-bold text-stone-200">
+                          {d.completedLoad > 0 ? (
+                            <>
+                              <span className="text-[#CF9A61]">{d.avgCompletedRpe ?? "-"} RPE</span>
+                              <span className="text-stone-500 font-normal block text-[9.5px]">× {d.completedMinutes}'</span>
+                              <span className="text-xs font-black text-stone-100 block border-t border-stone-800/80 pt-0.5 mt-0.5">
+                                = {d.completedLoad}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-stone-600 italic text-[10px] block py-1">-</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {zoomedChart === "time" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps réalisé</span>
+                    <span className="text-xl font-black text-[#4D80B3]">{formatMinutesToHours(weekTimeCompleted)}</span>
+                  </div>
+                  <div className="border-x border-stone-800">
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Temps prévu</span>
+                    <span className="text-xl font-black text-stone-200">{formatMinutesToHours(weekTimePlanned)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Taux d'accomplissement</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekTimePct}%</span>
+                  </div>
+                </div>
+
+                <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
+                  {renderGenericBarChart(timeChartItems, maxTimeMinutes, "blue", true)}
+                </div>
+
+                <div className="grid grid-cols-7 gap-2 pt-2">
+                  {dailyMetricsData.map((d) => (
+                    <div
+                      key={d.dayIndex}
+                      className={`p-2.5 rounded-xl border text-center space-y-1 ${
+                        d.isToday ? "bg-[#4D80B3]/15 border-[#4D80B3]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                      }`}
+                    >
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4D80B3]" : "text-stone-400"}`}>
+                        {d.dayFull}
+                      </span>
+                      <div className="text-xs font-bold text-stone-100">
+                        {formatMinutesToHours(d.completedMinutes)}
+                        <span className="text-[9px] text-stone-500 font-normal block">
+                          / {formatMinutesToHours(d.plannedMinutes)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {zoomedChart === "elevation" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Total Semaine</span>
+                    <span className="text-xl font-black text-[#10b981]">{weekElevationTotal} m D+</span>
+                  </div>
+                  <div className="border-x border-stone-800">
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Max Journalier</span>
+                    <span className="text-xl font-black text-stone-200">{weekElevationMax} m</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Moyenne Journalière</span>
+                    <span className="text-xl font-black text-[#CF9A61]">{weekElevationAvg} m</span>
+                  </div>
+                </div>
+
+                <div className="bg-stone-950 rounded-2xl p-4 border border-stone-800">
+                  {renderGenericBarChart(elevationChartItems, maxElevationVal, "emerald", true)}
+                </div>
+
+                <div className="grid grid-cols-7 gap-2 pt-2">
+                  {dailyMetricsData.map((d) => (
+                    <div
+                      key={d.dayIndex}
+                      className={`p-2.5 rounded-xl border text-center space-y-1 ${
+                        d.isToday ? "bg-[#10b981]/15 border-[#10b981]/50 shadow-md" : "bg-stone-950 border-stone-800"
+                      }`}
+                    >
+                      <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#10b981]" : "text-stone-400"}`}>
+                        {d.dayFull}
+                      </span>
+                      <div className="text-xs font-black text-stone-100">
+                        {d.completedElevation} <span className="text-[9px] text-stone-500 font-normal">m D+</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
