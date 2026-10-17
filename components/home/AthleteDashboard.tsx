@@ -790,10 +790,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
                   {/* 3. PROFIL D'ALLURE DE LA SÉANCE */}
                   {todayWorkout.steps && todayWorkout.steps.length > 0 && (
-                    <div className="space-y-1 pt-1 border-t border-stone-800/60">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-stone-400 block">
-                        Profil d'allure de la séance
-                      </span>
+                    <div className="pt-1">
                       <PaceProfileChart steps={todayWorkout.steps} vma={vma} />
                     </div>
                   )}
