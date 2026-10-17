@@ -1,6 +1,6 @@
 // src/components/workout/PaceProfileChart.tsx
 
-import React from "react";
+import React, { useState } from "react";
 import { WorkoutStep } from "../../types";
 import { generatePaceProfile } from "../../utils/calculations";
 
@@ -18,23 +18,66 @@ const formatMinutesToHours = (totalMinutes: number): string => {
   return `${h}h${m < 10 ? "0" : ""}${m}`;
 };
 
-export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }) => {
-  const profile = generatePaceProfile(steps, vma);
+const formatPace = (sec: number) => {
+  const safeSec = Math.max(0, Math.round(sec));
+  const mins = Math.floor(safeSec / 60);
+  const secs = safeSec % 60;
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
 
+const formatDetailedDuration = (sec: number) => {
+  const s = Math.round(sec);
+  const m = Math.floor(s / 60);
+  const remainingS = s % 60;
+  if (m === 0) return `${remainingS}s`;
+  if (remainingS === 0) return `${m} min`;
+  return `${m} min ${remainingS}s`;
+};
+
+// Couleurs adaptées au thème sombre et clair
+const COLORS: Record<string, { light: string; dark: string; border: string }> = {
+  echauffement: { light: "#C24E4C", dark: "#CF6361", border: "#B34D4D" },
+  corps: { light: "#C07F36", dark: "#CF9A61", border: "#B88652" },
+  recup: { light: "#A3A62A", dark: "#CDCF61", border: "#BFC152" },
+  retour_calme: { light: "#2563eb", dark: "#3b82f6", border: "#1d4ed8" },
+  default: { light: "#059669", dark: "#10b981", border: "#047857" },
+};
+
+const getColors = (type: string) => {
+  switch (type) {
+    case "echauffement":
+      return COLORS.echauffement;
+    case "corps":
+      return COLORS.corps;
+    case "recup":
+    case "recup_marche":
+      return COLORS.recup;
+    case "retour_calme":
+      return COLORS.retour_calme;
+    default:
+      return COLORS.default;
+  }
+};
+
+const H_MIN = 20;
+const H_MAX = 90;
+
+const LEGEND = [
+  { label: "Échauff.", ...COLORS.echauffement },
+  { label: "Allure cible", ...COLORS.corps },
+  { label: "Récup.", ...COLORS.recup },
+  { label: "Calme", ...COLORS.retour_calme },
+];
+
+export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }) => {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const profile = generatePaceProfile(steps, vma);
   if (!profile || profile.length === 0) return null;
 
   const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
   if (totalTimeSec <= 0) return null;
 
-  // Formatage MM:SS
-  const formatPace = (sec: number) => {
-    const safeSec = Math.max(0, Math.round(sec));
-    const mins = Math.floor(safeSec / 60);
-    const secs = safeSec % 60;
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  };
-
-  // Bornes d'allure réelles
   const allPaces = profile.map((p) => p.paceSecPerKm);
   const minPaceSec = Math.min(...allPaces);
   const maxPaceSec = Math.max(...allPaces);
@@ -45,108 +88,201 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
   const paceRange = Math.max(1, displayMaxPace - displayMinPace);
   const midPace = displayMinPace + paceRange / 2;
 
-  // Couleurs Volaris d'origine
-  const getColor = (type: string) => {
-    switch (type) {
-      case "echauffement":
-        return "#CF6361";
-      case "corps":
-        return "#CF9A61";
-      case "recup":
-      case "recup_marche":
-        return "#CDCF61";
-      case "retour_calme":
-        return "#3b82f6";
-      default:
-        return "#10b981";
-    }
-  };
-
-  // Projection géométrique des barres sur base 1000 x 100
-  let currentX = 0;
-  const bars = profile.map((point) => {
-    const barWidth = ((point.durationSec || 0) / totalTimeSec) * 1000;
-    const x = currentX;
-    currentX += barWidth;
-
-    const normalizedHeightPct = isSinglePace
+  const toHeight = (pace: number) =>
+    isSinglePace
       ? 55
-      : 20 + ((displayMaxPace - point.paceSecPerKm) / paceRange) * 70;
+      : H_MIN + ((displayMaxPace - pace) / paceRange) * (H_MAX - H_MIN);
 
-    const height = Math.max(10, Math.min(95, normalizedHeightPct));
-    const y = 100 - height;
+  const yTicks = [displayMinPace, midPace, displayMaxPace].map((pace) => ({
+    pace,
+    h: toHeight(pace),
+  }));
+
+  const totalMin = totalTimeSec / 60;
+  const stepMin = [5, 10, 15, 20, 30, 60].find((s) => totalMin / s <= 6) ?? 60;
+  const xTicks: number[] = [];
+  for (let t = 0; t <= totalMin; t += stepMin) xTicks.push(t);
+
+  let currentPct = 0;
+  const bars = profile.map((point, index) => {
+    const widthPct = ((point.durationSec || 0) / totalTimeSec) * 100;
+    const leftPct = currentPct;
+    currentPct += widthPct;
+    const height = Math.max(8, Math.min(95, toHeight(point.paceSecPerKm)));
+    const speedKmh = point.paceSecPerKm > 0 ? (3600 / point.paceSecPerKm).toFixed(1) : "0";
 
     return {
       ...point,
-      x,
-      barWidth,
-      y,
+      index,
+      leftPct,
+      widthPct,
       height,
+      speedKmh,
+      colors: getColors(point.type),
     };
   });
 
+  const active = hovered !== null ? bars[hovered] : null;
+
   return (
-    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 font-sans w-full overflow-hidden">
-      <div className="flex justify-between items-center">
-        <span className="text-[10px] font-black uppercase text-stone-400 tracking-wider">
-          Profil d'allure de la séance
-        </span>
-        <span className="text-[9.5px] font-mono font-bold text-stone-400 bg-stone-900/80 px-2 py-0.5 rounded-md border border-stone-800">
-          {formatMinutesToHours(Math.round(totalTimeSec / 60))}
-        </span>
+    <div className="w-full space-y-3 rounded-2xl border border-stone-200 bg-white p-4 font-sans shadow-sm dark:border-stone-800 dark:bg-stone-950 dark:shadow-none">
+      {/* En-tête : Titre & Durée globale ou informations du bloc survolé */}
+      <div className="flex items-center justify-between min-h-[22px]">
+        {active ? (
+          <div className="flex items-center gap-2 flex-wrap text-[10px] animate-fadeIn">
+            <span
+              className="h-2 w-2 rounded-full inline-block"
+              style={{ backgroundColor: active.colors.dark }}
+            />
+            <span className="font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200">
+              {active.label}
+            </span>
+            <span className="text-stone-400 dark:text-stone-600">•</span>
+            <span className="font-mono font-bold text-[#CF9A61]">
+              {active.paceFormatted || formatPace(active.paceSecPerKm)} min/km
+            </span>
+            <span className="font-mono text-stone-500 dark:text-stone-400 text-[9.5px]">
+              ({active.speedKmh} km/h)
+            </span>
+            <span className="text-stone-400 dark:text-stone-600">•</span>
+            <span className="font-semibold text-stone-600 dark:text-stone-300">
+              {formatDetailedDuration(active.durationSec || 0)}
+            </span>
+          </div>
+        ) : (
+          <>
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+              Profil d'allure de la séance
+            </span>
+            <span className="rounded-full border border-stone-200 bg-stone-100 px-2.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-stone-700 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
+              {formatMinutesToHours(Math.round(totalTimeSec / 60))}
+            </span>
+          </>
+        )}
       </div>
 
-      <div className="flex gap-2 items-stretch h-28 w-full">
-        {/* Axe Y : allures de référence (plus rapide en haut, plus lente en bas) */}
-        <div className="flex flex-col justify-between text-[8px] font-mono font-extrabold text-stone-500 py-1 text-right w-10 select-none border-r border-stone-800/80 pr-1.5 shrink-0">
-          <span className="text-[#CF9A61]">{formatPace(displayMinPace)}</span>
-          <span>{formatPace(midPace)}</span>
-          <span className="text-stone-600">{formatPace(displayMaxPace)}</span>
+      {/* Graphique */}
+      <div className="flex gap-2">
+        {/* Axe Y (Allures de référence) */}
+        <div className="relative h-32 w-10 shrink-0">
+          {yTicks.map((t, i) => (
+            <span
+              key={i}
+              className="absolute right-0 translate-y-1/2 font-mono text-[9px] font-semibold tabular-nums text-stone-500 dark:text-stone-500"
+              style={{ bottom: `${t.h}%` }}
+            >
+              {formatPace(t.pace)}
+            </span>
+          ))}
         </div>
 
-        {/* Zone graphique SVG adaptative */}
-        <div className="flex-1 min-w-0 bg-stone-900/60 rounded-xl p-2 border border-stone-800/60 flex items-end">
-          <svg
-            viewBox="0 0 1000 100"
-            preserveAspectRatio="none"
-            className="w-full h-full overflow-visible"
+        <div className="min-w-0 flex-1">
+          {/* Zone de tracé */}
+          <div
+            className="relative h-32 select-none"
+            onMouseLeave={() => setHovered(null)}
           >
-            {bars.map((bar, i) => (
-              <g key={i} className="group cursor-pointer">
-                <rect
-                  x={bar.x}
-                  y={bar.y}
-                  width={Math.max(bar.barWidth, 1.5)}
-                  height={bar.height}
-                  fill={getColor(bar.type)}
-                  rx="1.5"
-                  className="transition-opacity hover:opacity-80"
-                >
-                  <title>{`${bar.label} — ${bar.paceFormatted} min/km (${Math.round((bar.durationSec || 0) / 60)} min)`}</title>
-                </rect>
-              </g>
+            {/* Lignes de repère horizontales discrètes */}
+            {yTicks.map((t, i) => (
+              <div
+                key={i}
+                className="absolute inset-x-0 border-t border-dashed border-stone-200 dark:border-stone-800/80 pointer-events-none"
+                style={{ bottom: `${t.h}%` }}
+              />
             ))}
-          </svg>
+
+            {/* Barres d'allure */}
+            {bars.map((bar, i) => {
+              const isHovered = hovered === i;
+              const isDimmed = hovered !== null && !isHovered;
+
+              return (
+                <div
+                  key={i}
+                  className="absolute bottom-0 top-0 cursor-pointer"
+                  style={{
+                    left: `${bar.leftPct}%`,
+                    width: `${bar.widthPct}%`,
+                    minWidth: 3,
+                  }}
+                  onMouseEnter={() => setHovered(i)}
+                  onTouchStart={() => setHovered(i)}
+                >
+                  <div
+                    className="absolute bottom-0 inset-x-[0.5px] rounded-t-[3px] border border-b-0 transition-all duration-150"
+                    style={{
+                      height: `${bar.height}%`,
+                      backgroundColor: bar.colors.dark,
+                      borderColor: bar.colors.border,
+                      opacity: isDimmed ? 0.35 : 1,
+                      filter: isHovered ? "brightness(1.15)" : "none",
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Infobulle flottante */}
+            {active && (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border border-stone-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur transition-transform dark:border-stone-700 dark:bg-stone-900/95"
+                style={{
+                  left: `${Math.min(84, Math.max(16, active.leftPct + active.widthPct / 2))}%`,
+                  bottom: `calc(${active.height}% + 10px)`,
+                }}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full inline-block"
+                    style={{ backgroundColor: active.colors.dark }}
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-800 dark:text-stone-200">
+                    {active.label}
+                  </span>
+                </div>
+                <div className="font-mono text-[10px] tabular-nums text-stone-600 dark:text-stone-300">
+                  <span className="text-[#CF9A61] font-bold">
+                    {active.paceFormatted || formatPace(active.paceSecPerKm)} min/km
+                  </span>
+                  <span className="text-stone-400 dark:text-stone-500"> ({active.speedKmh} km/h)</span>
+                </div>
+                <div className="text-[9px] text-stone-500 dark:text-stone-400 mt-0.5">
+                  Durée : {formatDetailedDuration(active.durationSec || 0)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Axe X (Graduation temporelle) */}
+          <div className="relative mt-1.5 h-3 border-t border-stone-200 dark:border-stone-800">
+            {xTicks.map((t) => (
+              <span
+                key={t}
+                className="absolute top-1 -translate-x-1/2 font-mono text-[9px] tabular-nums text-stone-500 first:translate-x-0 last:-translate-x-full"
+                style={{ left: `${(t / totalMin) * 100}%` }}
+              >
+                {t === 0 ? "0" : formatMinutesToHours(t)}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Légende */}
-      <div className="flex items-center justify-between text-[9px] font-semibold text-stone-400 pt-1 border-t border-stone-800/60">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF6361] inline-block" /> Échauff.
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-stone-100 dark:border-stone-900">
+        {LEGEND.map((l) => (
+          <span
+            key={l.label}
+            className="flex items-center gap-1.5 text-[10px] font-medium text-stone-600 dark:text-stone-400"
+          >
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: l.dark }}
+            />
+            {l.label}
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CF9A61] inline-block" /> Course
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#CDCF61] inline-block" /> Récup.
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block" /> Calme
-          </span>
-        </div>
-        <span className="text-[8px] font-mono text-stone-500 uppercase tracking-wider">
+        ))}
+        <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-stone-400 dark:text-stone-600">
           min/km
         </span>
       </div>
