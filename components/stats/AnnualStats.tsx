@@ -35,15 +35,15 @@ const CORE_METRIC_COLORS = {
 
 const getThemeColorByMonth = (monthIndex: number): string => {
   if (monthIndex >= 0 && monthIndex <= 2) {
-    return CORE_METRIC_COLORS.blue; // Janvier, Février, Mars
+    return CORE_METRIC_COLORS.blue;
   }
   if (monthIndex >= 3 && monthIndex <= 5) {
-    return CORE_METRIC_COLORS.green; // Avril, Mai, Juin
+    return CORE_METRIC_COLORS.green;
   }
   if (monthIndex >= 6 && monthIndex <= 8) {
-    return CORE_METRIC_COLORS.gold; // Juillet, Août, Septembre
+    return CORE_METRIC_COLORS.gold;
   }
-  return CORE_METRIC_COLORS.burgundy; // Octobre, Novembre, Décembre
+  return CORE_METRIC_COLORS.burgundy;
 };
 
 const getThemeColorByWeek = (weekNum: number): string => {
@@ -443,7 +443,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
       {/* 2. BILAN ANNUEL */}
       {activeTab === "annual" && (
         <div className="space-y-6 animate-fadeIn w-full">
-          {/* BARRE D'ACTIONS SANS LE TITRE 'STATISTIQUES ANNUELLES' */}
+          {/* BARRE D'ACTIONS : BOUTON ENTRER UNE SORTIE EN BRUN */}
           <div className="flex justify-end items-center flex-wrap gap-2.5">
             {!isReadOnly && (
               <button
@@ -459,7 +459,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             <select
               value={selectedStatsYear}
               onChange={(e) => setSelectedStatsYear(parseInt(e.target.value, 10))}
-              className="bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61] cursor-pointer shadow-sm"
+              className="bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#854d0e] cursor-pointer shadow-sm"
             >
               <option value={2026}>Année 2026</option>
               <option value={2025}>Année 2025</option>
@@ -468,10 +468,10 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             {!isReadOnly && (
               <button
                 onClick={() => setShowAddRunForm(!showAddRunForm)}
-                className={`text-[10px] md:text-xs font-black px-3.5 py-2 rounded-xl uppercase transition cursor-pointer border shadow-sm ${
+                className={`text-[10px] md:text-xs font-black px-3.5 py-2 rounded-xl uppercase tracking-wider transition cursor-pointer border shadow-sm ${
                   showAddRunForm
-                    ? "text-[#CF6361] bg-[#CF6361]/10 border-[#CF6361]/30 hover:bg-[#CF6361]/20"
-                    : "text-stone-200 bg-stone-900 border-stone-800 hover:border-stone-700 hover:text-white"
+                    ? "text-[#fef08a] bg-[#713f12] border-[#a16207]"
+                    : "text-amber-100 bg-[#54300e] hover:bg-[#683c12] border-[#854d0e]"
                 }`}
               >
                 {showAddRunForm ? "Fermer" : "Entrer une sortie"}
@@ -485,7 +485,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
               onSubmit={handleAddRunSubmit}
               className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 space-y-3.5 shadow-2xl animate-fadeIn"
             >
-              <div className="text-xs font-black text-[#CF9A61] uppercase tracking-wider border-b border-stone-800 pb-2">
+              <div className="text-xs font-black text-[#a16207] uppercase tracking-wider border-b border-stone-800 pb-2">
                 Saisir une nouvelle sortie effectuée
               </div>
 
@@ -497,7 +497,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     required
                     value={newRunForm.date}
                     onChange={(e) => setNewRunForm({ ...newRunForm, date: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#a16207]"
                   />
                 </div>
 
@@ -510,7 +510,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 12.5"
                     value={newRunForm.km}
                     onChange={(e) => setNewRunForm({ ...newRunForm, km: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#a16207]"
                   />
                 </div>
 
@@ -523,7 +523,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 45"
                     value={newRunForm.durationMin}
                     onChange={(e) => setNewRunForm({ ...newRunForm, durationMin: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#a16207]"
                   />
                 </div>
 
@@ -535,7 +535,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Ex : 150"
                     value={newRunForm.elevation}
                     onChange={(e) => setNewRunForm({ ...newRunForm, elevation: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#a16207]"
                   />
                 </div>
               </div>
@@ -546,7 +546,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     type="checkbox"
                     checked={newRunForm.isRace}
                     onChange={(e) => setNewRunForm({ ...newRunForm, isRace: e.target.checked })}
-                    className="accent-[#CF9A61] rounded cursor-pointer"
+                    className="accent-[#a16207] rounded cursor-pointer"
                   />
                   <span>Il s'agit d'une course officielle</span>
                 </label>
@@ -557,115 +557,115 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                     placeholder="Intitulé (ex : Ronde du Salbert : 9,72 km)"
                     value={newRunForm.raceNotes}
                     onChange={(e) => setNewRunForm({ ...newRunForm, raceNotes: e.target.value })}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#a16207]"
                   />
                 )}
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
+                className="w-full py-3 bg-[#683c12] hover:bg-[#784615] text-amber-100 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
               >
                 Enregistrer la sortie
               </button>
             </form>
           )}
 
-          {/* RÉSUMÉ GLOBAL : HAUT DE GAMME */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 space-y-4 shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
+          {/* RÉSUMÉ GLOBAL : TIENT DIRECTEMENT SUR LA LARGEUR SMARTPHONE */}
+          <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-3 sm:p-5 md:p-6 space-y-3 sm:space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-2.5 flex-wrap gap-2">
               <div>
-                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-[#CF9A61] block">
+                <span className="text-[9px] md:text-[11px] font-black uppercase tracking-widest text-[#CF9A61] block">
                   Bilan annuel • Synthèse
                 </span>
-                <h3 className="text-base md:text-lg font-black uppercase text-stone-100 tracking-tight mt-0.5">
+                <h3 className="text-sm md:text-lg font-black uppercase text-stone-100 tracking-tight mt-0.5">
                   Résumé global année {selectedStatsYear}
                 </h3>
               </div>
-              <div className="flex items-center gap-2 font-mono text-xs font-bold text-stone-400 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800">
+              <div className="flex items-center gap-1.5 font-mono text-[11px] md:text-xs font-bold text-stone-400 bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800">
                 <span>{totalRuns} sorties</span>
                 <span className="text-stone-600">•</span>
                 <span className="text-stone-200">{totalKm.toFixed(1)} km</span>
               </div>
             </div>
 
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-center border-collapse text-xs select-none">
+            <div className="w-full">
+              <table className="table-fixed w-full text-center border-collapse text-xs select-none">
                 <thead>
-                  <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 font-black text-[9.5px] uppercase tracking-wider">
-                    <th className="py-2.5 px-3 border border-stone-800/80">Catégorie</th>
-                    <th className="py-2.5 px-3 border border-stone-800/80">Distance (km)</th>
-                    <th className="py-2.5 px-3 border border-stone-800/80">Temps (h)</th>
-                    <th className="py-2.5 px-3 border border-stone-800/80">Dénivelé (m)</th>
-                    <th className="py-2.5 px-3 border border-stone-800/80">Sorties (nb)</th>
+                  <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 font-black text-[8px] sm:text-[9.5px] uppercase tracking-wider">
+                    <th className="w-[24%] py-2 px-1 sm:px-2 border border-stone-800/80">Cat.</th>
+                    <th className="w-[19%] py-2 px-1 sm:px-2 border border-stone-800/80">Dist. (km)</th>
+                    <th className="w-[19%] py-2 px-1 sm:px-2 border border-stone-800/80">Temps (h)</th>
+                    <th className="w-[19%] py-2 px-1 sm:px-2 border border-stone-800/80">D+ (m)</th>
+                    <th className="w-[19%] py-2 px-1 sm:px-2 border border-stone-800/80">Nb</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold">
+                <tbody className="divide-y divide-stone-800/80 bg-stone-950/40 text-stone-200 font-semibold text-[10px] sm:text-xs">
                   <tr className="bg-[#CF9A61]/10 text-stone-100 font-black">
-                    <td className="py-3 px-3 border border-stone-800 uppercase bg-[#CF9A61]/15 text-[#CF9A61] font-black tracking-wider text-[10.5px]">
+                    <td className="py-2.5 px-1 sm:px-2 border border-stone-800 uppercase bg-[#CF9A61]/15 text-[#CF9A61] font-black tracking-wider text-[9px] sm:text-[10.5px]">
                       Total
                     </td>
-                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
-                      {totalKm.toFixed(2)}
+                    <td className="py-2.5 px-1 sm:px-2 border border-stone-800 text-stone-100 font-mono text-xs sm:text-sm font-black">
+                      {totalKm.toFixed(1)}
                     </td>
-                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
-                      {totalHours.toFixed(2)}
+                    <td className="py-2.5 px-1 sm:px-2 border border-stone-800 text-stone-100 font-mono text-xs sm:text-sm font-black">
+                      {totalHours.toFixed(1)}
                     </td>
-                    <td className="py-3 px-3 border border-stone-800 text-stone-100 font-mono text-sm font-black">
+                    <td className="py-2.5 px-1 sm:px-2 border border-stone-800 text-stone-100 font-mono text-xs sm:text-sm font-black">
                       {Math.round(totalElev)}
                     </td>
-                    <td className="py-3 px-3 border border-stone-800 text-[#CF9A61] font-mono text-sm font-black">
+                    <td className="py-2.5 px-1 sm:px-2 border border-stone-800 text-[#CF9A61] font-mono text-xs sm:text-sm font-black">
                       {totalRuns}
                     </td>
                   </tr>
 
                   <tr className="hover:bg-stone-900/60 transition">
-                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
-                      Moy / sortie
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 bg-stone-900/80 text-stone-400 text-[8.5px] sm:text-[10px] uppercase font-bold truncate">
+                      Moy / s.
                     </td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieKm.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieHours.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySortieElev.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 text-stone-500">-</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moySortieKm.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moySortieHours.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{Math.round(moySortieElev)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 text-stone-500">-</td>
                   </tr>
 
                   <tr className="hover:bg-stone-900/60 transition">
-                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
-                      Moy / jour
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 bg-stone-900/80 text-stone-400 text-[8.5px] sm:text-[10px] uppercase font-bold truncate">
+                      Moy / j.
                     </td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourKm.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourHours.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyJourElev.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 text-stone-400 font-mono text-[10px]">
-                      {((totalRuns / 365) * 100).toFixed(1)}%
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moyJourKm.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moyJourHours.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{Math.round(moyJourElev)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 text-stone-400 font-mono text-[9px] sm:text-[10px]">
+                      {((totalRuns / 365) * 100).toFixed(0)}%
                     </td>
                   </tr>
 
                   <tr className="hover:bg-stone-900/60 transition">
-                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
-                      Moy / semaine
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 bg-stone-900/80 text-stone-400 text-[8.5px] sm:text-[10px] uppercase font-bold truncate">
+                      Moy / sem.
                     </td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineKm.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineHours.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineElev.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moySemaineRuns.toFixed(2)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moySemaineKm.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moySemaineHours.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{Math.round(moySemaineElev)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moySemaineRuns.toFixed(1)}</td>
                   </tr>
 
                   <tr className="hover:bg-stone-900/60 transition">
-                    <td className="py-2.5 px-3 border border-stone-800 bg-stone-900/80 text-stone-400 text-[10px] uppercase font-bold">
-                      Moy / mois
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 bg-stone-900/80 text-stone-400 text-[8.5px] sm:text-[10px] uppercase font-bold truncate">
+                      Moy / m.
                     </td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisKm.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisHours.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisElev.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 border border-stone-800 font-mono">{moyMoisRuns.toFixed(2)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moyMoisKm.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moyMoisHours.toFixed(1)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{Math.round(moyMoisElev)}</td>
+                    <td className="py-2 px-1 sm:px-2 border border-stone-800 font-mono">{moyMoisRuns.toFixed(1)}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* 1. DÉTAIL MENSUEL (AVEC LES 4 COULEURS OFFICIELLES) */}
+          {/* 1. DÉTAIL MENSUEL */}
           <div
             onTouchStart={handleCardTouchStart}
             onTouchEnd={handleCardTouchEnd}
@@ -803,7 +803,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             </div>
           </div>
 
-          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (AVEC LES 4 COULEURS OFFICIELLES) */}
+          {/* 2. ÉVOLUTION DU VOLUME ANNUEL (SANS LÉGENDE DES MOIS EN DESSOUS) */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-4 w-full">
             <div className="flex items-center justify-between border-b border-stone-800 pb-3 flex-wrap gap-2">
               <div>
@@ -811,7 +811,7 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
                   Évolution du volume annuel
                 </h4>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  52 semaines colorées selon les 4 teintes de charge
+                  52 semaines réparties sur l'année
                 </p>
               </div>
 
@@ -851,29 +851,6 @@ export const AnnualStats: React.FC<AnnualStatsProps> = ({
             {/* HISTOGRAMME ANNUEL */}
             <div className="bg-stone-950 rounded-2xl p-3 md:p-4 border border-stone-800 relative w-full overflow-hidden shadow-inner">
               {renderAnnualHistogram(false)}
-            </div>
-
-            {/* Légende avec les 4 couleurs harmonisées */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[9.5px] md:text-xs font-semibold text-stone-400 pt-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.blue }} />
-                  <span>Jan - Mar</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.green }} />
-                  <span>Avr - Juin</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.gold }} />
-                  <span>Juil - Sep</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CORE_METRIC_COLORS.burgundy }} />
-                  <span>Oct - Déc</span>
-                </span>
-              </div>
-              <span className="font-mono text-stone-500 text-[10px]">52 semaines</span>
             </div>
           </div>
         </div>
