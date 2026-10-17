@@ -131,7 +131,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
             const isOpen = openWeeks[wNum] ?? isCurrentWeek;
 
-            // Filtrage et tri Lundi -> Dimanche
             const rawWeekWorkouts = activePlan.workouts.filter(
               (w) => w.weekNumber === wNum
             );
@@ -322,11 +321,11 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </div>
                             </div>
 
-                            {/* DESCRIPTION DU COACH / DE LA SÉANCE */}
+                            {/* DESCRIPTION DE LA SÉANCE */}
                             {w.description && (
                               <div className="bg-stone-900/60 p-2.5 rounded-xl border border-stone-800/80 space-y-1">
                                 <span className="text-[8.5px] font-black uppercase text-[#CF9A61] tracking-wider block">
-                                  Consigne & Description
+                                  Description de la séance
                                 </span>
                                 <p
                                   className={`text-[11px] leading-relaxed ${

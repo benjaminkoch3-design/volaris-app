@@ -728,36 +728,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </span>
                   </div>
 
-                  {todayWorkout.steps && todayWorkout.steps.length > 0 && (
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-stone-400 block">
-                        Profil d'allure de la séance
-                      </span>
-                      <PaceProfileChart steps={todayWorkout.steps} vma={vma} />
-                    </div>
-                  )}
-
-                  {todayWorkout.description ? (
-                    <div className="bg-stone-900/70 p-3 rounded-xl border border-stone-800 space-y-1">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[#CF9A61] block">
-                        Description de la séance
-                      </span>
-                      <p className="text-xs md:text-sm text-stone-300 leading-relaxed">
-                        {todayWorkout.description}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {todayWorkout.remark && (
-                    <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-2.5 rounded-xl space-y-0.5">
-                      <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">
-                        💡 Conseil du Coach
-                      </span>
-                      <p className="text-xs text-[#CDCF61]/90">{todayWorkout.remark}</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-800/80">
+                  {/* 1. DISTANCE & RPE (+ DÉTAILS) */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-stone-800/80">
                     <div className="flex items-center gap-2">
                       {todayWorkout.km && (
                         <span
@@ -795,8 +767,40 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </button>
                   </div>
 
+                  {/* 2. DESCRIPTION DE LA SÉANCE */}
+                  {todayWorkout.description ? (
+                    <div className="bg-stone-900/70 p-3 rounded-xl border border-stone-800 space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-[#CF9A61] block">
+                        Description de la séance
+                      </span>
+                      <p className="text-xs md:text-sm text-stone-300 leading-relaxed">
+                        {todayWorkout.description}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {todayWorkout.remark && (
+                    <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-2.5 rounded-xl space-y-0.5">
+                      <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">
+                        💡 Conseil du Coach
+                      </span>
+                      <p className="text-xs text-[#CDCF61]/90">{todayWorkout.remark}</p>
+                    </div>
+                  )}
+
+                  {/* 3. PROFIL D'ALLURE DE LA SÉANCE */}
+                  {todayWorkout.steps && todayWorkout.steps.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-stone-800/60">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-stone-400 block">
+                        Profil d'allure de la séance
+                      </span>
+                      <PaceProfileChart steps={todayWorkout.steps} vma={vma} />
+                    </div>
+                  )}
+
+                  {/* Boutons d'action */}
                   {!isReadOnly && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-800/80">
                       <button
                         type="button"
                         onClick={(e) => handleSyncButtonClick(e, todayWorkout)}
@@ -805,7 +809,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       >
                         <span className="shrink-0">{syncLoadingId === todayWorkout.id ? "⏳" : "⌚"}</span>
                         <span className="truncate">
-                          {syncLoadingId === todayWorkout.id ? "Synchronisation..." : "Synchroniser sur la montre"}
+                          {syncLoadingId === todayWorkout.id
+                            ? "Synchronisation..."
+                            : "Synchroniser sur la montre"}
                         </span>
                       </button>
 
@@ -1342,7 +1348,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                       <span className={`text-[10px] font-black uppercase block ${d.isToday ? "text-[#4DB380]" : "text-stone-400"}`}>
                         {d.dayFull}
                       </span>
-                      <div className="text-xs font-black text-stone-100">
+                      <div className="text-xs font-bold text-stone-100">
                         {d.completedElevation} <span className="text-[9px] text-stone-500 font-normal">m D+</span>
                       </div>
                     </div>
@@ -1362,7 +1368,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* MODALE DE CONNEXION GARMIN CONNECT */}
+      {/* MODALE GARMIN */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
           <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">
