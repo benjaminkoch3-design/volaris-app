@@ -238,20 +238,19 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const weekCompletionPct = weekPlannedTotal > 0
     ? Math.min(100, Math.round((weekCompletedTotal / weekPlannedTotal) * 100))
     : (weekCompletedTotal > 0 ? 100 : 0);
-  const remainingKm = Math.max(0, Math.round((weekPlannedTotal - weekCompletedTotal) * 10) / 10);
 
   const maxDailyKm = Math.max(
     ...dailyVolumeData.map((d) => Math.max(d.plannedKm, d.completedKm)),
     10
   );
 
-  // Rendu de l'histogramme avec remplissage (Bar in Bar / Progress Bar) sans pointillés de repères
+  // Rendu de l'histogramme avec remplissage et valeurs affichées au-dessus
   const renderDailyHistogram = (isExpanded = false) => {
     const svgWidth = isExpanded ? 750 : 540;
-    const svgHeight = isExpanded ? 240 : 160;
+    const svgHeight = isExpanded ? 240 : 165;
     const paddingLeft = 35;
     const paddingRight = 15;
-    const paddingTop = 20;
+    const paddingTop = 26; // Espace supplémentaire au sommet pour afficher les chiffres
     const paddingBottom = 30;
     const usableHeight = svgHeight - paddingTop - paddingBottom;
     const baselineY = svgHeight - paddingBottom;
@@ -275,42 +274,22 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           </linearGradient>
         </defs>
 
-        {/* Lignes de quadrillage */}
-        {[0, 0.5, 1].map((pct, idx) => {
-          const y = paddingTop + usableHeight * (1 - pct);
-          const val = Math.round(maxDailyKm * pct);
-          return (
-            <g key={idx}>
-              <line
-                x1={paddingLeft}
-                y1={y}
-                x2={svgWidth - paddingRight}
-                y2={y}
-                stroke="#27272a"
-                strokeWidth="1"
-                strokeDasharray={pct === 0 ? "none" : "2,4"}
-              />
-              <text
-                x={paddingLeft - 6}
-                y={y + 3.5}
-                fill="#71717a"
-                fontSize={isExpanded ? "11" : "9"}
-                fontWeight="700"
-                textAnchor="end"
-                className="font-mono"
-              >
-                {val}
-              </text>
-            </g>
-          );
-        })}
+        {/* Ligne de base épurée sans pointillés */}
+        <line
+          x1={paddingLeft}
+          y1={baselineY}
+          x2={svgWidth - paddingRight}
+          y2={baselineY}
+          stroke="#27272a"
+          strokeWidth="1"
+        />
 
         {/* Colonnes par jour avec remplissage */}
         {dailyVolumeData.map((d, i) => {
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
           const barX = colCenterX - barWidth / 2;
 
-          // Hauteur du conteneur (fond prévu, ou réalisé si pas de prévu)
+          // Hauteur du conteneur (fond prévu, ou réalisé si supérieur)
           const baseTargetKm = Math.max(d.plannedKm, d.completedKm);
           const containerH = baseTargetKm > 0 ? (baseTargetKm / maxDailyKm) * usableHeight : 0;
           const containerY = baselineY - containerH;
@@ -321,15 +300,21 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
           const isOvercompleted = d.plannedKm > 0 && d.completedKm > d.plannedKm;
 
+          // Position de l'étiquette au-dessus de l'histogramme
+          const topElementY = Math.min(
+            containerH > 0 ? containerY : baselineY,
+            fillH > 0 ? fillY : baselineY
+          );
+
           return (
             <g key={d.dayIndex} className="group cursor-pointer">
               {/* Fond de colonne pour aujourd'hui */}
               {d.isToday && (
                 <rect
                   x={colCenterX - colWidth / 2 + 3}
-                  y={paddingTop - 6}
+                  y={paddingTop - 12}
                   width={colWidth - 6}
-                  height={usableHeight + 12}
+                  height={usableHeight + 18}
                   fill="#4DB380"
                   fillOpacity="0.08"
                   rx="10"
@@ -362,6 +347,21 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   rx="4"
                   className="transition-all duration-200 group-hover:brightness-110"
                 />
+              )}
+
+              {/* 3. CHIFFRE DU VOLUME RÉALISÉ AU-DESSUS DE L'HISTOGRAMME */}
+              {d.completedKm > 0 && (
+                <text
+                  x={colCenterX}
+                  y={topElementY - 4}
+                  fill={d.isToday ? "#4DB380" : "#d4d4d8"}
+                  fontSize={isExpanded ? "10.5" : "9"}
+                  fontWeight="900"
+                  textAnchor="middle"
+                  className="font-mono tracking-tight"
+                >
+                  {d.completedKm}
+                </text>
               )}
 
               {/* Étiquette jour */}
@@ -671,25 +671,24 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Boîte de petites stats KPI */}
+              {/* Boîte de 3 stats KPI identiques */}
               <div className="grid grid-cols-3 gap-2 bg-stone-950/80 p-2.5 rounded-2xl border border-stone-800/70 text-center shadow-inner">
                 <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Réalisé / Prévu</span>
-                  <div className="text-xs font-black text-stone-100 mt-0.5">
-                    <span className="text-[#4DB380]">{weekCompletedTotal}</span>
-                    <span className="text-stone-500 font-normal"> / {weekPlannedTotal} km</span>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume réalisé</span>
+                  <div className="text-xs font-black text-[#4DB380] mt-0.5">
+                    {weekCompletedTotal} <span className="text-stone-500 font-normal text-[10px]">km</span>
                   </div>
                 </div>
                 <div className="border-x border-stone-800/80">
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Accomplissement</span>
-                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
-                    {weekCompletionPct}%
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Volume prévu</span>
+                  <div className="text-xs font-black text-stone-100 mt-0.5">
+                    {weekPlannedTotal} <span className="text-stone-500 font-normal text-[10px]">km</span>
                   </div>
                 </div>
                 <div>
-                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Reste à faire</span>
-                  <div className="text-xs font-black text-stone-300 mt-0.5">
-                    {remainingKm} <span className="text-stone-500 text-[10px] font-normal">km</span>
+                  <span className="text-[8.5px] font-bold text-stone-500 uppercase block">Taux d'accomplissement</span>
+                  <div className="text-xs font-black text-[#CF9A61] mt-0.5">
+                    {weekCompletionPct}%
                   </div>
                 </div>
               </div>
@@ -770,14 +769,14 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
             {zoomedChart === "volume" ? (
               <div className="space-y-4">
-                {/* Stats récapitulatives dans la modale */}
+                {/* 3 stats KPI identiques dans la modale agrandie */}
                 <div className="grid grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800 text-center">
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Distance réalisée</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume réalisé</span>
                     <span className="text-xl font-black text-[#4DB380]">{weekCompletedTotal} km</span>
                   </div>
                   <div className="border-x border-stone-800">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Distance prévue</span>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase block">Volume prévu</span>
                     <span className="text-xl font-black text-stone-200">{weekPlannedTotal} km</span>
                   </div>
                   <div>
