@@ -169,7 +169,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showAddRaceForm, setShowAddRaceForm] = useState(false);
   const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
 
-  // État local pour le découpage intelligent du temps (h / min / sec)
+  // Saisie horaire intelligente découpée
   const [raceHours, setRaceHours] = useState("");
   const [raceMinutes, setRaceMinutes] = useState("");
   const [raceSeconds, setRaceSeconds] = useState("");
@@ -177,7 +177,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [showAddShoeForm, setShowAddShoeForm] = useState(false);
   const [showShoeCloset, setShowShoeCloset] = useState(false);
 
-  // Formulaire d'édition de profil
+  // Formulaire d'édition
   const [editName, setEditName] = useState(athleteName);
   const [editHeight, setEditHeight] = useState(height);
   const [editWeight, setEditWeight] = useState(weight);
@@ -187,7 +187,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcMax, setEditFcMax] = useState(fcMax);
   const [editRecords, setEditRecords] = useState({ ...records });
 
-  // Recadrage avatar
+  // Modale de recadrage / recentrage d'avatar
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -195,7 +195,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Périphériques
+  // 1. GARMIN
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -203,6 +203,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminStatusMsg, setGarminStatusMsg] = useState<string | null>(null);
 
+  // 2. COROS
   const [showCorosModal, setShowCorosModal] = useState(false);
   const [corosEmail, setCorosEmail] = useState("");
   const [corosPassword, setCorosPassword] = useState("");
@@ -210,6 +211,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [corosLoading, setCorosLoading] = useState(false);
   const [corosStatusMsg, setCorosStatusMsg] = useState<string | null>(null);
 
+  // 3. STRAVA
   const [showStravaModal, setShowStravaModal] = useState(false);
   const [stravaEmail, setStravaEmail] = useState("");
   const [isStravaLinked, setIsStravaLinked] = useState(false);
@@ -263,13 +265,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setIsGarminLinked(true);
       if (!connectedDevices.garmin) toggleDeviceConnection("garmin");
 
-      setGarminStatusMsg("Compte Garmin lié avec succès.");
+      setGarminStatusMsg("✅ Compte Garmin lié avec succès !");
       setTimeout(() => {
         setShowGarminModal(false);
         setGarminStatusMsg(null);
       }, 1500);
     } catch (err: any) {
-      setGarminStatusMsg(`Erreur : ${err.message}`);
+      setGarminStatusMsg(`❌ ${err.message}`);
     } finally {
       setGarminLoading(false);
     }
@@ -308,13 +310,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setIsCorosLinked(true);
       if (!connectedDevices.coros) toggleDeviceConnection("coros");
 
-      setCorosStatusMsg("Compte COROS lié avec succès.");
+      setCorosStatusMsg("✅ Compte COROS lié avec succès !");
       setTimeout(() => {
         setShowCorosModal(false);
         setCorosStatusMsg(null);
       }, 1500);
     } catch (err: any) {
-      setCorosStatusMsg(`Erreur : ${err.message}`);
+      setCorosStatusMsg(`❌ ${err.message}`);
     } finally {
       setCorosLoading(false);
     }
@@ -340,13 +342,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setIsStravaLinked(true);
       if (!connectedDevices.strava) toggleDeviceConnection("strava");
 
-      setStravaStatusMsg("Compte Strava synchronisé.");
+      setStravaStatusMsg("✅ Compte Strava synchronisé !");
       setTimeout(() => {
         setShowStravaModal(false);
         setStravaStatusMsg(null);
       }, 1500);
     } catch (err: any) {
-      setStravaStatusMsg(`Erreur : ${err.message}`);
+      setStravaStatusMsg(`❌ ${err.message}`);
     } finally {
       setStravaLoading(false);
     }
@@ -374,6 +376,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (onSaveFullProfile) {
       onSaveFullProfile({
         name: editName,
@@ -395,6 +398,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setFcMax(editFcMax);
       setRecords(editRecords);
     }
+
     setIsEditingProfile(false);
   };
 
@@ -442,7 +446,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
 
-  // Accordéons
+  // ACCORDÉONS (tous fermés par défaut)
   const [openVmaSection, setOpenVmaSection] = useState(false);
   const [openCardioSection, setOpenCardioSection] = useState(false);
   const [openRecords, setOpenRecords] = useState(false);
@@ -451,6 +455,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [openShoesSection, setOpenShoesSection] = useState(false);
   const [openDevicesSection, setOpenDevicesSection] = useState(false);
 
+  // Formulaire chaussure
   const [newShoe, setNewShoe] = useState({
     name: "",
     brand: "",
@@ -1029,7 +1034,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     className="cursor-pointer text-[8px] font-black text-[#CF9A61] uppercase hover:underline"
                     title="Changer et recentrer la photo"
                   >
-                    <span>Changer</span>
+                    <span>📷 Changer</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1051,7 +1056,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       className="text-[8px] font-black text-rose-400 uppercase hover:underline cursor-pointer"
                       title="Supprimer la photo"
                     >
-                      Retirer
+                      🗑️ Retirer
                     </button>
                   )}
                 </div>
@@ -1091,7 +1096,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         {/* DOUBLE CARTE : ROUTE & TRAIL */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
+          <div className="bg-gradient-to-br from-[#B34D4D]/20 via-stone-950 to-stone-950 p-4 rounded-2xl border border-[#B34D4D]/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase text-[#B34D4D] tracking-wider">
                 Performance Route
@@ -1120,7 +1125,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
+          <div className="bg-gradient-to-br from-[#4DB380]/20 via-stone-950 to-stone-950 p-4 rounded-2xl border border-[#4DB380]/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase text-[#4DB380] tracking-wider">
                 Performance Trail
@@ -1176,10 +1181,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div className="space-y-1">
-              <div className="relative w-full h-3 bg-stone-900 border border-stone-800 rounded-full p-0.5 shadow-inner">
+              <div className="relative w-full h-3 bg-gradient-to-r from-emerald-500 via-amber-400 via-orange-500 to-red-600 rounded-full p-0.5 shadow-inner">
                 <div
                   style={{ left: `calc(${runnerProfile.vitessePercent}% - 6px)` }}
-                  className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-[#CF9A61] border-2 border-stone-950 rounded-full shadow-lg transition-all"
+                  className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-stone-950 rounded-full shadow-lg transition-all"
                   title={`Position : ${runnerProfile.endurancePercent}% Endurance`}
                 />
               </div>
@@ -1230,7 +1235,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    VMA, Allures & Seuils
+                    ⚡ VMA, Allures & Seuils
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openVmaSection ? "▲" : "▼"}
@@ -1391,7 +1396,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Fréquence Cardiaque & Zones FC
+                    ❤️ Fréquence Cardiaque & Zones FC
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openCardioSection ? "▲" : "▼"}
@@ -1535,7 +1540,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Records Personnels ({Object.keys(records).length})
+                    🏆 Records Personnels ({Object.keys(records).length})
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openRecords ? "▲" : "▼"}
@@ -1599,7 +1604,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 4. ACCORDÉON PALMARÈS DE COURSES (AVEC MODIFICATION, CLASSEMENT, DÉPART D+, ALLURE & VITESSE) */}
+              {/* 4. ACCORDÉON PALMARÈS DE COURSES (AVEC MODIFICATION, ALLURE & VITESSE, NOUVEAUX CHAMPS) */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -1607,7 +1612,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Mon Palmarès de Course ({races.length})
+                    🥇 Mon Palmarès de Course ({races.length})
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openPalmares ? "▲" : "▼"}
@@ -1768,7 +1773,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#CF9A61] font-bold text-xs flex items-center justify-between transition cursor-pointer"
                           >
                             <span className="flex items-center gap-1.5">
-                              Ajouter une nouvelle course
+                              ➕ Ajouter une nouvelle course
                             </span>
                             <span className="text-stone-400 text-xs">▼</span>
                           </button>
@@ -2022,7 +2027,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Plans d'entraînement archivés ({archivedPlans.length})
+                    📁 Plans d'entraînement archivés ({archivedPlans.length})
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openArchivedPlans ? "▲" : "▼"}
@@ -2070,7 +2075,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Mes Chaussures ({activeShoes.length} active{activeShoes.length > 1 ? "s" : ""})
+                    👟 Mes Chaussures ({activeShoes.length} active{activeShoes.length > 1 ? "s" : ""})
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openShoesSection ? "▲" : "▼"}
@@ -2216,7 +2221,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                           className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#4DB380] font-bold text-xs flex items-center justify-between transition cursor-pointer"
                         >
                           <span className="flex items-center gap-1.5">
-                            Ajouter une paire de chaussures
+                            ➕ Ajouter une paire de chaussures
                           </span>
                           <span className="text-stone-400 text-xs">
                             {showAddShoeForm ? "▲" : "▼"}
@@ -2297,7 +2302,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    Appareils & Montres Connectées
+                    ⌚ Appareils & Montres Connectées
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openDevicesSection ? "▲" : "▼"}
