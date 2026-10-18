@@ -874,6 +874,9 @@ export default function Home() {
               w.id === updatedWorkout.id
                 ? {
                     ...w,
+                    weekNumber: updatedWorkout.week_number ?? w.weekNumber,
+                    dayIndex: updatedWorkout.day_index ?? w.dayIndex,
+                    dayName: updatedWorkout.day_name ?? w.dayName,
                     km: updatedWorkout.km ?? w.km,
                     title: updatedWorkout.title ?? w.title,
                     type: updatedWorkout.type ?? w.type,
@@ -1003,7 +1006,7 @@ export default function Home() {
         }
       }
 
-      // 👈 CHARGEMENT DES COURSES (AVEC DATE ET RANK)
+      // CHARGEMENT DES COURSES (AVEC DATE ET RANK)
       const { data: racesData } = await supabase
         .from("races")
         .select("*")
@@ -1191,6 +1194,55 @@ export default function Home() {
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
+  // Synchronisation en temps réel des séances actives (si l'athlète ou le coach effectue un déplacement/modification)
+  useEffect(() => {
+    if (!session?.user || !activePlan) return;
+
+    const planWorkoutsChannel = supabase
+      .channel(`realtime_plan_workouts_${activePlan.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workouts",
+          filter: `plan_id=eq.${activePlan.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "UPDATE") {
+            const updated = payload.new as any;
+            setActivePlan((prevPlan) => {
+              if (!prevPlan) return prevPlan;
+              return {
+                ...prevPlan,
+                workouts: prevPlan.workouts.map((w) =>
+                  w.id === updated.id
+                    ? {
+                        ...w,
+                        weekNumber: updated.week_number ?? w.weekNumber,
+                        dayIndex: updated.day_index ?? w.dayIndex,
+                        dayName: updated.day_name ?? w.dayName,
+                        title: updated.title ?? w.title,
+                        km: updated.km ?? w.km,
+                        type: updated.type ?? w.type,
+                        description: updated.description ?? w.description,
+                        rpe: updated.rpe ?? w.rpe,
+                        steps: Array.isArray(updated.steps) ? updated.steps : w.steps,
+                      }
+                    : w
+                ),
+              };
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(planWorkoutsChannel);
+    };
+  }, [session, activePlan?.id]);
+
   const getCoachDailySessionsForDate = (dateStr: string): AthleteDailySession[] => {
     const sessions: AthleteDailySession[] = [];
     if (!managedAthletes || managedAthletes.length === 0) return sessions;
@@ -1292,10 +1344,17 @@ export default function Home() {
     }
   };
 
-  // 👈 AJOUT DE LA DATE ET DU CLASSEMENT DANS L'INSERTION
   const handleAddRace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isCoachInspecting || !session?.user || !newRace.name || !newRace.time) return;
+
+    const elevationVal = newRace.elevationGain && String(newRace.elevationGain).trim() !== "" 
+      ? parseFloat(String(newRace.elevationGain).replace(",", ".")) 
+      : null;
+
+    const utmbVal = newRace.utmbIndex && String(newRace.utmbIndex).trim() !== "" 
+      ? parseFloat(String(newRace.utmbIndex).replace(",", ".")) 
+      : null;
 
     const racePayload = {
       user_id: session.user.id,
@@ -1303,15 +1362,21 @@ export default function Home() {
       distance: newRace.distance || "10 km",
       time: newRace.time,
       category: newRace.category || "route",
-      elevation_gain: newRace.elevationGain ? parseFloat(newRace.elevationGain) : null,
-      utmb_index: newRace.utmbIndex ? parseFloat(newRace.utmbIndex) : null,
-      date: newRace.date || null,
-      rank: newRace.rank || null,
+      elevation_gain: elevationVal,
+      utmb_index: utmbVal,
+      date: newRace.date || new Date().toISOString().split("T")[0],
+      rank: newRace.rank ? newRace.rank.trim() : null,
     };
 
     const { data, error } = await supabase.from("races").insert([racePayload]).select().single();
 
-    if (!error && data) {
+    if (error) {
+      console.error("❌ Erreur Supabase lors de l'ajout de la course :", error);
+      alert(`Erreur d'enregistrement : ${error.message}`);
+      return;
+    }
+
+    if (data) {
       setRaces([{
         id: data.id,
         name: data.name,
@@ -1336,25 +1401,28 @@ export default function Home() {
     }
   };
 
-  // 👈 NOUVELLE FONCTION DE MISE À JOUR DE COURSE DANS SUPABASE
   const handleUpdateRace = async (id: string, updatedData: Partial<Race>) => {
     if (isCoachInspecting || !session?.user) return;
+
+    const elevationVal = updatedData.elevationGain !== undefined && updatedData.elevationGain !== null && String(updatedData.elevationGain).trim() !== ""
+      ? parseFloat(String(updatedData.elevationGain).replace(",", "."))
+      : null;
+
+    const utmbVal = updatedData.utmbIndex !== undefined && updatedData.utmbIndex !== null && String(updatedData.utmbIndex).trim() !== ""
+      ? parseFloat(String(updatedData.utmbIndex).replace(",", "."))
+      : null;
 
     const payload: any = {};
     if (updatedData.name !== undefined) payload.name = updatedData.name;
     if (updatedData.distance !== undefined) payload.distance = updatedData.distance;
     if (updatedData.time !== undefined) payload.time = updatedData.time;
     if (updatedData.category !== undefined) payload.category = updatedData.category;
-    if (updatedData.elevationGain !== undefined) {
-      payload.elevation_gain = updatedData.elevationGain ? parseFloat(String(updatedData.elevationGain)) : null;
-    }
-    if (updatedData.utmbIndex !== undefined) {
-      payload.utmb_index = updatedData.utmbIndex ? parseFloat(String(updatedData.utmbIndex)) : null;
-    }
+    if (updatedData.elevationGain !== undefined) payload.elevation_gain = elevationVal;
+    if (updatedData.utmbIndex !== undefined) payload.utmb_index = utmbVal;
     if (updatedData.date !== undefined) payload.date = updatedData.date || null;
-    if (updatedData.rank !== undefined) payload.rank = updatedData.rank || null;
+    if (updatedData.rank !== undefined) payload.rank = updatedData.rank ? String(updatedData.rank).trim() : null;
 
-    setRaces((prev) => prev.map((r) => (r.id === id ? { ...r, ...updatedData } : r)));
+    setRaces((prev) => prev.map((r) => (r.id === id ? { ...r, ...updatedData, elevationGain: elevationVal ?? undefined, rank: payload.rank ?? undefined } : r)));
 
     const { error } = await supabase.from("races").update(payload).eq("id", id);
     if (error) {
@@ -1589,7 +1657,7 @@ export default function Home() {
         const currentDayDate = new Date(planStartDate);
         currentDayDate.setDate(planStartDate.getDate() + ((w - 1) * 7 + dayOffset));
 
-        const exactDayName = DAYS_LIST_FR[currentDayDate.getDay()];
+        const exactDayName = DAYS_LIST_FR[dayOffset];
         const workoutId = `w${w}_d${dayOffset}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
         initialWorkouts.push({
@@ -1639,12 +1707,7 @@ export default function Home() {
   };
 
   const handleAddWorkoutToDay = (weekNumber: number, dayIndex: number) => {
-    const [startYear, startMonth, startDay] = newPlanForm.startDate.split("-").map(Number);
-    const planStartDate = new Date(startYear, startMonth - 1, startDay);
-    const currentDayDate = new Date(planStartDate);
-    currentDayDate.setDate(planStartDate.getDate() + ((weekNumber - 1) * 7 + dayIndex));
-    const dayName = DAYS_LIST_FR[currentDayDate.getDay()];
-
+    const dayName = DAYS_LIST_FR[dayIndex];
     const existingForDay = draftWorkouts.filter(
       (w) => w.weekNumber === weekNumber && w.dayIndex === dayIndex
     );
@@ -1708,6 +1771,65 @@ export default function Home() {
         return w;
       })
     );
+  };
+
+  // 👈 DÉPLACEMENT D'UNE SÉANCE EN DRAG & DROP (ATHLÈTE ET COACH)
+  const handleMoveWorkoutToDay = async (
+    workoutId: string,
+    targetWeekNumber: number,
+    targetDayIndex: number
+  ) => {
+    if (!activePlan) return;
+
+    const targetDayName = DAYS_LIST_FR[targetDayIndex];
+
+    const updatedWorkouts = activePlan.workouts.map((w) => {
+      if (w.id === workoutId) {
+        return {
+          ...w,
+          weekNumber: targetWeekNumber,
+          dayIndex: targetDayIndex,
+          dayName: targetDayName,
+        };
+      }
+      return w;
+    });
+
+    setActivePlan({
+      ...activePlan,
+      workouts: updatedWorkouts,
+    });
+
+    // Mise à jour synchrone pour la vue coach calendrier
+    setAllCoachAthletesWorkouts((prev) =>
+      prev.map((w) =>
+        w.id === workoutId
+          ? {
+              ...w,
+              weekNumber: targetWeekNumber,
+              dayIndex: targetDayIndex,
+              dayName: targetDayName,
+            }
+          : w
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from("workouts")
+        .update({
+          week_number: targetWeekNumber,
+          day_index: targetDayIndex,
+          day_name: targetDayName,
+        })
+        .eq("id", workoutId);
+
+      if (error) {
+        console.error("❌ Erreur déplacement séance :", error.message);
+      }
+    } catch (err) {
+      console.error("Exception déplacement séance :", err);
+    }
   };
 
   const updateNestedStepsRecursive = (
@@ -2049,7 +2171,7 @@ export default function Home() {
       steps: w.steps || [],
       completed_rpe: w.completedRpe || null,
       athlete_comment: w.athleteComment || null,
-      shoe_id: w.shoeId || null,
+      shoeId: w.shoeId || null,
       completed_km: w.completedKm || null,
       completed_time_minutes: w.completedTimeMinutes || null,
       completed_elevation_gain: (w as any).completedElevationGain ?? (w as any).completed_elevation_gain ?? null,
@@ -2738,14 +2860,13 @@ export default function Home() {
                       <span>📊 Évolution Volume & Charge</span>
                     </button>
 
-                    {!(userRole === "athlete" && assignedCoachId) && (
-                      <button
-                        onClick={() => setShowDeletePlanModal(true)}
-                        className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
-                      >
-                        ➕ Nouveau plan
-                      </button>
-                    )}
+                    {/* Nouveau plan toujours accessible */}
+                    <button
+                      onClick={() => setShowDeletePlanModal(true)}
+                      className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
+                    >
+                      ➕ Nouveau plan
+                    </button>
                   </div>
                 )}
 
@@ -2761,23 +2882,19 @@ export default function Home() {
                       <p className="text-xs text-stone-400 mt-1 leading-relaxed">
                         {userRole === "coach"
                           ? `Créez le programme personnalisé pour ${selectedAthlete?.name || "votre athlète"}.`
-                          : assignedCoachId
-                          ? "Votre entraîneur n'a pas encore créé votre plan d'entraînement actif."
                           : "Créez votre programme personnalisé étape par étape pour atteindre votre objectif."}
                       </p>
                     </div>
 
-                    {!(userRole === "athlete" && assignedCoachId) && (
-                      <button
-                        onClick={() => {
-                          setIsCreatingPlan(true);
-                          setPlanCreationStep(1);
-                        }}
-                        className="w-full py-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
-                      >
-                        ➕ Créer un nouveau plan
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setIsCreatingPlan(true);
+                        setPlanCreationStep(1);
+                      }}
+                      className="w-full py-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
+                    >
+                      ➕ Créer un nouveau plan
+                    </button>
                   </div>
                 )}
 
@@ -2820,7 +2937,8 @@ export default function Home() {
                       }
                     }}
                     onNavigateToVolumeChart={navigateToPlanStats}
-                    isReadOnly={Boolean(assignedCoachId && userRole === "athlete")}
+                    onMoveWorkoutToDay={handleMoveWorkoutToDay}
+                    isReadOnly={false}
                   />
                 )}
               </div>
