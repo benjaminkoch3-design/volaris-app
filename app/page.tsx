@@ -2171,7 +2171,7 @@ export default function Home() {
       steps: w.steps || [],
       completed_rpe: w.completedRpe || null,
       athlete_comment: w.athleteComment || null,
-      shoeId: w.shoeId || null,
+      shoe_id: (w as any).shoeId ?? (w as any).shoe_id ?? null,
       completed_km: w.completedKm || null,
       completed_time_minutes: w.completedTimeMinutes || null,
       completed_elevation_gain: (w as any).completedElevationGain ?? (w as any).completed_elevation_gain ?? null,

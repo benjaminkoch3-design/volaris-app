@@ -11,8 +11,18 @@ import {
   getWeekDateRange,
   getExactDayDate,
   getWorkoutTypeConfig,
-  DAYS_LIST_FR,
 } from "../../utils/calculations";
+
+// Ordre strict du calendrier européen : Lundi = 0 -> Dimanche = 6
+const DAYS_ORDER_FR = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+  "Dimanche",
+];
 
 interface ActivePlanViewProps {
   activePlan: Plan;
@@ -37,7 +47,6 @@ const getRpeGradientColor = (rpeStr?: string) => {
   return "#ef4444";
 };
 
-// Utilitaire pour récupérer la classe CSS du badge de phase de semaine
 const getWeekTypeBadgeClass = (weekTypeObj?: { type: WeekType; customLabel?: string }) => {
   if (!weekTypeObj) return "bg-stone-800 text-stone-300 border-stone-700";
   const config = WEEK_TYPES_CONFIG[weekTypeObj.type];
@@ -68,7 +77,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
     durationWeeksStr
   );
 
-  // État local pour le Drag & Drop
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
@@ -109,12 +117,11 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* BANNIÈRE DE HEADER DU PLAN ACTIF AVEC OBJECTIFS */}
+      {/* BANNIÈRE HEADER */}
       <div className="bg-gradient-to-br from-[#CF9A61] to-[#b88652] rounded-3xl p-6 text-stone-950 shadow-xl relative overflow-hidden space-y-4">
         <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          {/* TITRE ET NOMBRE DE SEMAINES */}
           <div>
             <span className="bg-stone-950/20 text-stone-950 font-bold text-[10px] uppercase px-3 py-1 rounded-full tracking-wider inline-block mb-1.5">
               Plan Actif
@@ -127,7 +134,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
             </p>
           </div>
 
-          {/* OBJECTIFS DISTANCE, TEMPS ET DÉNIVELÉ */}
           <div className="flex flex-wrap items-center gap-2">
             {activePlan.targetDistance && (
               <div className="bg-stone-950/20 border border-stone-950/20 px-3 py-1.5 rounded-2xl text-center min-w-[90px]">
@@ -164,7 +170,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
           </div>
         </div>
 
-        {/* PHASE D'ENTRAÎNEMENT & ACTIONS HEADER */}
         <div className="flex justify-between items-center pt-2 border-t border-stone-950/10 flex-wrap gap-2">
           {(() => {
             const curWeekType = activePlan.weekTypes?.[currentWeekNum];
@@ -189,7 +194,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
               </button>
             )}
 
-            {/* Modification toujours accessible même avec coach */}
             <button
               type="button"
               onClick={onEditActivePlan}
@@ -201,7 +205,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
         </div>
       </div>
 
-      {/* EN-TÊTE DES SEMAINES */}
+      {/* SEMAINES */}
       <div className="space-y-4">
         <div className="flex justify-between items-center flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -209,7 +213,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
               Semaines du programme ({durationWeeksStr})
             </h4>
             <span className="text-[10px] text-stone-500 font-medium hidden sm:inline">
-              • Glissez-déposez une séance pour changer son jour
+              • Glissez-déposez une séance d'un jour à l'autre
             </span>
           </div>
 
@@ -224,14 +228,12 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
           )}
         </div>
 
-        {/* ACCORDÉONS SEMAINE PAR SEMAINE */}
         <div className="space-y-4">
           {Array.from({ length: totalWeeksNum }, (_, i) => i + 1).map((wNum) => {
             const weekTypeVal = activePlan.weekTypes?.[wNum];
             const wLabel = getWeekTypeLabel(weekTypeVal);
             const badgeClass = getWeekTypeBadgeClass(weekTypeVal);
             const isCurrentWeek = wNum === currentWeekNum;
-
             const isOpen = openWeeks[wNum] ?? isCurrentWeek;
 
             const rawWeekWorkouts = activePlan.workouts.filter(
@@ -309,9 +311,9 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
                 {isOpen && (
                   <div className="p-4 pt-0 border-t border-stone-800/60">
-                    {/* LES 7 JOURS DE LA SEMAINE AFFICHÉS SYSTÉMATIQUEMENT */}
+                    {/* LES 7 JOURS DE LA SEMAINE DU LUNDI (0) AU DIMANCHE (6) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
-                      {Array.from({ length: 7 }, (_, dIdx) => {
+                      {DAYS_ORDER_FR.map((dayLabel, dIdx) => {
                         const targetKey = `w${wNum}_d${dIdx}`;
                         const isDragOverThisDay = dragOverTarget === targetKey;
 
@@ -321,12 +323,10 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           dIdx
                         );
 
-                        // Trouver les séances associées à ce jour précis
                         const dayWorkouts = rawWeekWorkouts.filter(
                           (w) => w.dayIndex === dIdx
                         );
 
-                        // Si aucune séance ou uniquement repos
                         const hasActiveWorkouts = dayWorkouts.some((w) => !w.isRest);
 
                         return (
@@ -341,11 +341,10 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                 : "border-stone-800/90 bg-stone-950/50"
                             }`}
                           >
-                            {/* En-tête du jour */}
                             <div className="flex justify-between items-center pb-1.5 border-b border-stone-800/60">
                               <div className="flex items-center gap-2">
                                 <span className="font-black text-xs text-stone-200 uppercase tracking-wide">
-                                  {DAYS_LIST_FR[dIdx]}
+                                  {dayLabel}
                                 </span>
                                 <span className="text-[10px] font-bold text-stone-500">
                                   {exactDate}
@@ -358,10 +357,9 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </span>
                             </div>
 
-                            {/* Contenu du jour */}
                             {!hasActiveWorkouts ? (
                               <div className="py-4 text-center text-xs text-stone-600 italic select-none">
-                                Aucun entraînement prévu
+                                Repos
                               </div>
                             ) : (
                               <div className="space-y-2.5">
