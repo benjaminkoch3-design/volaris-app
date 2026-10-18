@@ -96,7 +96,6 @@ export default function Home() {
     changeActiveTab("stats");
   };
 
-  // Fonction centralisée pour changer d'onglet et mémoriser l'état
   const changeActiveTab = (newTab: ActiveTab) => {
     setActiveTab(newTab);
     if (typeof window !== "undefined") {
@@ -105,7 +104,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // 1. Initialisation de la session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
@@ -125,7 +123,6 @@ export default function Home() {
       setLoadingAuth(false);
     });
 
-    // 2. Écoute des changements d'authentification sans écraser l'onglet courant
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -134,7 +131,6 @@ export default function Home() {
         const roleFromMeta = (session.user?.user_metadata?.role as UserRole) || "athlete";
         setUserRole(roleFromMeta);
 
-        // Ne réinitialiser l'onglet que lors d'un SIGNED_IN explicite
         if (event === "SIGNED_IN") {
           const savedTab = localStorage.getItem("volaris_active_tab") as ActiveTab | null;
           if (savedTab) {
@@ -278,13 +274,17 @@ export default function Home() {
     category?: "route" | "piste" | "trail" | "nature";
     elevationGain?: string;
     utmbIndex?: string;
+    date?: string;
+    rank?: string;
   }>({
     name: "",
-    distance: "",
+    distance: "10 km",
     time: "",
     category: "route",
     elevationGain: "",
     utmbIndex: "",
+    date: new Date().toISOString().split("T")[0],
+    rank: "",
   });
 
   const [connectedDevices, setConnectedDevices] = useState<Record<string, boolean>>({
@@ -455,13 +455,9 @@ export default function Home() {
     }
   };
 
-  // ----------------------------------------------------
-  // MESSAGES
-  // ----------------------------------------------------
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const selectedAthlete = managedAthletes.find((a) => a.id === inspectingAthleteId);
 
-  // VMA active
   const currentAthleteVma = isCoachInspecting
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
@@ -533,7 +529,6 @@ export default function Home() {
     }
   };
 
-  // ABONNEMENT REALTIME
   useEffect(() => {
     if (!session?.user) return;
 
@@ -689,7 +684,6 @@ export default function Home() {
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
 
-  // CHARGEMENT ATHLÈTES & MESSAGES COACH
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -968,7 +962,7 @@ export default function Home() {
         }
       }
 
-      // CHARGEMENT DES SORTIES POUR LES STATS ANNUELLES
+      // CHARGEMENT DES SORTIES
       const { data: runs } = await supabase
         .from("completed_runs")
         .select("*")
@@ -1009,6 +1003,7 @@ export default function Home() {
         }
       }
 
+      // 👈 CHARGEMENT DES COURSES (AVEC DATE ET RANK)
       const { data: racesData } = await supabase
         .from("races")
         .select("*")
@@ -1024,6 +1019,8 @@ export default function Home() {
           category: r.category,
           elevationGain: r.elevation_gain,
           utmbIndex: r.utmb_index,
+          date: r.date || undefined,
+          rank: r.rank || undefined,
         })));
       }
 
@@ -1295,6 +1292,7 @@ export default function Home() {
     }
   };
 
+  // 👈 AJOUT DE LA DATE ET DU CLASSEMENT DANS L'INSERTION
   const handleAddRace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isCoachInspecting || !session?.user || !newRace.name || !newRace.time) return;
@@ -1307,6 +1305,8 @@ export default function Home() {
       category: newRace.category || "route",
       elevation_gain: newRace.elevationGain ? parseFloat(newRace.elevationGain) : null,
       utmb_index: newRace.utmbIndex ? parseFloat(newRace.utmbIndex) : null,
+      date: newRace.date || null,
+      rank: newRace.rank || null,
     };
 
     const { data, error } = await supabase.from("races").insert([racePayload]).select().single();
@@ -1320,8 +1320,45 @@ export default function Home() {
         category: data.category,
         elevationGain: data.elevation_gain,
         utmbIndex: data.utmb_index,
+        date: data.date,
+        rank: data.rank,
       }, ...races]);
-      setNewRace({ name: "", distance: "", time: "", category: "route", elevationGain: "", utmbIndex: "" });
+      setNewRace({
+        name: "",
+        distance: "10 km",
+        time: "",
+        category: "route",
+        elevationGain: "",
+        utmbIndex: "",
+        date: new Date().toISOString().split("T")[0],
+        rank: "",
+      });
+    }
+  };
+
+  // 👈 NOUVELLE FONCTION DE MISE À JOUR DE COURSE DANS SUPABASE
+  const handleUpdateRace = async (id: string, updatedData: Partial<Race>) => {
+    if (isCoachInspecting || !session?.user) return;
+
+    const payload: any = {};
+    if (updatedData.name !== undefined) payload.name = updatedData.name;
+    if (updatedData.distance !== undefined) payload.distance = updatedData.distance;
+    if (updatedData.time !== undefined) payload.time = updatedData.time;
+    if (updatedData.category !== undefined) payload.category = updatedData.category;
+    if (updatedData.elevationGain !== undefined) {
+      payload.elevation_gain = updatedData.elevationGain ? parseFloat(String(updatedData.elevationGain)) : null;
+    }
+    if (updatedData.utmbIndex !== undefined) {
+      payload.utmb_index = updatedData.utmbIndex ? parseFloat(String(updatedData.utmbIndex)) : null;
+    }
+    if (updatedData.date !== undefined) payload.date = updatedData.date || null;
+    if (updatedData.rank !== undefined) payload.rank = updatedData.rank || null;
+
+    setRaces((prev) => prev.map((r) => (r.id === id ? { ...r, ...updatedData } : r)));
+
+    const { error } = await supabase.from("races").update(payload).eq("id", id);
+    if (error) {
+      console.error("Erreur mise à jour course Supabase :", error.message);
     }
   };
 
@@ -2826,6 +2863,7 @@ export default function Home() {
                 initialSubTab={statsSubTab}
                 onBackToDashboard={() => changeActiveTab("accueil")}
                 isReadOnly={isCoachInspecting}
+                vma={currentAthleteVma}
               />
             )}
 
@@ -2896,6 +2934,7 @@ export default function Home() {
                 newRace={newRace}
                 setNewRace={setNewRace}
                 onAddRace={handleAddRace}
+                onUpdateRace={handleUpdateRace}
                 onDeleteRace={handleDeleteRace}
                 connectedDevices={connectedDevices}
                 toggleDeviceConnection={toggleDeviceConnection}

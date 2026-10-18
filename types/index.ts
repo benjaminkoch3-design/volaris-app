@@ -133,7 +133,7 @@ export interface AthleteProfile {
   id: string;
   name: string; // Nom & Prénom
   email: string;
-  avatarUrl?: string; // 👈 Photo de profil
+  avatarUrl?: string; // Photo de profil
   avatar_url?: string; // Alias base de données Supabase
   vma?: string;
   targetGoal?: string; // Distance cible (ex: "10 km", "Semi-Marathon")
@@ -161,9 +161,11 @@ export interface Race {
   name: string;
   distance: string;
   time: string;
+  date?: string; // Format YYYY-MM-DD
   category?: "route" | "piste" | "trail" | "nature";
-  elevationGain?: number;
-  utmbIndex?: number;
+  elevationGain?: number | string;
+  rank?: string; // ex: "14e / 450", "3e M1H"
+  utmbIndex?: number | string;
 }
 
 export interface CompletedRun {
@@ -189,7 +191,7 @@ export interface ChatMessage {
   senderRole: "athlete" | "coach";
   senderName: string;
   senderId?: string;
-  senderAvatar?: string; // 👈 Photo de profil dans les messages
+  senderAvatar?: string; // Photo de profil dans les messages
   athleteId: string;
   text: string;
   timestamp: string;
