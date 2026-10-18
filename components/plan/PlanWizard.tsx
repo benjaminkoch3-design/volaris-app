@@ -1,6 +1,6 @@
 // src/components/plan/PlanWizard.tsx
 
-import React from "react";
+import React, { useState } from "react";
 import { Workout, WeekType } from "../../types";
 import { WEEK_TYPES_CONFIG } from "../../constants";
 import {
@@ -9,10 +9,20 @@ import {
   getWeekTypeLabel,
   getWeekDateRange,
   getExactDayDate,
-  getExactDayName,
   calculateWeeklyPlannedKm,
   getWorkoutTypeConfig,
 } from "../../utils/calculations";
+
+// Ordre strict du calendrier européen : Lundi (0) -> Dimanche (6)
+const DAYS_ORDER_FR = [
+  "Lundi",
+  "Mardi",
+  "Mercredi",
+  "Jeudi",
+  "Vendredi",
+  "Samedi",
+  "Dimanche",
+];
 
 interface PlanWizardProps {
   planCreationStep: 1 | 2;
@@ -41,15 +51,16 @@ interface PlanWizardProps {
   onEditWorkout: (workoutId: string) => void;
   onFinalizePlan: () => void;
   onCancel: () => void;
+  onMoveWorkoutToDay?: (workoutId: string, targetWeekNumber: number, targetDayIndex: number) => void;
 }
 
 const getRpeGradientColor = (rpeStr?: string) => {
   if (!rpeStr) return "#CF9A61";
   const rpe = parseInt(rpeStr, 10);
-  if (rpe <= 3) return "#10b981"; // Vert
-  if (rpe <= 5) return "#f59e0b"; // Ambre
-  if (rpe <= 7) return "#f97316"; // Orange
-  return "#ef4444"; // Rouge
+  if (rpe <= 3) return "#10b981";
+  if (rpe <= 5) return "#f59e0b";
+  if (rpe <= 7) return "#f97316";
+  return "#ef4444";
 };
 
 export const PlanWizard: React.FC<PlanWizardProps> = ({
@@ -69,8 +80,55 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
   onEditWorkout,
   onFinalizePlan,
   onCancel,
+  onMoveWorkoutToDay,
 }) => {
   const totalWeeks = calculateWeeks(newPlanForm.startDate, newPlanForm.eventDate);
+
+  // État local pour le Drag and Drop
+  const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, workoutId: string) => {
+    e.dataTransfer.setData("text/plain", workoutId);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedWorkoutId(workoutId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverTarget !== targetKey) {
+      setDragOverTarget(targetKey);
+    }
+  };
+
+  const handleDragLeave = (_e: React.DragEvent, targetKey: string) => {
+    if (dragOverTarget === targetKey) {
+      setDragOverTarget(null);
+    }
+  };
+
+  const handleDrop = (
+    e: React.DragEvent,
+    targetWeekNum: number,
+    targetDayIndex: number
+  ) => {
+    e.preventDefault();
+    setDragOverTarget(null);
+    const wId = e.dataTransfer.getData("text/plain") || draggedWorkoutId;
+    setDraggedWorkoutId(null);
+
+    if (!wId) return;
+
+    if (onMoveWorkoutToDay) {
+      onMoveWorkoutToDay(wId, targetWeekNum, targetDayIndex);
+    } else {
+      const targetDayName = DAYS_ORDER_FR[targetDayIndex];
+      onUpdateDraftWorkout(wId, "weekNumber", targetWeekNum);
+      onUpdateDraftWorkout(wId, "dayIndex", targetDayIndex);
+      onUpdateDraftWorkout(wId, "dayName", targetDayName);
+    }
+  };
 
   return (
     <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-5 space-y-5 shadow-xl backdrop-blur-md font-sans">
@@ -390,6 +448,9 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                   Semaines du plan ({totalWeeks} sem.)
                 </h3>
               </div>
+              <span className="text-[10px] text-stone-500 font-medium">
+                • Glissez-déposez une séance d'un jour à l'autre
+              </span>
             </div>
           </div>
 
@@ -495,11 +556,9 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                   {isOpen && (
                     <div className="p-4 pt-2 space-y-4 border-t border-stone-800/60 bg-stone-900/40">
                       {Array.from({ length: 7 }, (_, dIdx) => {
-                        const dayName = getExactDayName(
-                          newPlanForm.startDate,
-                          wNum,
-                          dIdx
-                        );
+                        const targetKey = `w${wNum}_d${dIdx}`;
+                        const isDragOverThisDay = dragOverTarget === targetKey;
+                        const dayName = DAYS_ORDER_FR[dIdx];
                         const exactDate = getExactDayDate(
                           newPlanForm.startDate,
                           wNum,
@@ -512,7 +571,14 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                         return (
                           <div
                             key={dIdx}
-                            className="space-y-2 pt-2 border-t border-stone-800/80 first:border-0 first:pt-0"
+                            onDragOver={(e) => handleDragOver(e, targetKey)}
+                            onDragLeave={(e) => handleDragLeave(e, targetKey)}
+                            onDrop={(e) => handleDrop(e, wNum, dIdx)}
+                            className={`space-y-2 pt-2 border-t border-stone-800/80 first:border-0 first:pt-0 p-2.5 rounded-2xl transition-all ${
+                              isDragOverThisDay
+                                ? "border-[#CF9A61] bg-[#CF9A61]/10 ring-2 ring-[#CF9A61]/40"
+                                : ""
+                            }`}
                           >
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
@@ -537,6 +603,7 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                               {dayWorkouts.map((workout, wIdx) => {
                                 const typeConfig = getWorkoutTypeConfig(workout.type);
                                 const rpeColor = getRpeGradientColor(workout.rpe);
+                                const isBeingDragged = draggedWorkoutId === workout.id;
 
                                 if (workout.isRest) {
                                   return (
@@ -569,7 +636,11 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
                                 return (
                                   <div
                                     key={workout.id}
-                                    className={`p-3 rounded-2xl border border-l-4 ${typeConfig.borderClass} bg-stone-950/80 border-stone-800 space-y-2`}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, workout.id)}
+                                    className={`p-3 rounded-2xl border border-l-4 ${typeConfig.borderClass} bg-stone-950/80 border-stone-800 space-y-2 cursor-grab active:cursor-grabbing transition ${
+                                      isBeingDragged ? "opacity-30 border-dashed" : ""
+                                    }`}
                                   >
                                     <div className="flex justify-between items-center">
                                       <div className="flex items-center gap-2">
@@ -608,11 +679,11 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
 
                                     <div className="flex items-center justify-between">
                                       <h5 className="text-xs font-bold text-stone-100">
-                                        {workout.title}
+                                        {workout.title || "Séance sans titre"}
                                       </h5>
                                       <div className="flex items-center gap-1.5 shrink-0">
                                         {workout.km && (
-                                          <span className="text-[9px] font-extrabold bg-stone-900 text-stone-100 px-2 py-0.5 rounded border border-stone-800">
+                                          <span className="text-[9px] font-extrabold bg-stone-900 text-stone-100 px-2 py-0.5 rounded border border-stone-800 font-mono">
                                             {workout.km} km
                                           </span>
                                         )}
