@@ -1,6 +1,6 @@
 // src/components/profile/ProfileView.tsx
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Race, Plan, Shoe } from "../../types";
 import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
 import {
@@ -12,12 +12,8 @@ import {
   getBestAthletePerformance,
   RECORD_DISTANCES_METERS,
   getPerformanceScoreForRecord,
-  parseDistanceTextToMeters,
 } from "../../utils/vdot";
-import {
-  calculateRunnerProfile,
-  calculateRecordVmaPercentage,
-} from "../../utils/profile";
+import { calculateRunnerProfile } from "../../utils/profile";
 
 interface ProfileViewProps {
   athleteName: string;
@@ -49,7 +45,7 @@ interface ProfileViewProps {
     records: Record<string, string>;
   }) => void;
   races: Race[];
-  newRace: {
+  newRace?: {
     name: string;
     distance: string;
     time: string;
@@ -59,21 +55,10 @@ interface ProfileViewProps {
     date?: string;
     rank?: string;
   };
-  setNewRace: React.Dispatch<
-    React.SetStateAction<{
-      name: string;
-      distance: string;
-      time: string;
-      category?: "route" | "piste" | "trail" | "nature";
-      elevationGain?: string;
-      utmbIndex?: string;
-      date?: string;
-      rank?: string;
-    }>
-  >;
-  onAddRace: (e: React.FormEvent) => void;
+  setNewRace?: React.Dispatch<React.SetStateAction<any>>;
+  onAddRace?: (e: React.FormEvent) => void;
   onUpdateRace?: (id: string, updatedData: Partial<Race>) => void;
-  onDeleteRace: (id: string) => void;
+  onDeleteRace?: (id: string) => void;
   connectedDevices: Record<string, boolean>;
   toggleDeviceConnection: (key: string) => void;
   archivedPlans: Plan[];
@@ -82,52 +67,9 @@ interface ProfileViewProps {
   onDeleteShoe: (id: string) => void;
   onToggleActiveShoe: (id: string) => void;
   onOpenAthleteLibrary?: () => void;
+  onOpenRecordsPage?: () => void;
   isReadOnly?: boolean;
 }
-
-const parseDistanceKm = (distStr: string): number => {
-  if (!distStr) return 0;
-  const cleaned = distStr.toLowerCase().replace("km", "").replace(",", ".").trim();
-  const val = parseFloat(cleaned);
-  return isNaN(val) ? 0 : val;
-};
-
-const timeToSeconds = (h: number, m: number, s: number): number => {
-  return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
-};
-
-const secondsToFormattedTime = (totalSec: number): string => {
-  if (!totalSec || totalSec <= 0) return "00:00";
-  const hours = Math.floor(totalSec / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = Math.floor(totalSec % 60);
-  const pad = (n: number) => n.toString().padStart(2, "0");
-
-  if (hours > 0) {
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-  }
-  return `${pad(minutes)}:${pad(seconds)}`;
-};
-
-const parseTimeStringToParts = (timeStr: string) => {
-  if (!timeStr) return { h: "", m: "", s: "" };
-  const parts = timeStr.split(":").map((p) => parseInt(p, 10));
-  if (parts.length === 3) {
-    return {
-      h: parts[0] > 0 ? parts[0].toString() : "",
-      m: parts[1].toString(),
-      s: parts[2].toString(),
-    };
-  }
-  if (parts.length === 2) {
-    return {
-      h: "",
-      m: parts[0].toString(),
-      s: parts[1].toString(),
-    };
-  }
-  return { h: "", m: "", s: "" };
-};
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
   athleteName,
@@ -150,11 +92,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   setRecords,
   onSaveFullProfile,
   races,
-  newRace,
-  setNewRace,
-  onAddRace,
-  onUpdateRace,
-  onDeleteRace,
   connectedDevices,
   toggleDeviceConnection,
   archivedPlans,
@@ -163,21 +100,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onDeleteShoe,
   onToggleActiveShoe,
   onOpenAthleteLibrary,
+  onOpenRecordsPage,
   isReadOnly = false,
 }) => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [showAddRaceForm, setShowAddRaceForm] = useState(false);
-  const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
-
-  // Saisie horaire intelligente découpée
-  const [raceHours, setRaceHours] = useState("");
-  const [raceMinutes, setRaceMinutes] = useState("");
-  const [raceSeconds, setRaceSeconds] = useState("");
 
   const [showAddShoeForm, setShowAddShoeForm] = useState(false);
   const [showShoeCloset, setShowShoeCloset] = useState(false);
 
-  // Formulaire d'édition
+  // Formulaire d'édition profil
   const [editName, setEditName] = useState(athleteName);
   const [editHeight, setEditHeight] = useState(height);
   const [editWeight, setEditWeight] = useState(weight);
@@ -187,7 +118,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcMax, setEditFcMax] = useState(fcMax);
   const [editRecords, setEditRecords] = useState({ ...records });
 
-  // Modale de recadrage / recentrage d'avatar
+  // Modale de recadrage d'avatar
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -446,11 +377,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
 
-  // ACCORDÉONS (tous fermés par défaut)
+  // Accordéons
   const [openVmaSection, setOpenVmaSection] = useState(false);
   const [openCardioSection, setOpenCardioSection] = useState(false);
   const [openRecords, setOpenRecords] = useState(false);
-  const [openPalmares, setOpenPalmares] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
   const [openShoesSection, setOpenShoesSection] = useState(false);
   const [openDevicesSection, setOpenDevicesSection] = useState(false);
@@ -465,7 +395,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const athletePerf = getBestAthletePerformance(records);
   const runnerProfile = calculateRunnerProfile(records);
-  const vmaNum = parseFloat(vma) || 0;
 
   const activeShoes = shoes.filter((s) => s.isActive);
   const closetShoes = shoes.filter((s) => !s.isActive);
@@ -481,19 +410,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
     return max;
   }, 0);
-
-  const recordVmaPcts: { key: string; label: string; pct: number }[] = [];
-  if (vmaNum > 0) {
-    Object.entries(RECORD_DISTANCES_METERS).forEach(([key, info]) => {
-      const timeStr = records[key];
-      if (timeStr && timeStr.trim() !== "" && timeStr !== "-") {
-        const pct = calculateRecordVmaPercentage(key, timeStr, vmaNum);
-        if (pct !== null) {
-          recordVmaPcts.push({ key, label: info.label, pct });
-        }
-      }
-    });
-  }
 
   const handleAddShoeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -512,97 +428,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     onAddShoe(shoeToAdd);
     setNewShoe({ name: "", brand: "", initialKm: "", maxKm: "800" });
     setShowAddShoeForm(false);
-  };
-
-  // Calculs en temps réel pour le formulaire de course
-  const liveRaceStats = useMemo(() => {
-    const km = parseDistanceKm(newRace.distance);
-    const sec = timeToSeconds(
-      parseInt(raceHours, 10) || 0,
-      parseInt(raceMinutes, 10) || 0,
-      parseInt(raceSeconds, 10) || 0
-    );
-
-    if (km <= 0 || sec <= 0) {
-      return { pace: "-'--''/km", speed: "- km/h" };
-    }
-
-    const speedVal = km / (sec / 3600);
-    const secKm = sec / km;
-    const pMin = Math.floor(secKm / 60);
-    const pSec = Math.round(secKm % 60);
-
-    return {
-      pace: `${pMin}'${pSec.toString().padStart(2, "0")}''/km`,
-      speed: `${speedVal.toFixed(2)} km/h`,
-    };
-  }, [newRace.distance, raceHours, raceMinutes, raceSeconds]);
-
-  const handleOpenAddRace = () => {
-    setEditingRaceId(null);
-    setNewRace({
-      name: "",
-      distance: "10 km",
-      time: "",
-      category: "route",
-      elevationGain: "",
-      utmbIndex: "",
-      date: new Date().toISOString().split("T")[0],
-      rank: "",
-    });
-    setRaceHours("");
-    setRaceMinutes("");
-    setRaceSeconds("");
-    setShowAddRaceForm(true);
-  };
-
-  const handleOpenEditRace = (race: Race) => {
-    setEditingRaceId(race.id);
-    const timeParts = parseTimeStringToParts(race.time);
-    setRaceHours(timeParts.h);
-    setRaceMinutes(timeParts.m);
-    setRaceSeconds(timeParts.s);
-
-    setNewRace({
-      name: race.name,
-      distance: race.distance,
-      time: race.time,
-      category: race.category || "route",
-      elevationGain: race.elevationGain !== undefined && race.elevationGain !== null ? String(race.elevationGain) : "",
-      utmbIndex: race.utmbIndex !== undefined && race.utmbIndex !== null ? String(race.utmbIndex) : "",
-      date: race.date || new Date().toISOString().split("T")[0],
-      rank: race.rank || "",
-    });
-    setShowAddRaceForm(true);
-  };
-
-  const handleRaceFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const totalSec = timeToSeconds(
-      parseInt(raceHours, 10) || 0,
-      parseInt(raceMinutes, 10) || 0,
-      parseInt(raceSeconds, 10) || 0
-    );
-    const formattedTime = secondsToFormattedTime(totalSec);
-
-    if (editingRaceId && onUpdateRace) {
-      onUpdateRace(editingRaceId, {
-        name: newRace.name,
-        distance: newRace.distance,
-        time: formattedTime,
-        category: newRace.category,
-        elevationGain: newRace.elevationGain ? parseFloat(newRace.elevationGain) : undefined,
-        utmbIndex: newRace.utmbIndex ? parseFloat(newRace.utmbIndex) : undefined,
-        date: newRace.date,
-        rank: newRace.rank?.trim() || undefined,
-      });
-      setShowAddRaceForm(false);
-      setEditingRaceId(null);
-    } else {
-      newRace.time = formattedTime;
-      onAddRace(e);
-      setShowAddRaceForm(false);
-    }
   };
 
   return (
@@ -1200,6 +1025,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {!isEditingProfile || isReadOnly ? (
         <div className="space-y-6 w-full">
+          {/* ACCÈS À LA BIBLIOTHÈQUE ATHLÈTE */}
           {onOpenAthleteLibrary && (
             <button
               type="button"
@@ -1220,6 +1046,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
               </div>
               <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm transition">➔</span>
+            </button>
+          )}
+
+          {/* NOUVELLE CARTE MODERNE : ACCÈS À LA PAGE PALMARÈS & RECORDS */}
+          {onOpenRecordsPage && (
+            <button
+              type="button"
+              onClick={onOpenRecordsPage}
+              className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg">
+                  🥇
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                      Mon Palmarès & Courses Officielles
+                    </h4>
+                    <span className="text-[10px] font-mono font-bold bg-stone-950 px-2 py-0.5 rounded-full border border-stone-800 text-[#CF9A61]">
+                      {races.length}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-stone-400 mt-0.5">
+                    Classement par distance (5 km, 10 km, Semi, Marathon), ordre chronologique et podiums
+                  </p>
+                </div>
+              </div>
+              <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition">➔</span>
             </button>
           )}
 
@@ -1322,67 +1177,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             : "-"}
                         </span>
                       </div>
-
-                      {vma && !unknownVma && parseFloat(vma) > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                              Pourcentages de VMA & Records associés
-                            </span>
-                          </div>
-
-                          <div className="flex overflow-x-auto gap-2.5 pb-2 custom-scrollbar">
-                            {[60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120].map(
-                              (pct) => {
-                                const speed = (parseFloat(vma) * pct) / 100;
-                                const pace = formatPaceFromSpeed(speed);
-
-                                const matchingRecords = recordVmaPcts.filter(
-                                  (r) => Math.abs(r.pct - pct) < 2.5
-                                );
-
-                                return (
-                                  <div
-                                    key={pct}
-                                    className={`p-2.5 rounded-2xl border flex-shrink-0 text-center min-w-[90px] space-y-1 transition ${
-                                      matchingRecords.length > 0
-                                        ? "bg-[#CF9A61]/10 border-[#CF9A61]/60 shadow-lg"
-                                        : "bg-stone-950 border-stone-800"
-                                    }`}
-                                  >
-                                    <div className="text-[10px] font-black text-[#CF9A61]">
-                                      {pct}% VMA
-                                    </div>
-                                    <div className="text-xs font-bold text-stone-100">
-                                      {pace}{" "}
-                                      <span className="text-[8px] font-normal text-stone-400">
-                                        min/km
-                                      </span>
-                                    </div>
-
-                                    {matchingRecords.length > 0 && (
-                                      <div className="pt-1 border-t border-[#CF9A61]/30 space-y-1">
-                                        {matchingRecords.map((rec) => (
-                                          <div
-                                            key={rec.key}
-                                            className="bg-[#CF9A61] text-stone-950 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md shadow-sm"
-                                            title={`Record : ${rec.label} (${rec.pct}%)`}
-                                          >
-                                            {rec.label}
-                                            <div className="text-[7.5px] font-extrabold opacity-90">
-                                              {rec.pct}%
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1531,8 +1325,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* 3. ACCORDÉON RECORDS */}
+            {/* ====== COLONNE DROITE ====== */}
+            <div className="space-y-5">
+              {/* 3. ACCORDÉON RECORDS PERSONNELS SANS % VMA */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -1540,7 +1337,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    🏆 Records Personnels ({Object.keys(records).length})
+                    🏆 Records Personnels de Référence
                   </span>
                   <span className="text-stone-400 text-xs">
                     {openRecords ? "▲" : "▼"}
@@ -1549,51 +1346,41 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
                 {openRecords && (
                   <div className="p-5 pt-2 border-t border-stone-800/60 space-y-3">
-                    <p className="text-[10px] text-stone-400 italic">
-                      Chaque record inclut le VDOT (Jack Daniels), le Running Score et le % de VMA maintenu.
+                    <p className="text-[10.5px] text-stone-400 leading-relaxed">
+                      Vos meilleurs temps étalons servant au calcul du VDOT et des allures cibles.
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                       {Object.entries(RECORD_DISTANCES_METERS).map(([key, info]) => {
                         const timeStr = records[key] || "";
                         const score = getPerformanceScoreForRecord(key, timeStr);
-                        const vmaPct = calculateRecordVmaPercentage(key, timeStr, vmaNum);
 
                         return (
                           <div
                             key={key}
-                            className="bg-stone-950 p-3 rounded-2xl border border-stone-800 space-y-2"
+                            className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 hover:border-[#CF9A61]/40 transition"
                           >
-                            <div className="flex justify-between items-center border-b border-stone-800/80 pb-1">
+                            <div className="flex justify-between items-center border-b border-stone-800/80 pb-1.5">
                               <span className="text-xs font-black text-[#CF9A61] uppercase">
                                 {info.label}
                               </span>
-                              <span className="text-xs font-black text-stone-100">
+                              <span className="text-xs font-black text-stone-100 font-mono">
                                 {timeStr || "-"}
                               </span>
                             </div>
 
                             {score ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <span className="font-bold text-stone-400">
-                                    VDOT: <strong className="text-stone-200">{score.vdot}</strong>
-                                  </span>
-                                  <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30">
-                                    Score: {score.runningScore}
-                                  </span>
-                                </div>
-
-                                {vmaPct !== null ? (
-                                  <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-stone-800/40">
-                                    <span className="text-stone-400 font-medium">Maintien VMA :</span>
-                                    <span className="font-black text-stone-100">{vmaPct}% VMA</span>
-                                  </div>
-                                ) : null}
+                              <div className="flex items-center justify-between text-[10px] pt-0.5">
+                                <span className="font-bold text-stone-400">
+                                  VDOT : <strong className="text-stone-200">{score.vdot}</strong>
+                                </span>
+                                <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30 font-mono">
+                                  Score : {score.runningScore}
+                                </span>
                               </div>
                             ) : (
-                              <span className="text-[9px] text-stone-500 italic block">
-                                Aucun chrono valide
+                              <span className="text-[9px] text-stone-600 italic block">
+                                Non renseigné
                               </span>
                             )}
                           </div>
@@ -1604,422 +1391,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 4. ACCORDÉON PALMARÈS DE COURSES (AVEC MODIFICATION, ALLURE & VITESSE, NOUVEAUX CHAMPS) */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenPalmares(!openPalmares)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    🥇 Mon Palmarès de Course ({races.length})
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openPalmares ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {openPalmares && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                    <div className="space-y-2.5">
-                      {races.length === 0 ? (
-                        <p className="text-[11px] text-stone-500 text-center py-2 italic">
-                          Aucune course enregistrée.
-                        </p>
-                      ) : (
-                        races.map((race) => {
-                          const cat = race.category || "route";
-                          const isRoadOrTrack = cat === "route" || cat === "piste";
-
-                          const distMeters = parseDistanceTextToMeters(race.distance);
-                          const score =
-                            isRoadOrTrack && distMeters > 0
-                              ? getPerformanceScoreForRecord(distMeters, race.time)
-                              : null;
-                          const vmaPct =
-                            isRoadOrTrack && distMeters > 0 && vmaNum > 0
-                              ? calculateRecordVmaPercentage(distMeters, race.time, vmaNum)
-                              : null;
-
-                          const categoryConfig = {
-                            route: { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
-                            piste: { label: "Piste", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" },
-                            trail: { label: "Trail", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
-                            nature: { label: "Course Nature", badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40" },
-                          }[cat] || { label: "Route", badge: "bg-[#B34D4D]/20 text-[#B34D4D] border-[#B34D4D]/40" };
-
-                          // Calcul allure et vitesse
-                          const kmVal = parseDistanceKm(race.distance);
-                          const timeParts = parseTimeStringToParts(race.time);
-                          const secVal = timeToSeconds(
-                            parseInt(timeParts.h, 10) || 0,
-                            parseInt(timeParts.m, 10) || 0,
-                            parseInt(timeParts.s, 10) || 0
-                          );
-
-                          let paceFormatted = "-";
-                          let speedFormatted = "-";
-                          if (kmVal > 0 && secVal > 0) {
-                            const speed = kmVal / (secVal / 3600);
-                            const secKm = secVal / kmVal;
-                            const pMin = Math.floor(secKm / 60);
-                            const pSec = Math.round(secKm % 60);
-                            paceFormatted = `${pMin}'${pSec.toString().padStart(2, "0")}''/km`;
-                            speedFormatted = `${speed.toFixed(1)} km/h`;
-                          }
-
-                          return (
-                            <div
-                              key={race.id}
-                              className="p-3.5 bg-stone-950 rounded-2xl border border-stone-800 space-y-2.5"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="font-bold text-stone-100 text-xs uppercase">
-                                      {race.name}
-                                    </h4>
-                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${categoryConfig.badge}`}>
-                                      {categoryConfig.label}
-                                    </span>
-                                    {race.date && (
-                                      <span className="text-[10px] text-stone-500 font-mono">
-                                        • {race.date}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="text-[10px] text-stone-400 mt-1 flex flex-wrap items-center gap-2 font-mono">
-                                    <span className="text-stone-200 font-bold">{race.distance}</span>
-                                    <span>•</span>
-                                    <span>Chrono : <strong className="text-[#CF9A61]">{race.time}</strong></span>
-                                    <span>•</span>
-                                    <span className="text-stone-300">{paceFormatted} ({speedFormatted})</span>
-                                    {race.elevationGain ? (
-                                      <>
-                                        <span>•</span>
-                                        <span className="text-[#4DB380] font-bold">+{race.elevationGain}m D+</span>
-                                      </>
-                                    ) : null}
-                                  </div>
-
-                                  {race.rank && (
-                                    <div className="text-[10.5px] text-stone-300 font-semibold mt-1">
-                                      Classement : <strong className="text-[#CF9A61]">{race.rank}</strong>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {!isReadOnly && (
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditRace(race)}
-                                      className="text-[10px] font-bold text-stone-400 hover:text-white bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                                    >
-                                      Modifier
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => onDeleteRace(race.id)}
-                                      className="text-stone-500 hover:text-[#B34D4D] text-xs px-1.5 py-1 transition cursor-pointer"
-                                      title="Supprimer la course"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-
-                              {isRoadOrTrack && score ? (
-                                <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80 flex-wrap gap-2 pt-1.5">
-                                  <span className="text-stone-300 font-semibold">
-                                    VDOT : <strong className="text-stone-100">{score.vdot}</strong>
-                                  </span>
-                                  <span className="text-stone-300 font-semibold">
-                                    Score : <strong className="text-[#B34D4D]">{score.runningScore}</strong>
-                                  </span>
-                                  {vmaPct !== null && (
-                                    <span className="text-stone-300 font-semibold">
-                                      % VMA : <strong className="text-stone-100">{vmaPct}%</strong>
-                                    </span>
-                                  )}
-                                </div>
-                              ) : null}
-
-                              {cat === "trail" && race.utmbIndex ? (
-                                <div className="flex items-center justify-between text-[9.5px] bg-stone-900/80 p-2 rounded-xl border border-stone-800/80">
-                                  <span className="text-stone-300 font-semibold">
-                                    UTMB Index attribué :
-                                  </span>
-                                  <span className="font-black text-[#4DB380] bg-[#4DB380]/10 px-2 py-0.5 rounded border border-[#4DB380]/30">
-                                    {race.utmbIndex} pts
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* FORMULAIRE AJOUT / MODIFICATION DE COURSE */}
-                    {!isReadOnly && (
-                      <div className="pt-2 border-t border-stone-800/60 space-y-2">
-                        {!showAddRaceForm ? (
-                          <button
-                            type="button"
-                            onClick={handleOpenAddRace}
-                            className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#CF9A61] font-bold text-xs flex items-center justify-between transition cursor-pointer"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              ➕ Ajouter une nouvelle course
-                            </span>
-                            <span className="text-stone-400 text-xs">▼</span>
-                          </button>
-                        ) : (
-                          <form
-                            onSubmit={handleRaceFormSubmit}
-                            className="bg-stone-950/80 p-4 rounded-2xl border border-stone-800 space-y-3 mt-2 animate-fadeIn"
-                          >
-                            <div className="flex justify-between items-center border-b border-stone-800 pb-2">
-                              <span className="text-xs font-black uppercase text-[#CF9A61]">
-                                {editingRaceId ? "Modifier la course" : "Nouvelle course officielle"}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowAddRaceForm(false);
-                                  setEditingRaceId(null);
-                                }}
-                                className="text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
-                              >
-                                Annuler
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
-                                  Nom de la course *
-                                </label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Ex : Semi de Paris, Trail des Roches..."
-                                  value={newRace.name}
-                                  onChange={(e) =>
-                                    setNewRace({ ...newRace, name: e.target.value })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
-                                  Date de l'épreuve *
-                                </label>
-                                <input
-                                  type="date"
-                                  required
-                                  value={newRace.date || new Date().toISOString().split("T")[0]}
-                                  onChange={(e) =>
-                                    setNewRace({ ...newRace, date: e.target.value })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
-                                  Catégorie de course
-                                </label>
-                                <select
-                                  value={newRace.category || "route"}
-                                  onChange={(e) =>
-                                    setNewRace({
-                                      ...newRace,
-                                      category: e.target.value as any,
-                                    })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61] cursor-pointer font-bold"
-                                >
-                                  <option value="route">Route</option>
-                                  <option value="piste">Piste</option>
-                                  <option value="trail">Trail</option>
-                                  <option value="nature">Course Nature</option>
-                                </select>
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-1">
-                                  Distance *
-                                </label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Ex : 10 km, 21.1 km, 42.195 km"
-                                  value={newRace.distance}
-                                  onChange={(e) =>
-                                    setNewRace({
-                                      ...newRace,
-                                      distance: e.target.value,
-                                    })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Saisie découpée du chrono (Heures, Minutes, Secondes) */}
-                            <div className="bg-stone-900/60 p-3 rounded-xl border border-stone-800/80 space-y-2">
-                              <label className="block text-[9px] uppercase font-bold text-stone-400">
-                                Temps officiel (Heures / Minutes / Secondes) *
-                              </label>
-
-                              <div className="flex items-center gap-2 max-w-xs">
-                                <div className="flex-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="99"
-                                    placeholder="00"
-                                    value={raceHours}
-                                    onChange={(e) => setRaceHours(e.target.value)}
-                                    className="w-full bg-stone-950 border border-stone-800 rounded-xl py-2 px-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
-                                  />
-                                  <span className="text-[8px] text-center text-stone-500 uppercase font-bold block mt-0.5">h</span>
-                                </div>
-                                <span className="text-stone-500 font-bold pb-2">:</span>
-                                <div className="flex-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    required
-                                    placeholder="00"
-                                    value={raceMinutes}
-                                    onChange={(e) => setRaceMinutes(e.target.value)}
-                                    className="w-full bg-stone-950 border border-stone-800 rounded-xl py-2 px-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
-                                  />
-                                  <span className="text-[8px] text-center text-stone-500 uppercase font-bold block mt-0.5">min</span>
-                                </div>
-                                <span className="text-stone-500 font-bold pb-2">:</span>
-                                <div className="flex-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    placeholder="00"
-                                    value={raceSeconds}
-                                    onChange={(e) => setRaceSeconds(e.target.value)}
-                                    className="w-full bg-stone-950 border border-stone-800 rounded-xl py-2 px-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
-                                  />
-                                  <span className="text-[8px] text-center text-stone-500 uppercase font-bold block mt-0.5">sec</span>
-                                </div>
-                              </div>
-
-                              {/* Allure & Vitesse calculées en direct */}
-                              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-800/80 text-center">
-                                <div className="bg-stone-950 p-2 rounded-lg border border-stone-800">
-                                  <span className="text-[8.5px] font-bold uppercase text-stone-500 block">Allure moyenne</span>
-                                  <span className="text-xs font-mono font-black text-[#CF9A61] block">{liveRaceStats.pace}</span>
-                                </div>
-                                <div className="bg-stone-950 p-2 rounded-lg border border-stone-800">
-                                  <span className="text-[8.5px] font-bold uppercase text-stone-500 block">Vitesse moyenne</span>
-                                  <span className="text-xs font-mono font-black text-stone-100 block">{liveRaceStats.speed}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                                  Dénivelé (m D+)
-                                </label>
-                                <input
-                                  type="number"
-                                  placeholder="Ex : 250"
-                                  value={newRace.elevationGain || ""}
-                                  onChange={(e) =>
-                                    setNewRace({
-                                      ...newRace,
-                                      elevationGain: e.target.value,
-                                    })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                                  Classement
-                                </label>
-                                <input
-                                  type="text"
-                                  placeholder="Ex : 14e / 450"
-                                  value={newRace.rank || ""}
-                                  onChange={(e) =>
-                                    setNewRace({
-                                      ...newRace,
-                                      rank: e.target.value,
-                                    })
-                                  }
-                                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                />
-                              </div>
-
-                              {newRace.category === "trail" ? (
-                                <div>
-                                  <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                                    UTMB Index
-                                  </label>
-                                  <input
-                                    type="number"
-                                    placeholder="Ex : 580"
-                                    value={newRace.utmbIndex || ""}
-                                    onChange={(e) =>
-                                      setNewRace({
-                                        ...newRace,
-                                        utmbIndex: e.target.value,
-                                      })
-                                    }
-                                    className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#CF9A61]"
-                                  />
-                                </div>
-                              ) : null}
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowAddRaceForm(false);
-                                  setEditingRaceId(null);
-                                }}
-                                className="py-2 px-3.5 bg-stone-900 hover:bg-stone-850 text-stone-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
-                              >
-                                Annuler
-                              </button>
-                              <button
-                                type="submit"
-                                className="py-2 px-4 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-md"
-                              >
-                                {editingRaceId ? "Mettre à jour" : "Enregistrer la course"}
-                              </button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ====== COLONNE DROITE ====== */}
-            <div className="space-y-5">
-              {/* 5. ACCORDÉON PLANS ARCHIVÉS */}
+              {/* 4. ACCORDÉON PLANS ARCHIVÉS */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -2067,7 +1439,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 6. ACCORDÉON CHAUSSURES */}
+              {/* 5. ACCORDÉON CHAUSSURES */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -2294,7 +1666,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 7. ACCORDÉON APPAREILS CONNECTÉS */}
+              {/* 6. ACCORDÉON APPAREILS CONNECTÉS */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"

@@ -42,6 +42,7 @@ import { LandingScreen } from "../components/auth/LandingScreen";
 import { AuthScreen } from "../components/auth/AuthScreen";
 import { ProfileWizard } from "../components/profile/ProfileWizard";
 import { ProfileView } from "../components/profile/ProfileView";
+import { RecordsPageView } from "../components/profile/RecordsPageView";
 import { AthleteWorkoutLibraryView } from "../components/profile/AthleteWorkoutLibraryView";
 
 // Home & Workouts
@@ -238,6 +239,7 @@ export default function Home() {
   };
 
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
+  const [showRecordsPage, setShowRecordsPage] = useState(false);
   const [inspectingAthleteId, setInspectingAthleteId] = useState<string | null>(null);
   const [managedAthletes, setManagedAthletes] = useState<AthleteProfile[]>([]);
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
@@ -1346,26 +1348,31 @@ export default function Home() {
 
   const handleAddRace = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isCoachInspecting || !session?.user || !newRace.name || !newRace.time) return;
+    if (isCoachInspecting || !session?.user) return;
 
-    const elevationVal = newRace.elevationGain && String(newRace.elevationGain).trim() !== "" 
-      ? parseFloat(String(newRace.elevationGain).replace(",", ".")) 
+    const tempRace = (window as any).__volaris_temp_race;
+    const raceToInsert = tempRace || newRace;
+
+    if (!raceToInsert.name || !raceToInsert.time) return;
+
+    const elevationVal = raceToInsert.elevationGain && String(raceToInsert.elevationGain).trim() !== "" 
+      ? parseFloat(String(raceToInsert.elevationGain).replace(",", ".")) 
       : null;
 
-    const utmbVal = newRace.utmbIndex && String(newRace.utmbIndex).trim() !== "" 
-      ? parseFloat(String(newRace.utmbIndex).replace(",", ".")) 
+    const utmbVal = raceToInsert.utmbIndex && String(raceToInsert.utmbIndex).trim() !== "" 
+      ? parseFloat(String(raceToInsert.utmbIndex).replace(",", ".")) 
       : null;
 
     const racePayload = {
       user_id: session.user.id,
-      name: newRace.name,
-      distance: newRace.distance || "10 km",
-      time: newRace.time,
-      category: newRace.category || "route",
+      name: raceToInsert.name,
+      distance: raceToInsert.distance || "10 km",
+      time: raceToInsert.time,
+      category: raceToInsert.category || "route",
       elevation_gain: elevationVal,
       utmb_index: utmbVal,
-      date: newRace.date || new Date().toISOString().split("T")[0],
-      rank: newRace.rank ? newRace.rank.trim() : null,
+      date: raceToInsert.date || new Date().toISOString().split("T")[0],
+      rank: raceToInsert.rank ? raceToInsert.rank.trim() : null,
     };
 
     const { data, error } = await supabase.from("races").insert([racePayload]).select().single();
@@ -1388,6 +1395,9 @@ export default function Home() {
         date: data.date,
         rank: data.rank,
       }, ...races]);
+
+      delete (window as any).__volaris_temp_race;
+
       setNewRace({
         name: "",
         distance: "10 km",
@@ -1773,7 +1783,6 @@ export default function Home() {
     );
   };
 
-  // 👈 DÉPLACEMENT D'UNE SÉANCE EN DRAG & DROP (ATHLÈTE ET COACH)
   const handleMoveWorkoutToDay = async (
     workoutId: string,
     targetWeekNumber: number,
@@ -1800,7 +1809,6 @@ export default function Home() {
       workouts: updatedWorkouts,
     });
 
-    // Mise à jour synchrone pour la vue coach calendrier
     setAllCoachAthletesWorkouts((prev) =>
       prev.map((w) =>
         w.id === workoutId
@@ -2860,7 +2868,6 @@ export default function Home() {
                       <span>📊 Évolution Volume & Charge</span>
                     </button>
 
-                    {/* Nouveau plan toujours accessible */}
                     <button
                       onClick={() => setShowDeletePlanModal(true)}
                       className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
@@ -2985,85 +2992,92 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL */}
+            {/* 5. PROFIL (AVEC ROUTAGE VERS LA NOUVELLE PAGE RECORDS) */}
             {activeTab === "profil" && !showAthleteLibrary && (
-              <ProfileView
-                athleteName={selectedAthlete ? selectedAthlete.name : (session?.user?.user_metadata?.full_name || athleteName)}
-                setAthleteName={async (newName) => {
-                  setAthleteName(newName);
-                  await saveProfileToSupabase({ fullName: newName });
-                }}
-                avatarUrl={isCoachInspecting ? (selectedAthlete?.avatarUrl || (selectedAthlete as any)?.avatar_url) : avatarUrl}
-                onUpdateAvatar={handleUpdateAvatar}
-                height={height}
-                setHeight={async (newHeight) => {
-                  setHeight(newHeight);
-                  await saveProfileToSupabase({ heightVal: newHeight });
-                }}
-                weight={weight}
-                setWeight={async (newWeight) => {
-                  setWeight(newWeight);
-                  await saveProfileToSupabase({ weightVal: newWeight });
-                }}
-                vma={vma}
-                setVma={async (newVma) => {
-                  setVma(newVma);
-                  await saveProfileToSupabase({ vmaVal: newVma });
-                }}
-                unknownVma={unknownVma}
-                setUnknownVma={setUnknownVma}
-                fcRest={fcRest}
-                setFcRest={async (newFcRest) => {
-                  setFcRest(newFcRest);
-                  await saveProfileToSupabase({ fcRestVal: newFcRest });
-                }}
-                fcMax={fcMax}
-                setFcMax={async (newFcMax) => {
-                  setFcMax(newFcMax);
-                  await saveProfileToSupabase({ fcMaxVal: newFcMax });
-                }}
-                records={records}
-                setRecords={async (actionOrValue) => {
-                  const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
-                  setRecords(nextRecords);
-                  await saveProfileToSupabase({ recordsMap: nextRecords });
-                }}
-                onSaveFullProfile={async (data) => {
-                  setAthleteName(data.name);
-                  setHeight(data.height);
-                  setWeight(data.weight);
-                  setVma(data.vma);
-                  setUnknownVma(data.unknownVma);
-                  setFcRest(data.fcRest);
-                  setFcMax(data.fcMax);
-                  setRecords(data.records);
+              showRecordsPage ? (
+                <RecordsPageView
+                  races={races}
+                  onBack={() => setShowRecordsPage(false)}
+                  onAddRace={handleAddRace}
+                  onUpdateRace={handleUpdateRace}
+                  onDeleteRace={handleDeleteRace}
+                  isReadOnly={isCoachInspecting}
+                />
+              ) : (
+                <ProfileView
+                  athleteName={selectedAthlete ? selectedAthlete.name : (session?.user?.user_metadata?.full_name || athleteName)}
+                  setAthleteName={async (newName) => {
+                    setAthleteName(newName);
+                    await saveProfileToSupabase({ fullName: newName });
+                  }}
+                  avatarUrl={isCoachInspecting ? (selectedAthlete?.avatarUrl || (selectedAthlete as any)?.avatar_url) : avatarUrl}
+                  onUpdateAvatar={handleUpdateAvatar}
+                  height={height}
+                  setHeight={async (newHeight) => {
+                    setHeight(newHeight);
+                    await saveProfileToSupabase({ heightVal: newHeight });
+                  }}
+                  weight={weight}
+                  setWeight={async (newWeight) => {
+                    setWeight(newWeight);
+                    await saveProfileToSupabase({ weightVal: newWeight });
+                  }}
+                  vma={vma}
+                  setVma={async (newVma) => {
+                    setVma(newVma);
+                    await saveProfileToSupabase({ vmaVal: newVma });
+                  }}
+                  unknownVma={unknownVma}
+                  setUnknownVma={setUnknownVma}
+                  fcRest={fcRest}
+                  setFcRest={async (newFcRest) => {
+                    setFcRest(newFcRest);
+                    await saveProfileToSupabase({ fcRestVal: newFcRest });
+                  }}
+                  fcMax={fcMax}
+                  setFcMax={async (newFcMax) => {
+                    setFcMax(newFcMax);
+                    await saveProfileToSupabase({ fcMaxVal: newFcMax });
+                  }}
+                  records={records}
+                  setRecords={async (actionOrValue) => {
+                    const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
+                    setRecords(nextRecords);
+                    await saveProfileToSupabase({ recordsMap: nextRecords });
+                  }}
+                  onSaveFullProfile={async (data) => {
+                    setAthleteName(data.name);
+                    setHeight(data.height);
+                    setWeight(data.weight);
+                    setVma(data.vma);
+                    setUnknownVma(data.unknownVma);
+                    setFcRest(data.fcRest);
+                    setFcMax(data.fcMax);
+                    setRecords(data.records);
 
-                  await saveProfileToSupabase({
-                    fullName: data.name,
-                    heightVal: data.height,
-                    weightVal: data.weight,
-                    vmaVal: data.unknownVma ? "" : data.vma,
-                    fcRestVal: data.fcRest,
-                    fcMaxVal: data.fcMax,
-                    recordsMap: data.records,
-                  });
-                }}
-                races={races}
-                newRace={newRace}
-                setNewRace={setNewRace}
-                onAddRace={handleAddRace}
-                onUpdateRace={handleUpdateRace}
-                onDeleteRace={handleDeleteRace}
-                connectedDevices={connectedDevices}
-                toggleDeviceConnection={toggleDeviceConnection}
-                archivedPlans={archivedPlans}
-                shoes={shoes}
-                onAddShoe={handleAddShoe}
-                onDeleteShoe={handleDeleteShoe}
-                onToggleActiveShoe={handleToggleActiveShoe}
-                onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
-                isReadOnly={isCoachInspecting}
-              />
+                    await saveProfileToSupabase({
+                      fullName: data.name,
+                      heightVal: data.height,
+                      weightVal: data.weight,
+                      vmaVal: data.unknownVma ? "" : data.vma,
+                      fcRestVal: data.fcRest,
+                      fcMaxVal: data.fcMax,
+                      recordsMap: data.records,
+                    });
+                  }}
+                  races={races}
+                  connectedDevices={connectedDevices}
+                  toggleDeviceConnection={toggleDeviceConnection}
+                  archivedPlans={archivedPlans}
+                  shoes={shoes}
+                  onAddShoe={handleAddShoe}
+                  onDeleteShoe={handleDeleteShoe}
+                  onToggleActiveShoe={handleToggleActiveShoe}
+                  onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
+                  onOpenRecordsPage={() => setShowRecordsPage(true)}
+                  isReadOnly={isCoachInspecting}
+                />
+              )
             )}
           </>
         )}
@@ -3078,6 +3092,7 @@ export default function Home() {
           setScreen("app");
           changeActiveTab(tab);
           setShowAthleteLibrary(false);
+          setShowRecordsPage(false);
         }}
       />
     </main>
