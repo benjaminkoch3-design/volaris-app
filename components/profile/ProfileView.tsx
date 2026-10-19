@@ -68,6 +68,7 @@ interface ProfileViewProps {
   onToggleActiveShoe: (id: string) => void;
   onOpenAthleteLibrary?: () => void;
   onOpenRecordsPage?: () => void;
+  onOpenPersonalBestsPage?: () => void;
   onOpenShoesPage?: () => void;
   isReadOnly?: boolean;
 }
@@ -99,6 +100,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   shoes,
   onOpenAthleteLibrary,
   onOpenRecordsPage,
+  onOpenPersonalBestsPage,
   onOpenShoesPage,
   isReadOnly = false,
 }) => {
@@ -245,7 +247,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     } catch (err: any) {
       setCorosStatusMsg(`❌ ${err.message}`);
     } finally {
-      setCorosLoading(false);
+      setGarminLoading(false);
     }
   };
 
@@ -989,7 +991,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {!isEditingProfile || isReadOnly ? (
-        <div className="space-y-5 w-full">
+        <div className="space-y-4 w-full">
           {/* ACCÈS À LA BIBLIOTHÈQUE ATHLÈTE */}
           {onOpenAthleteLibrary && (
             <button
@@ -1014,7 +1016,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* ACCÈS À LA PAGE PALMARÈS & RECORDS */}
+          {/* ACCÈS À LA PAGE RECORDS PERSONNELS & ÉVOLUTION */}
+          {onOpenPersonalBestsPage && (
+            <button
+              type="button"
+              onClick={onOpenPersonalBestsPage}
+              className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg">
+                  📈
+                </div>
+                <div className="text-left">
+                  <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                    Records Personnels & Évolution
+                  </h4>
+                  <p className="text-[10.5px] text-stone-400 mt-0.5">
+                    Origine des records, meilleure course par année et graphique de progression
+                  </p>
+                </div>
+              </div>
+              <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition">➔</span>
+            </button>
+          )}
+
+          {/* ACCÈS À LA PAGE PALMARÈS & COURSES OFFICIELLES */}
           {onOpenRecordsPage && (
             <button
               type="button"
@@ -1064,7 +1090,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </span>
                   </div>
                   <p className="text-[10.5px] text-stone-400 mt-0.5">
-                    Suivi de l'usure en dégradé de couleur, gestion du placard et alertes de remplacement
+                    Suivi de l'usure, gestion du placard et alertes kilométriques
                   </p>
                 </div>
               </div>
@@ -1073,7 +1099,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           )}
 
           {/* GRILLE 2 COLONNES SUR ORDINATEUR */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start pt-2">
             {/* ====== COLONNE GAUCHE ====== */}
             <div className="space-y-5">
               {/* 1. ACCORDÉON VMA */}
