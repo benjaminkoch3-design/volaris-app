@@ -8,11 +8,7 @@ import {
   calculateThresholds,
   safeFormatDateFr,
 } from "../../utils/calculations";
-import {
-  getBestAthletePerformance,
-  RECORD_DISTANCES_METERS,
-  getPerformanceScoreForRecord,
-} from "../../utils/vdot";
+import { getBestAthletePerformance } from "../../utils/vdot";
 import { calculateRunnerProfile } from "../../utils/profile";
 
 interface ProfileViewProps {
@@ -33,7 +29,7 @@ interface ProfileViewProps {
   fcMax: string;
   setFcMax: (val: string) => void;
   records: Record<string, string>;
-  setRecords: React.Dispatch<React.SetStateAction<any>>;
+  setRecords?: React.Dispatch<React.SetStateAction<any>>;
   onSaveFullProfile?: (data: {
     name: string;
     height: string;
@@ -42,7 +38,7 @@ interface ProfileViewProps {
     unknownVma: boolean;
     fcRest: string;
     fcMax: string;
-    records: Record<string, string>;
+    records?: Record<string, string>;
   }) => void;
   races: Race[];
   newRace?: {
@@ -63,9 +59,9 @@ interface ProfileViewProps {
   toggleDeviceConnection: (key: string) => void;
   archivedPlans: Plan[];
   shoes: Shoe[];
-  onAddShoe: (shoe: Shoe) => void;
-  onDeleteShoe: (id: string) => void;
-  onToggleActiveShoe: (id: string) => void;
+  onAddShoe?: (shoe: Shoe) => void;
+  onDeleteShoe?: (id: string) => void;
+  onToggleActiveShoe?: (id: string) => void;
   onOpenAthleteLibrary?: () => void;
   onOpenRecordsPage?: () => void;
   onOpenPersonalBestsPage?: () => void;
@@ -91,7 +87,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   fcMax,
   setFcMax,
   records,
-  setRecords,
   onSaveFullProfile,
   races,
   connectedDevices,
@@ -114,7 +109,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editUnknownVma, setEditUnknownVma] = useState(unknownVma);
   const [editFcRest, setEditFcRest] = useState(fcRest);
   const [editFcMax, setEditFcMax] = useState(fcMax);
-  const [editRecords, setEditRecords] = useState({ ...records });
 
   // Modale de recadrage d'avatar
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -247,7 +241,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     } catch (err: any) {
       setCorosStatusMsg(`❌ ${err.message}`);
     } finally {
-      setGarminLoading(false);
+      setCorosLoading(false);
     }
   };
 
@@ -299,7 +293,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setEditUnknownVma(unknownVma);
     setEditFcRest(fcRest);
     setEditFcMax(fcMax);
-    setEditRecords({ ...records });
     setIsEditingProfile(true);
   };
 
@@ -315,7 +308,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         unknownVma: editUnknownVma,
         fcRest: editFcRest,
         fcMax: editFcMax,
-        records: editRecords,
+        records,
       });
     } else {
       setAthleteName(editName);
@@ -325,7 +318,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       setUnknownVma(editUnknownVma);
       setFcRest(editFcRest);
       setFcMax(editFcMax);
-      setRecords(editRecords);
     }
 
     setIsEditingProfile(false);
@@ -378,7 +370,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   // Accordéons
   const [openVmaSection, setOpenVmaSection] = useState(false);
   const [openCardioSection, setOpenCardioSection] = useState(false);
-  const [openRecords, setOpenRecords] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
   const [openDevicesSection, setOpenDevicesSection] = useState(false);
 
@@ -1069,7 +1060,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* ACCÈS À LA NOUVELLE PAGE CHAUSSURES */}
+          {/* ACCÈS À LA PAGE CHAUSSURES */}
           {onOpenShoesPage && (
             <button
               type="button"
@@ -1349,69 +1340,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             {/* ====== COLONNE DROITE ====== */}
             <div className="space-y-5">
-              {/* 3. ACCORDÉON RECORDS PERSONNELS SANS % VMA */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenRecords(!openRecords)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    🏆 Records Personnels de Référence
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openRecords ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {openRecords && (
-                  <div className="p-5 pt-2 border-t border-stone-800/60 space-y-3">
-                    <p className="text-[10.5px] text-stone-400 leading-relaxed">
-                      Vos meilleurs temps étalons servant au calcul du VDOT et des allures cibles.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      {Object.entries(RECORD_DISTANCES_METERS).map(([key, info]) => {
-                        const timeStr = records[key] || "";
-                        const score = getPerformanceScoreForRecord(key, timeStr);
-
-                        return (
-                          <div
-                            key={key}
-                            className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2 hover:border-[#CF9A61]/40 transition"
-                          >
-                            <div className="flex justify-between items-center border-b border-stone-800/80 pb-1.5">
-                              <span className="text-xs font-black text-[#CF9A61] uppercase">
-                                {info.label}
-                              </span>
-                              <span className="text-xs font-black text-stone-100 font-mono">
-                                {timeStr || "-"}
-                              </span>
-                            </div>
-
-                            {score ? (
-                              <div className="flex items-center justify-between text-[10px] pt-0.5">
-                                <span className="font-bold text-stone-400">
-                                  VDOT : <strong className="text-stone-200">{score.vdot}</strong>
-                                </span>
-                                <span className="font-extrabold text-[#B34D4D] bg-[#B34D4D]/10 px-2 py-0.5 rounded border border-[#B34D4D]/30 font-mono">
-                                  Score : {score.runningScore}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[9px] text-stone-600 italic block">
-                                Non renseigné
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 4. ACCORDÉON PLANS ARCHIVÉS */}
+              {/* 3. ACCORDÉON PLANS ARCHIVÉS */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -1459,7 +1388,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 5. ACCORDÉON APPAREILS CONNECTÉS */}
+              {/* 4. ACCORDÉON APPAREILS CONNECTÉS */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"
@@ -1715,30 +1644,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61] transition"
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-3 bg-stone-900/80 p-4 rounded-2xl border border-stone-800">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#CF9A61]">
-              Éditer mes Records Personnels
-            </h3>
-            <div className="grid grid-cols-2 gap-2.5">
-              {Object.entries(RECORD_DISTANCES_METERS).map(([key, info]) => (
-                <div key={key}>
-                  <label className="block text-[9px] uppercase font-bold text-stone-400 mb-0.5">
-                    {info.label}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex : 16:50 ou 1:25:00"
-                    value={editRecords[key] || ""}
-                    onChange={(e) =>
-                      setEditRecords({ ...editRecords, [key]: e.target.value })
-                    }
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-1.5 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
-                  />
-                </div>
-              ))}
             </div>
           </div>
 
