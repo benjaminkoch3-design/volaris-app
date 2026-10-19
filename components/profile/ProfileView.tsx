@@ -68,6 +68,7 @@ interface ProfileViewProps {
   onToggleActiveShoe: (id: string) => void;
   onOpenAthleteLibrary?: () => void;
   onOpenRecordsPage?: () => void;
+  onOpenShoesPage?: () => void;
   isReadOnly?: boolean;
 }
 
@@ -96,17 +97,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   toggleDeviceConnection,
   archivedPlans,
   shoes,
-  onAddShoe,
-  onDeleteShoe,
-  onToggleActiveShoe,
   onOpenAthleteLibrary,
   onOpenRecordsPage,
+  onOpenShoesPage,
   isReadOnly = false,
 }) => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-
-  const [showAddShoeForm, setShowAddShoeForm] = useState(false);
-  const [showShoeCloset, setShowShoeCloset] = useState(false);
 
   // Formulaire d'édition profil
   const [editName, setEditName] = useState(athleteName);
@@ -382,22 +378,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [openCardioSection, setOpenCardioSection] = useState(false);
   const [openRecords, setOpenRecords] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
-  const [openShoesSection, setOpenShoesSection] = useState(false);
   const [openDevicesSection, setOpenDevicesSection] = useState(false);
-
-  // Formulaire chaussure
-  const [newShoe, setNewShoe] = useState({
-    name: "",
-    brand: "",
-    initialKm: "",
-    maxKm: "800",
-  });
 
   const athletePerf = getBestAthletePerformance(records);
   const runnerProfile = calculateRunnerProfile(records);
-
-  const activeShoes = shoes.filter((s) => s.isActive);
-  const closetShoes = shoes.filter((s) => !s.isActive);
 
   const bestUtmbIndex = races.reduce((max, race) => {
     const utmb =
@@ -410,25 +394,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
     return max;
   }, 0);
-
-  const handleAddShoeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isReadOnly) return;
-    if (!newShoe.name || !newShoe.brand) return;
-
-    const shoeToAdd: Shoe = {
-      id: Date.now().toString(),
-      name: newShoe.name,
-      brand: newShoe.brand,
-      currentKm: parseFloat(newShoe.initialKm) || 0,
-      maxKm: parseFloat(newShoe.maxKm) || 800,
-      isActive: true,
-    };
-
-    onAddShoe(shoeToAdd);
-    setNewShoe({ name: "", brand: "", initialKm: "", maxKm: "800" });
-    setShowAddShoeForm(false);
-  };
 
   return (
     <div className="space-y-6 animate-fadeIn w-full font-sans">
@@ -1024,7 +989,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {!isEditingProfile || isReadOnly ? (
-        <div className="space-y-6 w-full">
+        <div className="space-y-5 w-full">
           {/* ACCÈS À LA BIBLIOTHÈQUE ATHLÈTE */}
           {onOpenAthleteLibrary && (
             <button
@@ -1049,7 +1014,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* NOUVELLE CARTE MODERNE : ACCÈS À LA PAGE PALMARÈS & RECORDS */}
+          {/* ACCÈS À LA PAGE PALMARÈS & RECORDS */}
           {onOpenRecordsPage && (
             <button
               type="button"
@@ -1075,6 +1040,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
               </div>
               <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition">➔</span>
+            </button>
+          )}
+
+          {/* ACCÈS À LA NOUVELLE PAGE CHAUSSURES */}
+          {onOpenShoesPage && (
+            <button
+              type="button"
+              onClick={onOpenShoesPage}
+              className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#4DB380]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#4DB380]/10 border border-[#4DB380]/30 flex items-center justify-center text-[#4DB380] text-lg">
+                  👟
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#4DB380] transition">
+                      Mes Chaussures de Course
+                    </h4>
+                    <span className="text-[10px] font-mono font-bold bg-stone-950 px-2 py-0.5 rounded-full border border-stone-800 text-[#4DB380]">
+                      {shoes.filter((s) => s.isActive).length} active{shoes.filter((s) => s.isActive).length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-stone-400 mt-0.5">
+                    Suivi de l'usure en dégradé de couleur, gestion du placard et alertes de remplacement
+                  </p>
+                </div>
+              </div>
+              <span className="text-stone-500 group-hover:text-[#4DB380] text-sm font-black transition">➔</span>
             </button>
           )}
 
@@ -1439,234 +1433,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
               </div>
 
-              {/* 5. ACCORDÉON CHAUSSURES */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenShoesSection(!openShoesSection)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    👟 Mes Chaussures ({activeShoes.length} active{activeShoes.length > 1 ? "s" : ""})
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openShoesSection ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {openShoesSection && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                    <div className="space-y-3">
-                      {activeShoes.length === 0 ? (
-                        <p className="text-xs text-stone-500 italic text-center py-2">
-                          Aucune paire active enregistrée.
-                        </p>
-                      ) : (
-                        activeShoes.map((shoe) => {
-                          const pctUsed = Math.min(
-                            100,
-                            Math.round((shoe.currentKm / shoe.maxKm) * 100)
-                          );
-                          const isAlert = pctUsed >= 80;
-
-                          return (
-                            <div
-                              key={shoe.id}
-                              className="p-4 rounded-2xl border space-y-2.5 bg-stone-950 border-[#4DB380]/40 shadow-lg transition"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="text-xs font-black text-stone-100 uppercase">
-                                      {shoe.brand} {shoe.name}
-                                    </h4>
-                                    <span className="text-[8px] font-black uppercase bg-[#4DB380]/20 text-[#4DB380] border border-[#4DB380]/40 px-2 py-0.5 rounded-full">
-                                      Paire Active
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-stone-400 font-semibold">
-                                    {shoe.currentKm.toFixed(1)} km parcourus sur{" "}
-                                    {shoe.maxKm} km max
-                                  </span>
-                                </div>
-
-                                {!isReadOnly && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onToggleActiveShoe(shoe.id)}
-                                    className="text-[10px] font-bold text-stone-400 hover:text-amber-400 bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-xl transition cursor-pointer"
-                                    title="Mettre cette paire au placard"
-                                  >
-                                    Mettre au placard
-                                  </button>
-                                )}
-                              </div>
-
-                              <div className="space-y-1">
-                                <div className="w-full h-2 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
-                                  <div
-                                    style={{ width: `${pctUsed}%` }}
-                                    className={`h-full rounded-full transition-all ${
-                                      isAlert ? "bg-[#B34D4D]" : "bg-[#4DB380]"
-                                    }`}
-                                  />
-                                </div>
-                                <div className="flex justify-between text-[8px] font-bold text-stone-500">
-                                  <span>0 km</span>
-                                  <span
-                                    className={
-                                      isAlert ? "text-[#B34D4D] font-black" : "text-[#4DB380]"
-                                    }
-                                  >
-                                    Usure : {pctUsed}%
-                                  </span>
-                                  <span>{shoe.maxKm} km</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {closetShoes.length > 0 && (
-                      <div className="pt-2 border-t border-stone-800/60">
-                        <button
-                          type="button"
-                          onClick={() => setShowShoeCloset(!showShoeCloset)}
-                          className="w-full py-2 px-3 bg-stone-950 hover:bg-stone-900 border border-stone-800 text-stone-400 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-between"
-                        >
-                          <span>
-                            Accéder au placard ({closetShoes.length} paire
-                            {closetShoes.length > 1 ? "s" : ""})
-                          </span>
-                          <span>{showShoeCloset ? "▲" : "▼"}</span>
-                        </button>
-
-                        {showShoeCloset && (
-                          <div className="space-y-2 mt-3 pl-2 border-l-2 border-stone-800">
-                            {closetShoes.map((shoe) => (
-                              <div
-                                key={shoe.id}
-                                className="bg-stone-950/60 p-3 rounded-xl border border-stone-800/80 flex items-center justify-between text-xs"
-                              >
-                                <div>
-                                  <div className="font-bold text-stone-300">
-                                    {shoe.brand} {shoe.name}
-                                  </div>
-                                  <div className="text-[10px] text-stone-500">
-                                    {shoe.currentKm.toFixed(0)} / {shoe.maxKm} km
-                                  </div>
-                                </div>
-
-                                {!isReadOnly && (
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => onToggleActiveShoe(shoe.id)}
-                                      className="text-[10px] font-bold text-[#4DB380] hover:underline bg-[#4DB380]/10 border border-[#4DB380]/30 px-2 py-1 rounded-lg transition cursor-pointer"
-                                    >
-                                      Réactiver
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => onDeleteShoe(shoe.id)}
-                                      className="text-stone-500 hover:text-red-400 text-xs px-1 font-bold transition cursor-pointer"
-                                      title="Supprimer définitivement"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {!isReadOnly && (
-                      <div className="pt-2 border-t border-stone-800/60 space-y-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowAddShoeForm(!showAddShoeForm)}
-                          className="w-full py-2.5 px-3.5 bg-stone-950 hover:bg-stone-900 border border-stone-800 rounded-xl text-[#4DB380] font-bold text-xs flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span className="flex items-center gap-1.5">
-                            ➕ Ajouter une paire de chaussures
-                          </span>
-                          <span className="text-stone-400 text-xs">
-                            {showAddShoeForm ? "▲" : "▼"}
-                          </span>
-                        </button>
-
-                        {showAddShoeForm && (
-                          <form
-                            onSubmit={handleAddShoeSubmit}
-                            className="bg-stone-950/60 p-3.5 rounded-2xl border border-stone-800 space-y-2.5 mt-2"
-                          >
-                            <div className="grid grid-cols-2 gap-2">
-                              <input
-                                type="text"
-                                required
-                                placeholder="Marque (ex : Hoka, Salomon)"
-                                value={newShoe.brand}
-                                onChange={(e) =>
-                                  setNewShoe({ ...newShoe, brand: e.target.value })
-                                }
-                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                              />
-                              <input
-                                type="text"
-                                required
-                                placeholder="Modèle (ex : Speedcross 6)"
-                                value={newShoe.name}
-                                onChange={(e) =>
-                                  setNewShoe({ ...newShoe, name: e.target.value })
-                                }
-                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                              <input
-                                type="number"
-                                placeholder="Km de départ (ex : 0)"
-                                value={newShoe.initialKm}
-                                onChange={(e) =>
-                                  setNewShoe({
-                                    ...newShoe,
-                                    initialKm: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                              />
-                              <input
-                                type="number"
-                                placeholder="Km Max conseillé (ex : 800)"
-                                value={newShoe.maxKm}
-                                onChange={(e) =>
-                                  setNewShoe({ ...newShoe, maxKm: e.target.value })
-                                }
-                                className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-stone-100 text-xs focus:outline-none focus:border-[#4DB380]"
-                              />
-                            </div>
-
-                            <button
-                              type="submit"
-                              className="w-full py-2 bg-[#4DB380] hover:bg-[#3ea06f] text-stone-950 font-bold rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
-                            >
-                              Enregistrer la paire
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 6. ACCORDÉON APPAREILS CONNECTÉS */}
+              {/* 5. ACCORDÉON APPAREILS CONNECTÉS */}
               <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
                 <button
                   type="button"

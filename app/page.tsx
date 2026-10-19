@@ -43,6 +43,7 @@ import { AuthScreen } from "../components/auth/AuthScreen";
 import { ProfileWizard } from "../components/profile/ProfileWizard";
 import { ProfileView } from "../components/profile/ProfileView";
 import { RecordsPageView } from "../components/profile/RecordsPageView";
+import { ShoesPageView } from "../components/profile/ShoesPageView";
 import { AthleteWorkoutLibraryView } from "../components/profile/AthleteWorkoutLibraryView";
 
 // Home & Workouts
@@ -240,6 +241,7 @@ export default function Home() {
 
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
   const [showRecordsPage, setShowRecordsPage] = useState(false);
+  const [showShoesPage, setShowShoesPage] = useState(false);
   const [inspectingAthleteId, setInspectingAthleteId] = useState<string | null>(null);
   const [managedAthletes, setManagedAthletes] = useState<AthleteProfile[]>([]);
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
@@ -1196,7 +1198,7 @@ export default function Home() {
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
-  // Synchronisation en temps réel des séances actives (si l'athlète ou le coach effectue un déplacement/modification)
+  // Synchronisation en temps réel des séances actives
   useEffect(() => {
     if (!session?.user || !activePlan) return;
 
@@ -2992,7 +2994,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL (AVEC ROUTAGE VERS LA NOUVELLE PAGE RECORDS) */}
+            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS RECORDS ET CHAUSSURES) */}
             {activeTab === "profil" && !showAthleteLibrary && (
               showRecordsPage ? (
                 <RecordsPageView
@@ -3001,6 +3003,15 @@ export default function Home() {
                   onAddRace={handleAddRace}
                   onUpdateRace={handleUpdateRace}
                   onDeleteRace={handleDeleteRace}
+                  isReadOnly={isCoachInspecting}
+                />
+              ) : showShoesPage ? (
+                <ShoesPageView
+                  shoes={shoes}
+                  onBack={() => setShowShoesPage(false)}
+                  onAddShoe={handleAddShoe}
+                  onDeleteShoe={handleDeleteShoe}
+                  onToggleActiveShoe={handleToggleActiveShoe}
                   isReadOnly={isCoachInspecting}
                 />
               ) : (
@@ -3075,6 +3086,7 @@ export default function Home() {
                   onToggleActiveShoe={handleToggleActiveShoe}
                   onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
                   onOpenRecordsPage={() => setShowRecordsPage(true)}
+                  onOpenShoesPage={() => setShowShoesPage(true)}
                   isReadOnly={isCoachInspecting}
                 />
               )
@@ -3093,6 +3105,7 @@ export default function Home() {
           changeActiveTab(tab);
           setShowAthleteLibrary(false);
           setShowRecordsPage(false);
+          setShowShoesPage(false);
         }}
       />
     </main>
