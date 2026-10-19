@@ -12,12 +12,12 @@ interface ShoesPageViewProps {
   isReadOnly?: boolean;
 }
 
-// Fonction calculant la couleur du texte selon le pourcentage d'usure (Vert -> Jaune -> Rouge)
-const getWearColor = (pct: number): string => {
-  if (pct < 50) return "#10B981"; // Vert
-  if (pct < 75) return "#F59E0B"; // Jaune / Ambre
-  if (pct < 90) return "#F97316"; // Orange
-  return "#EF4444"; // Rouge
+// Calcule une teinte dynamique unie (HSL) : 142° (vert) -> 60° (jaune) -> 25° (orange) -> 0° (rouge)
+const getDynamicWearColor = (pct: number): string => {
+  const clamped = Math.max(0, Math.min(100, pct));
+  // 142° = Vert émeraude (0%), 0° = Rouge (100%)
+  const hue = Math.round(142 - (clamped * 1.42));
+  return `hsl(${hue}, 80%, 50%)`;
 };
 
 export const ShoesPageView: React.FC<ShoesPageViewProps> = ({
@@ -212,7 +212,7 @@ export const ShoesPageView: React.FC<ShoesPageViewProps> = ({
                 100,
                 Math.round((shoe.currentKm / (shoe.maxKm || 800)) * 100)
               );
-              const colorText = getWearColor(pctUsed);
+              const dynamicColor = getDynamicWearColor(pctUsed);
 
               return (
                 <div
@@ -248,17 +248,20 @@ export const ShoesPageView: React.FC<ShoesPageViewProps> = ({
                     </div>
                   </div>
 
-                  {/* BARRE D'USURE AVEC DÉGRADÉ VERT -> JAUNE -> ROUGE */}
+                  {/* BARRE D'USURE UNIE AVEC COULEUR DYNAMIQUE EN FONCTION DE L'USURE */}
                   <div className="space-y-1.5 pt-1">
                     <div className="w-full h-3 bg-stone-950 rounded-full overflow-hidden border border-stone-800 p-0.5">
                       <div
-                        style={{ width: `${pctUsed}%` }}
-                        className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-emerald-500 via-amber-400 via-orange-500 to-red-600"
+                        style={{
+                          width: `${pctUsed}%`,
+                          backgroundColor: dynamicColor,
+                        }}
+                        className="h-full rounded-full transition-all duration-300"
                       />
                     </div>
                     <div className="flex justify-between items-center text-[10px] font-mono">
                       <span className="text-stone-500">0 km</span>
-                      <span className="font-extrabold" style={{ color: colorText }}>
+                      <span className="font-black" style={{ color: dynamicColor }}>
                         Usure : {pctUsed} %
                       </span>
                       <span className="text-stone-500">{shoe.maxKm} km</span>
@@ -298,6 +301,7 @@ export const ShoesPageView: React.FC<ShoesPageViewProps> = ({
                   100,
                   Math.round((shoe.currentKm / (shoe.maxKm || 800)) * 100)
                 );
+                const dynamicColor = getDynamicWearColor(pctUsed);
 
                 return (
                   <div
@@ -308,8 +312,10 @@ export const ShoesPageView: React.FC<ShoesPageViewProps> = ({
                       <div className="font-bold text-stone-300 text-sm">
                         {shoe.brand} {shoe.name}
                       </div>
-                      <div className="text-[11px] text-stone-500 font-mono mt-0.5">
-                        {shoe.currentKm.toFixed(0)} / {shoe.maxKm} km ({pctUsed} % usée)
+                      <div className="text-[11px] text-stone-500 font-mono mt-0.5 flex items-center gap-2">
+                        <span>{shoe.currentKm.toFixed(0)} / {shoe.maxKm} km</span>
+                        <span>•</span>
+                        <span style={{ color: dynamicColor }} className="font-bold">{pctUsed} % usée</span>
                       </div>
                     </div>
 
