@@ -3075,7 +3075,7 @@ export default function Home() {
                     setUnknownVma(data.unknownVma);
                     setFcRest(data.fcRest);
                     setFcMax(data.fcMax);
-                    setRecords(data.records);
+                    setRecords(data.records || {});
 
                     await saveProfileToSupabase({
                       fullName: data.name,
@@ -3084,7 +3084,7 @@ export default function Home() {
                       vmaVal: data.unknownVma ? "" : data.vma,
                       fcRestVal: data.fcRest,
                       fcMaxVal: data.fcMax,
-                      recordsMap: data.records,
+                      recordsMap: data.records || records,
                     });
                   }}
                   races={races}
@@ -3092,9 +3092,6 @@ export default function Home() {
                   toggleDeviceConnection={toggleDeviceConnection}
                   archivedPlans={archivedPlans}
                   shoes={shoes}
-                  onAddShoe={handleAddShoe}
-                  onDeleteShoe={handleDeleteShoe}
-                  onToggleActiveShoe={handleToggleActiveShoe}
                   onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
                   onOpenRecordsPage={() => setShowRecordsPage(true)}
                   onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
