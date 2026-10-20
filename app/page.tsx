@@ -2409,20 +2409,28 @@ export default function Home() {
   };
 
   const getTodayWorkouts = (plan: Plan | null) => {
-    if (!plan) return [];
-    const todayStr = safeFormatDateFr(new Date().toISOString().split("T")[0]);
-    const matches = plan.workouts.filter(
+    if (!plan || !plan.startDate) return [];
+
+    // Date locale au format YYYY-MM-DD (évite le décalage UTC)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayStr = safeFormatDateFr(`${year}-${month}-${day}`);
+
+    // 1. Recherche par date exacte
+    const exactMatches = plan.workouts.filter(
       (w) => getExactDayDate(plan.startDate, w.weekNumber, w.dayIndex) === todayStr
     );
-    if (matches.length > 0) return matches;
+    if (exactMatches.length > 0) return exactMatches;
 
-    const todayObj = new Date();
-    const jsDay = todayObj.getDay();
-    const dayIdxMap = [6, 0, 1, 2, 3, 4, 5];
-    const currentDayIdx = dayIdxMap[jsDay];
+    // 2. Fallback calendrier (Semaine courante + Index européen Lundi=0 -> Dimanche=6)
+    const currentWeek = getCurrentWeekNumber(plan.startDate, String(plan.durationWeeks || "12"));
+    const jsDay = now.getDay(); // 0 = Dimanche, 1 = Lundi, ...
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1; // Lundi = 0, Dimanche = 6
 
     return plan.workouts.filter(
-      (w) => w.weekNumber === selectedPlanWeek && w.dayIndex === currentDayIdx
+      (w) => w.weekNumber === currentWeek && w.dayIndex === dayIndex
     );
   };
 

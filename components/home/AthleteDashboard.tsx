@@ -589,6 +589,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     tooltipText: `${d.dayFull} - ${d.completedElevation} m D+ (réalisé)`,
   }));
 
+  // Détection d'un jour de repos
+  const isRestDay =
+    todayWorkouts.length === 0 ||
+    todayWorkouts.every((w) => w.isRest || w.type === "repos");
+
+  const activeWorkouts = todayWorkouts.filter((w) => !w.isRest && w.type !== "repos");
+
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
       {/* ===================== 1. ÉVÉNEMENT CIBLE ===================== */}
@@ -664,46 +671,31 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </button>
             )}
           </div>
-        ) : todayWorkouts.length === 0 ? (
-          <div className="bg-stone-950/80 border border-stone-800 rounded-2xl p-5 text-center space-y-2">
-            <h4 className="text-xs md:text-sm font-black uppercase text-stone-200">
-              Aucune séance programmée pour aujourd'hui
-            </h4>
-            <p className="text-[11px] text-stone-400 italic">
-              Consultez votre plan complet pour les jours à venir ou profitez de ce temps pour récupérer !
-            </p>
+        ) : isRestDay ? (
+          /* AFFICHAGE DU JOUR DE REPOS */
+          <div className="bg-stone-950/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-3 text-center">
+            <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+              ☕
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
+                Aujourd'hui
+              </span>
+              <h3 className="text-base md:text-lg font-black uppercase text-stone-100 mt-0.5">
+                Journée de repos
+              </h3>
+              <p className="text-xs text-stone-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                Aucun entraînement programmé aujourd'hui. Profitez-en pour bien récupérer, vous hydrater et assimiler les séances précédentes.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {todayWorkouts.map((todayWorkout) => {
+            {activeWorkouts.map((todayWorkout) => {
               const typeConfig = getWorkoutTypeConfig(todayWorkout.type);
               const typeHexColor = getWorkoutTypeHexColor(todayWorkout.type);
               const isDone = completedWorkouts[todayWorkout.id];
               const rpeColor = getRpeGradientColor(todayWorkout.rpe);
-
-              if (todayWorkout.isRest) {
-                return (
-                  <div
-                    key={todayWorkout.id}
-                    className="bg-stone-950/80 border border-stone-800 rounded-2xl p-4 md:p-5 flex justify-between items-center"
-                  >
-                    <div className="space-y-1">
-                      <span className="text-[9px] md:text-[10px] font-black uppercase text-stone-400 block">
-                        {todayWorkout.dayName} • Récupération
-                      </span>
-                      <h4 className="text-sm md:text-base font-black uppercase text-stone-200">
-                        Journée de Repos
-                      </h4>
-                      <p className="text-[11px] md:text-xs text-stone-400 italic">
-                        Hydratation, sommeil et étirements doux au programme.
-                      </p>
-                    </div>
-                    <span className="text-[10px] md:text-xs font-bold bg-stone-900 text-stone-400 px-3 py-1.5 rounded-xl border border-stone-800">
-                      Repos
-                    </span>
-                  </div>
-                );
-              }
 
               return (
                 <div
