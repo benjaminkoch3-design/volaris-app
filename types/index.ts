@@ -193,6 +193,7 @@ export interface ChatMessage {
   senderId?: string;
   senderAvatar?: string; // Photo de profil dans les messages
   athleteId: string;
+  coachId?: string; // Identifiant du coach associé pour cloisonner l'historique
   text: string;
   timestamp: string;
 }

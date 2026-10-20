@@ -476,11 +476,15 @@ export default function Home() {
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
-    let targetId = targetAthleteId;
-    if (!targetId) {
-      targetId = userRole === "coach" ? (inspectingAthleteId || managedAthletes[0]?.id) : session.user.id;
-    }
-    if (!targetId) return;
+    const activeAthleteId = userRole === "coach"
+      ? (targetAthleteId || inspectingAthleteId || managedAthletes[0]?.id)
+      : session.user.id;
+
+    const activeCoachId = userRole === "coach"
+      ? session.user.id
+      : assignedCoachId;
+
+    if (!activeAthleteId || !activeCoachId) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const senderName = userRole === "coach"
@@ -501,7 +505,8 @@ export default function Home() {
       senderName,
       senderId: session.user.id,
       senderAvatar: avatarUrl,
-      athleteId: targetId,
+      athleteId: activeAthleteId,
+      coachId: activeCoachId,
       text,
       timestamp: timeStr,
     };
@@ -512,7 +517,8 @@ export default function Home() {
       const { error } = await supabase.from("messages").insert([
         {
           id: validUuid,
-          athlete_id: targetId,
+          athlete_id: activeAthleteId,
+          coach_id: activeCoachId,
           sender_id: session.user.id,
           sender_role: userRole,
           sender_name: senderName,
@@ -558,9 +564,18 @@ export default function Home() {
             senderName: newRow.sender_name,
             senderId: newRow.sender_id,
             athleteId: newRow.athlete_id,
+            coachId: newRow.coach_id,
             text: newRow.text,
             timestamp: newRow.timestamp,
           };
+
+          // Isolation : ignorer les messages qui ne concernent pas le binôme actuel
+          if (userRole === "athlete" && incomingMsg.coachId !== assignedCoachId) {
+            return;
+          }
+          if (userRole === "coach" && incomingMsg.coachId !== session.user.id) {
+            return;
+          }
 
           setMessages((prev) => {
             if (prev.some((m) => m.id === incomingMsg.id)) return prev;
@@ -583,7 +598,7 @@ export default function Home() {
     return () => {
       supabase.removeChannel(messagesChannel);
     };
-  }, [session]);
+  }, [session, assignedCoachId, userRole]);
 
   const handleUpdateAvatar = async (newAvatarUrl: string) => {
     if (!session?.user) return;
@@ -628,6 +643,30 @@ export default function Home() {
         .from("profiles")
         .update({ coach_id: coachId, custom_coach_name: coachNameStr })
         .eq("id", session.user.id);
+
+      // Rechargement immédiat de l'historique de conversation propre à ce nouveau coach
+      const { data: msgsData } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("athlete_id", session.user.id)
+        .eq("coach_id", coachId)
+        .order("created_at", { ascending: true });
+
+      if (msgsData) {
+        setMessages(msgsData.map((m: any) => ({
+          id: String(m.id),
+          senderRole: m.sender_role,
+          senderName: m.sender_name,
+          senderId: m.sender_id,
+          senderAvatar: m.sender_avatar || undefined,
+          athleteId: m.athlete_id,
+          coachId: m.coach_id,
+          text: m.text,
+          timestamp: m.timestamp,
+        })));
+      } else {
+        setMessages([]);
+      }
     } catch (err) {
       console.error("Erreur coach_id :", err);
     }
@@ -665,6 +704,7 @@ export default function Home() {
     setAssignedCoachId(null);
     setAssignedCoachName("Coach");
     setAssignedCoachAvatar(undefined);
+    setMessages([]); // Réinitialisation de l'historique affiché
 
     await supabase
       .from("profiles")
@@ -739,10 +779,12 @@ export default function Home() {
           .select("*")
           .in("user_id", athleteIds);
 
+        // Récupération uniquement des messages liés au coach connecté
         const { data: coachMsgsData } = await supabase
           .from("messages")
           .select("*")
           .in("athlete_id", athleteIds)
+          .eq("coach_id", session.user.id)
           .order("created_at", { ascending: true });
 
         if (coachMsgsData) {
@@ -753,6 +795,7 @@ export default function Home() {
             senderId: m.sender_id,
             senderAvatar: m.sender_avatar || undefined,
             athleteId: m.athlete_id,
+            coachId: m.coach_id,
             text: m.text,
             timestamp: m.timestamp,
           })));
@@ -996,24 +1039,31 @@ export default function Home() {
         setCompletedRuns([]);
       }
 
+      // CHARGEMENT DES MESSAGES FILTRÉS PAR LE BINÔME ACTIF
       if (userRole === "athlete") {
-        const { data: msgsData } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("athlete_id", targetUserId)
-          .order("created_at", { ascending: true });
+        if (!profile?.coach_id) {
+          setMessages([]);
+        } else {
+          const { data: msgsData } = await supabase
+            .from("messages")
+            .select("*")
+            .eq("athlete_id", targetUserId)
+            .eq("coach_id", profile.coach_id)
+            .order("created_at", { ascending: true });
 
-        if (msgsData) {
-          setMessages(msgsData.map((m: any) => ({
-            id: String(m.id),
-            senderRole: m.sender_role,
-            senderName: m.sender_name,
-            senderId: m.sender_id,
-            senderAvatar: m.sender_avatar || undefined,
-            athleteId: m.athlete_id,
-            text: m.text,
-            timestamp: m.timestamp,
-          })));
+          if (msgsData) {
+            setMessages(msgsData.map((m: any) => ({
+              id: String(m.id),
+              senderRole: m.sender_role,
+              senderName: m.sender_name,
+              senderId: m.sender_id,
+              senderAvatar: m.sender_avatar || undefined,
+              athleteId: m.athlete_id,
+              coachId: m.coach_id,
+              text: m.text,
+              timestamp: m.timestamp,
+            })));
+          }
         }
       }
 
@@ -2570,32 +2620,32 @@ export default function Home() {
   }
 
   if (editingWorkoutId) {
-      const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
-      if (!workout) {
-        setEditingWorkoutId(null);
-        return null;
-      }
-
-      return (
-        <WorkoutEditor
-          workout={workout}
-          startDate={newPlanForm.startDate}
-          onClose={() => setEditingWorkoutId(null)}
-          onUpdateWorkout={handleUpdateDraftWorkout} // ✅ Corrigé
-          onAddStep={handleAddStepToWorkout}
-          onUpdateStep={handleUpdateStepInWorkout}
-          onDeleteStep={handleDeleteStepInWorkout}
-          onMoveStep={handleMoveStepInWorkout}
-          onDropStep={handleDropStepInWorkout}
-          draggedStepPath={draggedStepPath}
-          setDraggedStepPath={setDraggedStepPath}
-          libraryWorkouts={libraryWorkouts}
-          categories={customCategories}
-          userRole={userRole}
-          vma={currentAthleteVma}
-        />
-      );
+    const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
+    if (!workout) {
+      setEditingWorkoutId(null);
+      return null;
     }
+
+    return (
+      <WorkoutEditor
+        workout={workout}
+        startDate={newPlanForm.startDate}
+        onClose={() => setEditingWorkoutId(null)}
+        onUpdateWorkout={handleUpdateDraftWorkout}
+        onAddStep={handleAddStepToWorkout}
+        onUpdateStep={handleUpdateStepInWorkout}
+        onDeleteStep={handleDeleteStepInWorkout}
+        onMoveStep={handleMoveStepInWorkout}
+        onDropStep={handleDropStepInWorkout}
+        draggedStepPath={draggedStepPath}
+        setDraggedStepPath={setDraggedStepPath}
+        libraryWorkouts={libraryWorkouts}
+        categories={customCategories}
+        userRole={userRole}
+        vma={currentAthleteVma}
+      />
+    );
+  }
 
   if (selectedWorkoutDetail && activePlan) {
     return (
