@@ -79,6 +79,7 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
   
+  // Récupération de l'onglet précédent sauvegardé
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
@@ -737,7 +738,7 @@ export default function Home() {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
 
-    // 1. Mettre à jour en base : tous les plans de l'utilisateur passent inactifs
+    // 1. Tous les plans de l'utilisateur passent inactifs
     await supabase
       .from("plans")
       .update({ is_active: false, is_archived: true })
@@ -1717,7 +1718,6 @@ export default function Home() {
     setScreen("landing");
   };
 
-  // Archive le plan courant SANS imposer l'écran de création
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -1734,7 +1734,8 @@ export default function Home() {
   };
 
   const handleDeleteActivePlan = async () => {
-    if (activePlan) {
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
+    if (activePlan && targetUserId) {
       await supabase.from("plans").delete().eq("id", activePlan.id);
       setActivePlan(null);
     }
@@ -2231,7 +2232,7 @@ export default function Home() {
 
     const planId = `plan_${Date.now()}`;
 
-    // Le plan existant devient archivé
+    // Le plan existant devient inactif / archivé
     if (activePlan) {
       await supabase
         .from("plans")
@@ -2959,13 +2960,13 @@ export default function Home() {
             {/* 2. PLAN */}
             {activeTab === "plan" && (
               <div className="space-y-6 animate-fadeIn">
-                {/* BARRE D'ACTION & SÉLECTEUR DE PLAN EN PARALLÈLE */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                {/* BARRE D'ACTION SUPÉRIEURE : SÉLECTEUR + ARCHIVAGE/SUPPRESSION + CRÉER EN PARALLÈLE */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-stone-900/60 p-3.5 rounded-2xl border border-stone-800">
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Sélecteur de basculement entre plans existants */}
                     {(activePlan || archivedPlans.length > 0) && (
-                      <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
-                        <span className="text-[10px] font-bold uppercase text-[#CF9A61]">Plan :</span>
+                      <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
+                        <span className="text-[10px] font-bold uppercase text-[#CF9A61]">Plan actif :</span>
                         <select
                           value={activePlan?.id || ""}
                           onChange={(e) => {
@@ -2974,11 +2975,11 @@ export default function Home() {
                             const target = archivedPlans.find((p) => p.id === selectedId);
                             if (target) handleSwitchActivePlan(target);
                           }}
-                          className="bg-stone-950 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
+                          className="bg-stone-900 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
                         >
                           {activePlan && (
                             <option value={activePlan.id}>
-                              {activePlan.name} (Actif)
+                              {activePlan.name} (En cours)
                             </option>
                           )}
                           {archivedPlans.map((p) => (
@@ -2993,7 +2994,7 @@ export default function Home() {
                     {activePlan && !isCreatingPlan && (
                       <button
                         onClick={navigateToPlanStats}
-                        className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
+                        className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-2 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
                       >
                         <span>📊 Volume</span>
                       </button>
@@ -3001,28 +3002,41 @@ export default function Home() {
                   </div>
 
                   {!isCreatingPlan && (
-                    <button
-                      onClick={() => {
-                        setDraftWorkouts([]);
-                        setDraftWeekTypes({});
-                        setNewPlanForm({
-                          name: "",
-                          raceCategory: "route",
-                          roadPreset: "10 km",
-                          trackPreset: "5 000 m",
-                          customDistance: "",
-                          targetTime: "",
-                          elevationGain: "",
-                          startDate: new Date().toISOString().split("T")[0],
-                          eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                        });
-                        setIsCreatingPlan(true);
-                        setPlanCreationStep(1);
-                      }}
-                      className="text-[10px] font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-3.5 py-2 rounded-xl transition cursor-pointer shadow-md"
-                    >
-                      ➕ Créer un plan en parallèle
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Bouton pour ouvrir la modale d'archivage / suppression du plan actif */}
+                      {activePlan && (
+                        <button
+                          onClick={() => setShowDeletePlanModal(true)}
+                          className="text-[10px] font-bold text-stone-300 hover:text-stone-100 bg-stone-900 hover:bg-stone-850 border border-stone-700 px-3 py-2 rounded-xl uppercase transition cursor-pointer shadow-sm"
+                        >
+                          ⚙️ Gérer le plan
+                        </button>
+                      )}
+
+                      {/* Bouton Créer un plan en parallèle */}
+                      <button
+                        onClick={() => {
+                          setDraftWorkouts([]);
+                          setDraftWeekTypes({});
+                          setNewPlanForm({
+                            name: "",
+                            raceCategory: "route",
+                            roadPreset: "10 km",
+                            trackPreset: "5 000 m",
+                            customDistance: "",
+                            targetTime: "",
+                            elevationGain: "",
+                            startDate: new Date().toISOString().split("T")[0],
+                            eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+                          });
+                          setIsCreatingPlan(true);
+                          setPlanCreationStep(1);
+                        }}
+                        className="text-[10px] font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-3.5 py-2 rounded-xl transition cursor-pointer shadow-md"
+                      >
+                        ➕ Créer en parallèle
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -3033,11 +3047,11 @@ export default function Home() {
                     </div>
                     <div>
                       <h3 className="text-lg font-black uppercase text-stone-100">
-                        Aucun plan actif
+                        Aucun plan en cours
                       </h3>
                       <p className="text-xs text-stone-400 mt-1 leading-relaxed">
                         {archivedPlans.length > 0
-                          ? "Sélectionnez un plan dans le menu déroulant ci-dessus ou créez un nouveau plan."
+                          ? "Sélectionnez un plan dans le menu déroulant ci-dessus ou lancez la création d'un nouveau plan."
                           : userRole === "coach"
                           ? `Créez le programme personnalisé pour ${selectedAthlete?.name || "votre athlète"}.`
                           : "Créez votre programme personnalisé étape par étape pour atteindre votre objectif."}
