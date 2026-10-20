@@ -45,6 +45,7 @@ import { ProfileView } from "../components/profile/ProfileView";
 import { RecordsPageView } from "../components/profile/RecordsPageView";
 import { PersonalBestsPageView } from "../components/profile/PersonalBestsPageView";
 import { ShoesPageView } from "../components/profile/ShoesPageView";
+import { PhysiologyPageView } from "../components/profile/PhysiologyPageView";
 import { AthleteWorkoutLibraryView } from "../components/profile/AthleteWorkoutLibraryView";
 
 // Home & Workouts
@@ -244,6 +245,7 @@ export default function Home() {
   const [showRecordsPage, setShowRecordsPage] = useState(false);
   const [showPersonalBestsPage, setShowPersonalBestsPage] = useState(false);
   const [showShoesPage, setShowShoesPage] = useState(false);
+  const [showPhysiologyPage, setShowPhysiologyPage] = useState(false);
   const [inspectingAthleteId, setInspectingAthleteId] = useState<string | null>(null);
   const [managedAthletes, setManagedAthletes] = useState<AthleteProfile[]>([]);
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
@@ -2411,7 +2413,7 @@ export default function Home() {
   const getTodayWorkouts = (plan: Plan | null) => {
     if (!plan || !plan.startDate) return [];
 
-    // Date locale au format YYYY-MM-DD (évite le décalage UTC)
+    // Date locale au format YYYY-MM-DD
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -2424,10 +2426,10 @@ export default function Home() {
     );
     if (exactMatches.length > 0) return exactMatches;
 
-    // 2. Fallback calendrier (Semaine courante + Index européen Lundi=0 -> Dimanche=6)
+    // 2. Fallback calendrier (Semaine courante + Index Lundi=0 -> Dimanche=6)
     const currentWeek = getCurrentWeekNumber(plan.startDate, String(plan.durationWeeks || "12"));
-    const jsDay = now.getDay(); // 0 = Dimanche, 1 = Lundi, ...
-    const dayIndex = jsDay === 0 ? 6 : jsDay - 1; // Lundi = 0, Dimanche = 6
+    const jsDay = now.getDay();
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
 
     return plan.workouts.filter(
       (w) => w.weekNumber === currentWeek && w.dayIndex === dayIndex
@@ -3004,7 +3006,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS RECORDS, PB & CHAUSSURES) */}
+            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS LES 4 SOUS-PAGES DÉDIÉES) */}
             {activeTab === "profil" && !showAthleteLibrary && (
               showRecordsPage ? (
                 <RecordsPageView
@@ -3032,6 +3034,15 @@ export default function Home() {
                   onDeleteShoe={handleDeleteShoe}
                   onToggleActiveShoe={handleToggleActiveShoe}
                   isReadOnly={isCoachInspecting}
+                />
+              ) : showPhysiologyPage ? (
+                <PhysiologyPageView
+                  vma={vma}
+                  unknownVma={unknownVma}
+                  fcRest={fcRest}
+                  fcMax={fcMax}
+                  records={records}
+                  onBack={() => setShowPhysiologyPage(false)}
                 />
               ) : (
                 <ProfileView
@@ -3083,7 +3094,7 @@ export default function Home() {
                     setUnknownVma(data.unknownVma);
                     setFcRest(data.fcRest);
                     setFcMax(data.fcMax);
-                    setRecords(data.records || {});
+                    if (data.records) setRecords(data.records);
 
                     await saveProfileToSupabase({
                       fullName: data.name,
@@ -3104,6 +3115,7 @@ export default function Home() {
                   onOpenRecordsPage={() => setShowRecordsPage(true)}
                   onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
                   onOpenShoesPage={() => setShowShoesPage(true)}
+                  onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
                   isReadOnly={isCoachInspecting}
                 />
               )
@@ -3124,6 +3136,7 @@ export default function Home() {
           setShowRecordsPage(false);
           setShowPersonalBestsPage(false);
           setShowShoesPage(false);
+          setShowPhysiologyPage(false);
         }}
       />
     </main>

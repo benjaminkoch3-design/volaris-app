@@ -3,11 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Race, Plan, Shoe } from "../../types";
 import { GarminLogo, CorosLogo, StravaLogo } from "../common/BrandLogos";
-import {
-  formatPaceFromSpeed,
-  calculateThresholds,
-  safeFormatDateFr,
-} from "../../utils/calculations";
+import { safeFormatDateFr } from "../../utils/calculations";
 import { getBestAthletePerformance } from "../../utils/vdot";
 import { calculateRunnerProfile } from "../../utils/profile";
 
@@ -66,6 +62,7 @@ interface ProfileViewProps {
   onOpenRecordsPage?: () => void;
   onOpenPersonalBestsPage?: () => void;
   onOpenShoesPage?: () => void;
+  onOpenPhysiologyPage?: () => void;
   isReadOnly?: boolean;
 }
 
@@ -97,6 +94,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenRecordsPage,
   onOpenPersonalBestsPage,
   onOpenShoesPage,
+  onOpenPhysiologyPage,
   isReadOnly = false,
 }) => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -241,7 +239,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     } catch (err: any) {
       setCorosStatusMsg(`❌ ${err.message}`);
     } finally {
-      setCorosLoading(false);
+      setGarminLoading(false);
     }
   };
 
@@ -366,10 +364,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   const [selectedArchivedPlan, setSelectedArchivedPlan] = useState<Plan | null>(null);
-
-  // Accordéons
-  const [openVmaSection, setOpenVmaSection] = useState(false);
-  const [openCardioSection, setOpenCardioSection] = useState(false);
   const [openArchivedPlans, setOpenArchivedPlans] = useState(false);
   const [openDevicesSection, setOpenDevicesSection] = useState(false);
 
@@ -983,31 +977,38 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {!isEditingProfile || isReadOnly ? (
         <div className="space-y-4 w-full">
-          {/* ACCÈS À LA BIBLIOTHÈQUE ATHLÈTE */}
-          {onOpenAthleteLibrary && (
+          {/* 1. NOUVEAU BOUTON : PHYSIOLOGIE, VMA, SEUILS & ZONES CARDIAQUES */}
+          {onOpenPhysiologyPage && (
             <button
               type="button"
-              onClick={onOpenAthleteLibrary}
-              className="w-full bg-stone-900 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
+              onClick={onOpenPhysiologyPage}
+              className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg">
-                  📚
+                  ⚡
                 </div>
                 <div className="text-left">
-                  <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
-                    Ma Bibliothèque de Séances
-                  </h4>
-                  <p className="text-[10.5px] text-stone-400">
-                    Gérer mes modèles de séances d'entraînement
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                      VMA, Allures, Seuils & Zones FC
+                    </h4>
+                    {vma && parseFloat(vma) > 0 && !unknownVma && (
+                      <span className="text-[10px] font-mono font-bold bg-stone-950 px-2 py-0.5 rounded-full border border-stone-800 text-[#CF9A61]">
+                        {vma} km/h
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10.5px] text-stone-400 mt-0.5">
+                    Seuils aérobie/anaérobie, échelle des % VMA avec vos records, et zones Karvonen
                   </p>
                 </div>
               </div>
-              <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm transition">➔</span>
+              <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition">➔</span>
             </button>
           )}
 
-          {/* ACCÈS À LA PAGE RECORDS PERSONNELS & ÉVOLUTION */}
+          {/* 2. ACCÈS À LA PAGE RECORDS PERSONNELS & ÉVOLUTION */}
           {onOpenPersonalBestsPage && (
             <button
               type="button"
@@ -1031,7 +1032,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* ACCÈS À LA PAGE PALMARÈS & COURSES OFFICIELLES */}
+          {/* 3. ACCÈS À LA PAGE PALMARÈS & COURSES OFFICIELLES */}
           {onOpenRecordsPage && (
             <button
               type="button"
@@ -1060,7 +1061,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* ACCÈS À LA PAGE CHAUSSURES */}
+          {/* 4. ACCÈS À LA PAGE CHAUSSURES */}
           {onOpenShoesPage && (
             <button
               type="button"
@@ -1089,435 +1090,185 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </button>
           )}
 
-          {/* GRILLE 2 COLONNES SUR ORDINATEUR */}
+          {/* 5. ACCÈS À LA BIBLIOTHÈQUE ATHLÈTE */}
+          {onOpenAthleteLibrary && (
+            <button
+              type="button"
+              onClick={onOpenAthleteLibrary}
+              className="w-full bg-stone-900 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg">
+                  📚
+                </div>
+                <div className="text-left">
+                  <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                    Ma Bibliothèque de Séances
+                  </h4>
+                  <p className="text-[10.5px] text-stone-400">
+                    Gérer mes modèles de séances d'entraînement
+                  </p>
+                </div>
+              </div>
+              <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm transition">➔</span>
+            </button>
+          )}
+
+          {/* PLANS ARCHIVÉS & APPAREILS CONNECTÉS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start pt-2">
-            {/* ====== COLONNE GAUCHE ====== */}
-            <div className="space-y-5">
-              {/* 1. ACCORDÉON VMA */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenVmaSection(!openVmaSection)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    ⚡ VMA, Allures & Seuils
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openVmaSection ? "▲" : "▼"}
-                  </span>
-                </button>
+            {/* PLANS ARCHIVÉS */}
+            <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+              <button
+                type="button"
+                onClick={() => setOpenArchivedPlans(!openArchivedPlans)}
+                className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  📁 Plans d'entraînement archivés ({archivedPlans.length})
+                </span>
+                <span className="text-stone-400 text-xs">
+                  {openArchivedPlans ? "▲" : "▼"}
+                </span>
+              </button>
 
-                {openVmaSection && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-5">
-                    {(() => {
-                      const thresh = calculateThresholds(
-                        vma,
-                        records.r10k || "",
-                        records.rSemi || ""
-                      );
-
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                              Estimation des Seuils
-                            </span>
-                            {thresh && thresh.isFallback && (
-                              <span className="text-[9px] font-bold px-2 py-0.5 rounded border text-[#CF9A61] bg-[#CF9A61]/10 border-[#CF9A61]/30">
-                                Estimé via VMA
-                              </span>
-                            )}
-                          </div>
-
-                          {thresh ? (
-                            <div className="space-y-2">
-                              <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs font-black uppercase text-[#B34D4D]">
-                                    Seuil Anaérobie
-                                  </span>
-                                  <span className="text-[10px] font-extrabold bg-[#B34D4D]/20 text-[#B34D4D] px-2 py-0.5 rounded border border-[#B34D4D]/30">
-                                    {thresh.lt2Pct} % VMA
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs pt-1">
-                                  <span className="text-stone-100 font-bold">
-                                    {thresh.lt2Speed} km/h
-                                  </span>
-                                  <span className="text-stone-100 font-extrabold">
-                                    {thresh.lt2Pace} min/km
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="bg-stone-950 p-3 rounded-2xl border border-stone-800/80 space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs font-black uppercase text-[#4DB380]">
-                                    Seuil Aérobie
-                                  </span>
-                                  <span className="text-[10px] font-extrabold bg-[#4DB380]/20 text-[#4DB380] px-2 py-0.5 rounded border border-[#4DB380]/30">
-                                    {thresh.lt1Pct} % VMA
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs pt-1">
-                                  <span className="text-stone-100 font-bold">
-                                    {thresh.lt1Speed} km/h
-                                  </span>
-                                  <span className="text-stone-100 font-extrabold">
-                                    {thresh.lt1Pace} min/km
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ) : null}
+              {openArchivedPlans && (
+                <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
+                  {archivedPlans.length === 0 ? (
+                    <p className="text-xs text-stone-500 italic text-center py-2">
+                      Aucun plan archivé pour le moment.
+                    </p>
+                  ) : (
+                    archivedPlans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        onClick={() => setSelectedArchivedPlan(plan)}
+                        className="p-3.5 bg-stone-950 hover:bg-stone-900/80 rounded-2xl border border-stone-800 space-y-1 cursor-pointer transition shadow-md group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-xs font-black text-stone-100 uppercase group-hover:text-[#CF9A61]">
+                            {plan.name}
+                          </h4>
+                          <span className="text-[9px] font-bold bg-[#CF9A61]/20 text-[#CF9A61] border border-[#CF9A61]/30 px-2 py-0.5 rounded">
+                            {plan.targetDistance} ➔
+                          </span>
                         </div>
-                      );
-                    })()}
-
-                    <div className="pt-3 border-t border-stone-800/80 space-y-4">
-                      <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
-                        <span className="text-stone-400 font-medium">VMA Renseignée</span>
-                        <span className="font-bold text-stone-100 text-xs">
-                          {unknownVma
-                            ? "Non définie"
-                            : vma && parseFloat(vma) > 0
-                            ? `${vma} km/h • ${formatPaceFromSpeed(
-                                parseFloat(vma)
-                              )} min/km`
-                            : "-"}
-                        </span>
+                        <p className="text-[10px] text-stone-400">
+                          Période : Du {safeFormatDateFr(plan.startDate)} au{" "}
+                          {safeFormatDateFr(plan.eventDate)} ({plan.durationWeeks}{" "}
+                          sem.)
+                        </p>
                       </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. ACCORDÉON CARDIO */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenCardioSection(!openCardioSection)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    ❤️ Fréquence Cardiaque & Zones FC
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openCardioSection ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {openCardioSection && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center py-1.5 border-b border-stone-800/60 text-xs">
-                        <span className="text-stone-400">FC Repos</span>
-                        <span className="font-bold text-stone-100">
-                          {fcRest ? `${fcRest} bpm` : "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center py-1.5 text-xs">
-                        <span className="text-stone-400">FC Max</span>
-                        <span className="font-bold text-stone-100">
-                          {fcMax ? `${fcMax} bpm` : "-"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {(() => {
-                      const restNum = parseInt(fcRest, 10);
-                      const maxNum = parseInt(fcMax, 10);
-                      if (!restNum || !maxNum || maxNum <= restNum) {
-                        return (
-                          <div className="text-[10px] text-stone-400 italic bg-stone-950/80 p-3 rounded-xl border border-stone-800">
-                            Veuillez renseigner votre FC de repos et votre FC max pour calculer les zones de FC.
-                          </div>
-                        );
-                      }
-
-                      const rfc = maxNum - restNum;
-                      const zones = [
-                        {
-                          zone: "Z1",
-                          pct: "50–60 %",
-                          min: Math.round(restNum + 0.5 * rfc),
-                          max: Math.round(restNum + 0.6 * rfc),
-                          intensity: "Très facile",
-                          usage: "Échauffement, récupération",
-                          badge: "bg-[#007CC3]/20 text-[#007CC3] border-[#007CC3]/40",
-                        },
-                        {
-                          zone: "Z2",
-                          pct: "60–70 %",
-                          min: Math.round(restNum + 0.6 * rfc),
-                          max: Math.round(restNum + 0.7 * rfc),
-                          intensity: "Facile",
-                          usage: "Endurance fondamentale",
-                          badge: "bg-[#4DB380]/20 text-[#4DB380] border-[#4DB380]/40",
-                        },
-                        {
-                          zone: "Z3",
-                          pct: "70–80 %",
-                          min: Math.round(restNum + 0.7 * rfc),
-                          max: Math.round(restNum + 0.8 * rfc),
-                          intensity: "Modérée",
-                          usage: "Endurance active, allure marathon",
-                          badge: "bg-[#CDCF61]/20 text-[#CDCF61] border-[#CDCF61]/40",
-                        },
-                        {
-                          zone: "Z4",
-                          pct: "80–90 %",
-                          min: Math.round(restNum + 0.8 * rfc),
-                          max: Math.round(restNum + 0.9 * rfc),
-                          intensity: "Soutenue",
-                          usage: "Seuil, allure 10 km",
-                          badge: "bg-[#CF9A61]/20 text-[#CF9A61] border-[#CF9A61]/40",
-                        },
-                        {
-                          zone: "Z5",
-                          pct: "90–100 %",
-                          min: Math.round(restNum + 0.9 * rfc),
-                          max: Math.round(restNum + 1.0 * rfc),
-                          intensity: "Très intense",
-                          usage: "VO₂max, intervalles courts",
-                          badge: "bg-[#F8283B]/20 text-[#F8283B] border-[#F8283B]/40",
-                        },
-                      ];
-
-                      return (
-                        <div className="pt-2 border-t border-stone-800/80 space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black uppercase text-[#CF9A61] tracking-wider">
-                              Tableau des Zones FC (Karvonen)
-                            </span>
-                            <span className="text-[9px] font-bold text-stone-400 bg-stone-950 px-2 py-0.5 rounded border border-stone-800">
-                              RFC = {rfc} bpm
-                            </span>
-                          </div>
-
-                          <div className="overflow-x-auto rounded-2xl border border-stone-800">
-                            <table className="w-full text-left border-collapse text-[10px]">
-                              <thead>
-                                <tr className="bg-stone-950 text-stone-400 border-b border-stone-800 uppercase font-bold text-[9px] tracking-wider">
-                                  <th className="py-2.5 px-2.5">Zone (% RFC)</th>
-                                  <th className="py-2.5 px-2.5">FC Cible</th>
-                                  <th className="py-2.5 px-2.5">Intensité</th>
-                                  <th className="py-2.5 px-2.5">Utilisation</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-stone-800/60 bg-stone-950/60">
-                                {zones.map((z) => (
-                                  <tr key={z.zone} className="hover:bg-stone-900/40 transition">
-                                    <td className="py-2 px-2.5 font-black whitespace-nowrap">
-                                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] border font-extrabold ${z.badge}`}>
-                                        {z.zone} ({z.pct})
-                                      </span>
-                                    </td>
-                                    <td className="py-2 px-2.5 font-bold text-stone-100 whitespace-nowrap">
-                                      {z.min} - {z.max}{" "}
-                                      <span className="text-[8px] text-[#CF9A61]/90 font-bold">bpm</span>
-                                    </td>
-                                    <td className="py-2 px-2.5 font-semibold text-stone-300 whitespace-nowrap">
-                                      {z.intensity}
-                                    </td>
-                                    <td className="py-2 px-2.5 text-stone-400 text-[9.5px]">
-                                      {z.usage}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* ====== COLONNE DROITE ====== */}
-            <div className="space-y-5">
-              {/* 3. ACCORDÉON PLANS ARCHIVÉS */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenArchivedPlans(!openArchivedPlans)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    📁 Plans d'entraînement archivés ({archivedPlans.length})
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openArchivedPlans ? "▲" : "▼"}
-                  </span>
-                </button>
+            {/* APPAREILS CONNECTÉS */}
+            <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
+              <button
+                type="button"
+                onClick={() => setOpenDevicesSection(!openDevicesSection)}
+                className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  ⌚ Appareils & Montres Connectées
+                </span>
+                <span className="text-stone-400 text-xs">
+                  {openDevicesSection ? "▲" : "▼"}
+                </span>
+              </button>
 
-                {openArchivedPlans && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                    {archivedPlans.length === 0 ? (
-                      <p className="text-xs text-stone-500 italic text-center py-2">
-                        Aucun plan archivé pour le moment.
-                      </p>
-                    ) : (
-                      archivedPlans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          onClick={() => setSelectedArchivedPlan(plan)}
-                          className="p-3.5 bg-stone-950 hover:bg-stone-900/80 rounded-2xl border border-stone-800 space-y-1 cursor-pointer transition shadow-md group"
-                        >
-                          <div className="flex justify-between items-center">
-                            <h4 className="text-xs font-black text-stone-100 uppercase group-hover:text-[#CF9A61]">
-                              {plan.name}
-                            </h4>
-                            <span className="text-[9px] font-bold bg-[#CF9A61]/20 text-[#CF9A61] border border-[#CF9A61]/30 px-2 py-0.5 rounded">
-                              {plan.targetDistance} ➔
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-stone-400">
-                            Période : Du {safeFormatDateFr(plan.startDate)} au{" "}
-                            {safeFormatDateFr(plan.eventDate)} ({plan.durationWeeks}{" "}
-                            sem.)
-                          </p>
+              {openDevicesSection && (
+                <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
+                  <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
+                        <GarminLogo className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-stone-100">Garmin Connect</div>
+                        <div className="text-[10px] text-stone-400 font-medium">
+                          {isGarminLinked && garminEmail ? garminEmail : "Forerunner, Fenix, Enduro"}
                         </div>
-                      ))
-                    )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => {
+                        if (isGarminLinked) handleGarminDisconnect();
+                        else setShowGarminModal(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                        isGarminLinked
+                          ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                          : "bg-[#007CC3] hover:bg-[#006bb3] border-[#007CC3] text-white"
+                      }`}
+                    >
+                      {isGarminLinked ? "Déconnecter" : "Connecter"}
+                    </button>
                   </div>
-                )}
-              </div>
 
-              {/* 4. ACCORDÉON APPAREILS CONNECTÉS */}
-              <div className="bg-stone-900/60 border border-stone-800 rounded-3xl overflow-hidden shadow-md transition-all">
-                <button
-                  type="button"
-                  onClick={() => setOpenDevicesSection(!openDevicesSection)}
-                  className="w-full p-5 text-left font-bold text-xs uppercase tracking-wider text-stone-100 flex justify-between items-center bg-stone-900/80 hover:bg-stone-850 transition cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    ⌚ Appareils & Montres Connectées
-                  </span>
-                  <span className="text-stone-400 text-xs">
-                    {openDevicesSection ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {openDevicesSection && (
-                  <div className="p-5 pt-3 border-t border-stone-800/60 space-y-3">
-                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center shadow-md shrink-0">
-                          <GarminLogo className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-100">
-                            Garmin Connect
-                          </div>
-                          <div className="text-[10px] text-stone-400 font-medium">
-                            {isGarminLinked && garminEmail
-                              ? garminEmail
-                              : "Forerunner, Fenix, Enduro"}
-                          </div>
+                  <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
+                        <CorosLogo className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-stone-100">COROS Training Hub</div>
+                        <div className="text-[10px] text-stone-400 font-medium">
+                          {isCorosLinked && corosEmail ? corosEmail : "Pace, Apex, Vertix"}
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => {
-                          if (isGarminLinked) {
-                            handleGarminDisconnect();
-                          } else {
-                            setShowGarminModal(true);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                          isGarminLinked
-                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                            : "bg-[#007CC3] hover:bg-[#006bb3] border-[#007CC3] text-white"
-                        }`}
-                      >
-                        {isGarminLinked ? "Déconnecter" : "Connecter"}
-                      </button>
                     </div>
-
-                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-[#F8283B]/10 border border-[#F8283B]/30 flex items-center justify-center shadow-md shrink-0">
-                          <CorosLogo className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-100">
-                            COROS Training Hub
-                          </div>
-                          <div className="text-[10px] text-stone-400 font-medium">
-                            {isCorosLinked && corosEmail
-                              ? corosEmail
-                              : "Pace, Apex, Vertix"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => {
-                          if (isCorosLinked) {
-                            handleCorosDisconnect();
-                          } else {
-                            setShowCorosModal(true);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                          isCorosLinked
-                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                            : "bg-[#F8283B] hover:bg-[#d61e30] border-[#F8283B] text-white"
-                        }`}
-                      >
-                        {isCorosLinked ? "Déconnecter" : "Connecter"}
-                      </button>
-                    </div>
-
-                    <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
-                          <StravaLogo className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-100">
-                            Strava Sync
-                          </div>
-                          <div className="text-[10px] text-stone-400 font-medium">
-                            {isStravaLinked
-                              ? stravaEmail || "Synchronisation active"
-                              : "Historique et traces GPS"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => {
-                          if (isStravaLinked) {
-                            handleStravaDisconnect();
-                          } else {
-                            setShowStravaModal(true);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                          isStravaLinked
-                            ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
-                            : "bg-[#FC5200] hover:bg-[#e04900] border-[#FC5200] text-white"
-                        }`}
-                      >
-                        {isStravaLinked ? "Déconnecter" : "Connecter"}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => {
+                        if (isCorosLinked) handleCorosDisconnect();
+                        else setShowCorosModal(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                        isCorosLinked
+                          ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                          : "bg-[#F8283B] hover:bg-[#d61e30] border-[#F8283B] text-white"
+                      }`}
+                    >
+                      {isCorosLinked ? "Déconnecter" : "Connecter"}
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#FC5200]/10 border border-[#FC5200]/30 flex items-center justify-center shadow-md shrink-0">
+                        <StravaLogo className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-stone-100">Strava Sync</div>
+                        <div className="text-[10px] text-stone-400 font-medium">
+                          {isStravaLinked ? stravaEmail || "Synchronisation active" : "Historique et traces GPS"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      onClick={() => {
+                        if (isStravaLinked) handleStravaDisconnect();
+                        else setShowStravaModal(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition border shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                        isStravaLinked
+                          ? "bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200"
+                          : "bg-[#FC5200] hover:bg-[#e04900] border-[#FC5200] text-white"
+                      }`}
+                    >
+                      {isStravaLinked ? "Déconnecter" : "Connecter"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
