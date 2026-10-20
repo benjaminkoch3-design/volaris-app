@@ -46,6 +46,8 @@ import { RecordsPageView } from "../components/profile/RecordsPageView";
 import { PersonalBestsPageView } from "../components/profile/PersonalBestsPageView";
 import { ShoesPageView } from "../components/profile/ShoesPageView";
 import { PhysiologyPageView } from "../components/profile/PhysiologyPageView";
+import { ArchivedPlansPageView } from "../components/profile/ArchivedPlansPageView";
+import { ConnectedDevicesPageView } from "../components/profile/ConnectedDevicesPageView";
 import { AthleteWorkoutLibraryView } from "../components/profile/AthleteWorkoutLibraryView";
 
 // Home & Workouts
@@ -241,11 +243,15 @@ export default function Home() {
     setLoadingAuth(false);
   };
 
+  // Sous-pages de l'onglet Profil
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
-  const [showRecordsPage, setShowRecordsPage] = useState(false);
-  const [showPersonalBestsPage, setShowPersonalBestsPage] = useState(false);
-  const [showShoesPage, setShowShoesPage] = useState(false);
   const [showPhysiologyPage, setShowPhysiologyPage] = useState(false);
+  const [showPersonalBestsPage, setShowPersonalBestsPage] = useState(false);
+  const [showRecordsPage, setShowRecordsPage] = useState(false);
+  const [showShoesPage, setShowShoesPage] = useState(false);
+  const [showArchivedPlansPage, setShowArchivedPlansPage] = useState(false);
+  const [showConnectedDevicesPage, setShowConnectedDevicesPage] = useState(false);
+
   const [inspectingAthleteId, setInspectingAthleteId] = useState<string | null>(null);
   const [managedAthletes, setManagedAthletes] = useState<AthleteProfile[]>([]);
   const isCoachInspecting = userRole === "coach" && inspectingAthleteId !== null;
@@ -332,10 +338,7 @@ export default function Home() {
     setCustomCategories((prev) =>
       prev.map((c) => (c.id === catId ? { ...c, label: newLabel } : c))
     );
-    await supabase
-      .from("library_categories")
-      .update({ label: newLabel })
-      .eq("id", catId);
+    await supabase.from("library_categories").update({ label: newLabel }).eq("id", catId);
   };
 
   const handleMoveCategory = async (catId: string, direction: "left" | "right") => {
@@ -2413,20 +2416,17 @@ export default function Home() {
   const getTodayWorkouts = (plan: Plan | null) => {
     if (!plan || !plan.startDate) return [];
 
-    // Date locale au format YYYY-MM-DD
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const day = String(now.getDate()).padStart(2, "0");
     const todayStr = safeFormatDateFr(`${year}-${month}-${day}`);
 
-    // 1. Recherche par date exacte
     const exactMatches = plan.workouts.filter(
       (w) => getExactDayDate(plan.startDate, w.weekNumber, w.dayIndex) === todayStr
     );
     if (exactMatches.length > 0) return exactMatches;
 
-    // 2. Fallback calendrier (Semaine courante + Index Lundi=0 -> Dimanche=6)
     const currentWeek = getCurrentWeekNumber(plan.startDate, String(plan.durationWeeks || "12"));
     const jsDay = now.getDay();
     const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
@@ -2570,32 +2570,32 @@ export default function Home() {
   }
 
   if (editingWorkoutId) {
-    const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
-    if (!workout) {
-      setEditingWorkoutId(null);
-      return null;
-    }
+      const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
+      if (!workout) {
+        setEditingWorkoutId(null);
+        return null;
+      }
 
-    return (
-      <WorkoutEditor
-        workout={workout}
-        startDate={newPlanForm.startDate}
-        onClose={() => setEditingWorkoutId(null)}
-        onUpdateWorkout={handleUpdateDraftWorkout}
-        onAddStep={handleAddStepToWorkout}
-        onUpdateStep={handleUpdateStepInWorkout}
-        onDeleteStep={handleDeleteStepInWorkout}
-        onMoveStep={handleMoveStepInWorkout}
-        onDropStep={handleDropStepInWorkout}
-        draggedStepPath={draggedStepPath}
-        setDraggedStepPath={setDraggedStepPath}
-        libraryWorkouts={libraryWorkouts}
-        categories={customCategories}
-        userRole={userRole}
-        vma={currentAthleteVma}
-      />
-    );
-  }
+      return (
+        <WorkoutEditor
+          workout={workout}
+          startDate={newPlanForm.startDate}
+          onClose={() => setEditingWorkoutId(null)}
+          onUpdateWorkout={handleUpdateDraftWorkout} // ✅ Corrigé
+          onAddStep={handleAddStepToWorkout}
+          onUpdateStep={handleUpdateStepInWorkout}
+          onDeleteStep={handleDeleteStepInWorkout}
+          onMoveStep={handleMoveStepInWorkout}
+          onDropStep={handleDropStepInWorkout}
+          draggedStepPath={draggedStepPath}
+          setDraggedStepPath={setDraggedStepPath}
+          libraryWorkouts={libraryWorkouts}
+          categories={customCategories}
+          userRole={userRole}
+          vma={currentAthleteVma}
+        />
+      );
+    }
 
   if (selectedWorkoutDetail && activePlan) {
     return (
@@ -3006,16 +3006,16 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS LES 4 SOUS-PAGES DÉDIÉES) */}
+            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS LES 6 SOUS-PAGES DÉDIÉES) */}
             {activeTab === "profil" && !showAthleteLibrary && (
-              showRecordsPage ? (
-                <RecordsPageView
-                  races={races}
-                  onBack={() => setShowRecordsPage(false)}
-                  onAddRace={handleAddRace}
-                  onUpdateRace={handleUpdateRace}
-                  onDeleteRace={handleDeleteRace}
-                  isReadOnly={isCoachInspecting}
+              showPhysiologyPage ? (
+                <PhysiologyPageView
+                  vma={vma}
+                  unknownVma={unknownVma}
+                  fcRest={fcRest}
+                  fcMax={fcMax}
+                  records={records}
+                  onBack={() => setShowPhysiologyPage(false)}
                 />
               ) : showPersonalBestsPage ? (
                 <PersonalBestsPageView
@@ -3026,6 +3026,15 @@ export default function Home() {
                     setShowRecordsPage(true);
                   }}
                 />
+              ) : showRecordsPage ? (
+                <RecordsPageView
+                  races={races}
+                  onBack={() => setShowRecordsPage(false)}
+                  onAddRace={handleAddRace}
+                  onUpdateRace={handleUpdateRace}
+                  onDeleteRace={handleDeleteRace}
+                  isReadOnly={isCoachInspecting}
+                />
               ) : showShoesPage ? (
                 <ShoesPageView
                   shoes={shoes}
@@ -3035,14 +3044,17 @@ export default function Home() {
                   onToggleActiveShoe={handleToggleActiveShoe}
                   isReadOnly={isCoachInspecting}
                 />
-              ) : showPhysiologyPage ? (
-                <PhysiologyPageView
-                  vma={vma}
-                  unknownVma={unknownVma}
-                  fcRest={fcRest}
-                  fcMax={fcMax}
-                  records={records}
-                  onBack={() => setShowPhysiologyPage(false)}
+              ) : showArchivedPlansPage ? (
+                <ArchivedPlansPageView
+                  archivedPlans={archivedPlans}
+                  onBack={() => setShowArchivedPlansPage(false)}
+                />
+              ) : showConnectedDevicesPage ? (
+                <ConnectedDevicesPageView
+                  connectedDevices={connectedDevices}
+                  toggleDeviceConnection={toggleDeviceConnection}
+                  onBack={() => setShowConnectedDevicesPage(false)}
+                  isReadOnly={isCoachInspecting}
                 />
               ) : (
                 <ProfileView
@@ -3112,10 +3124,12 @@ export default function Home() {
                   archivedPlans={archivedPlans}
                   shoes={shoes}
                   onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
-                  onOpenRecordsPage={() => setShowRecordsPage(true)}
-                  onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
-                  onOpenShoesPage={() => setShowShoesPage(true)}
                   onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
+                  onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
+                  onOpenRecordsPage={() => setShowRecordsPage(true)}
+                  onOpenShoesPage={() => setShowShoesPage(true)}
+                  onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
+                  onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
                   isReadOnly={isCoachInspecting}
                 />
               )
@@ -3133,10 +3147,12 @@ export default function Home() {
           setScreen("app");
           changeActiveTab(tab);
           setShowAthleteLibrary(false);
-          setShowRecordsPage(false);
-          setShowPersonalBestsPage(false);
-          setShowShoesPage(false);
           setShowPhysiologyPage(false);
+          setShowPersonalBestsPage(false);
+          setShowRecordsPage(false);
+          setShowShoesPage(false);
+          setShowArchivedPlansPage(false);
+          setShowConnectedDevicesPage(false);
         }}
       />
     </main>
