@@ -777,6 +777,26 @@ export default function Home() {
     changeActiveTab("plan");
   };
 
+  // Suppression définitive d'un plan (depuis les plans archivés)
+  const handleDeleteSpecificPlan = async (planId: string) => {
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
+    if (!targetUserId) return;
+
+    await supabase.from("plans").delete().eq("id", planId);
+
+    setArchivedPlans((prev) => prev.filter((p) => p.id !== planId));
+    if (activePlan?.id === planId) {
+      setActivePlan(null);
+    }
+
+    if (userRole === "coach") {
+      setAllCoachAthletesPlans((prev) => prev.filter((p) => p.id !== planId));
+      setAllCoachAthletesWorkouts((prev) =>
+        prev.filter((w) => (w.planId || (w as any).plan_id) !== planId)
+      );
+    }
+  };
+
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
 
@@ -1718,6 +1738,7 @@ export default function Home() {
     setScreen("landing");
   };
 
+  // Archive le plan courant SANS imposer l'écran de création
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -3200,6 +3221,7 @@ export default function Home() {
                   archivedPlans={archivedPlans}
                   onBack={() => setShowArchivedPlansPage(false)}
                   onActivatePlan={handleSwitchActivePlan}
+                  onDeletePlan={handleDeleteSpecificPlan}
                 />
               ) : showConnectedDevicesPage ? (
                 <ConnectedDevicesPageView

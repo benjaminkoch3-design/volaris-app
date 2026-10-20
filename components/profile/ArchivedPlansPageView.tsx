@@ -7,12 +7,14 @@ interface ArchivedPlansPageViewProps {
   archivedPlans: Plan[];
   onBack: () => void;
   onActivatePlan?: (plan: Plan) => void;
+  onDeletePlan?: (planId: string) => void;
 }
 
 export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
   archivedPlans,
   onBack,
   onActivatePlan,
+  onDeletePlan,
 }) => {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
@@ -21,6 +23,15 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
       onActivatePlan(plan);
       setSelectedPlan(null);
       onBack();
+    }
+  };
+
+  const handleDelete = (planId: string, planName: string) => {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement le plan "${planName}" ? Cette action est irréversible.`)) {
+      if (onDeletePlan) {
+        onDeletePlan(planId);
+      }
+      setSelectedPlan(null);
     }
   };
 
@@ -84,14 +95,14 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
 
               <div className="flex items-center justify-between pt-2 border-t border-stone-800/80 text-[11px] text-stone-500">
                 <span>{plan.workouts?.length || 0} séance(s)</span>
-                <span className="text-[#CF9A61] font-bold group-hover:translate-x-0.5 transition">Consulter & Réactiver ➔</span>
+                <span className="text-[#CF9A61] font-bold group-hover:translate-x-0.5 transition">Consulter / Gérer ➔</span>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* MODALE DÉTAIL & RÉACTIVATION */}
+      {/* MODALE DÉTAIL, RÉACTIVATION & SUPPRESSION */}
       {selectedPlan && (
         <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl my-auto max-h-[85vh] overflow-y-auto custom-scrollbar">
@@ -134,7 +145,7 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
               <span className="text-[10px] font-black uppercase text-stone-300 tracking-wider block">
                 Contenu du Programme ({selectedPlan.workouts?.length || 0} séance(s))
               </span>
-              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+              <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
                 {selectedPlan.workouts?.map((w, idx) => (
                   <div
                     key={w.id || idx}
@@ -157,21 +168,34 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedPlan(null)}
-                className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
-              >
-                Fermer
-              </button>
-              {onActivatePlan && (
+            {/* ACTIONS : FERMER, RÉACTIVER & SUPPRIMER */}
+            <div className="space-y-2 pt-2 border-t border-stone-800">
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => handleActivate(selectedPlan)}
-                  className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl transition cursor-pointer shadow-lg"
+                  onClick={() => setSelectedPlan(null)}
+                  className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
                 >
-                  ⚡ Activer ce plan
+                  Fermer
+                </button>
+                {onActivatePlan && (
+                  <button
+                    type="button"
+                    onClick={() => handleActivate(selectedPlan)}
+                    className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl transition cursor-pointer shadow-lg"
+                  >
+                    ⚡ Activer
+                  </button>
+                )}
+              </div>
+
+              {onDeletePlan && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(selectedPlan.id, selectedPlan.name)}
+                  className="w-full py-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 hover:border-rose-600 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>🗑️ Supprimer définitivement ce plan</span>
                 </button>
               )}
             </div>
