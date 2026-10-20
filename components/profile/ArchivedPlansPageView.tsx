@@ -6,13 +6,23 @@ import { safeFormatDateFr } from "../../utils/calculations";
 interface ArchivedPlansPageViewProps {
   archivedPlans: Plan[];
   onBack: () => void;
+  onActivatePlan?: (plan: Plan) => void;
 }
 
 export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
   archivedPlans,
   onBack,
+  onActivatePlan,
 }) => {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+
+  const handleActivate = (plan: Plan) => {
+    if (onActivatePlan) {
+      onActivatePlan(plan);
+      setSelectedPlan(null);
+      onBack();
+    }
+  };
 
   return (
     <div className="space-y-6 w-full font-sans animate-fadeIn pb-12">
@@ -74,14 +84,14 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
 
               <div className="flex items-center justify-between pt-2 border-t border-stone-800/80 text-[11px] text-stone-500">
                 <span>{plan.workouts?.length || 0} séance(s)</span>
-                <span className="text-[#CF9A61] font-bold group-hover:translate-x-0.5 transition">Consulter le détail ➔</span>
+                <span className="text-[#CF9A61] font-bold group-hover:translate-x-0.5 transition">Consulter & Réactiver ➔</span>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* MODALE DÉTAIL D'UN PLAN */}
+      {/* MODALE DÉTAIL & RÉACTIVATION */}
       {selectedPlan && (
         <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl my-auto max-h-[85vh] overflow-y-auto custom-scrollbar">
@@ -147,13 +157,24 @@ export const ArchivedPlansPageView: React.FC<ArchivedPlansPageViewProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSelectedPlan(null)}
-              className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
-            >
-              Fermer
-            </button>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPlan(null)}
+                className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
+              >
+                Fermer
+              </button>
+              {onActivatePlan && (
+                <button
+                  type="button"
+                  onClick={() => handleActivate(selectedPlan)}
+                  className="flex-1 py-3 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl transition cursor-pointer shadow-lg"
+                >
+                  ⚡ Activer ce plan
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -79,7 +79,6 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
   
-  // Récupération de l'onglet précédent sauvegardé
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
@@ -569,7 +568,6 @@ export default function Home() {
             timestamp: newRow.timestamp,
           };
 
-          // Isolation : ignorer les messages qui ne concernent pas le binôme actuel
           if (userRole === "athlete" && incomingMsg.coachId !== assignedCoachId) {
             return;
           }
@@ -644,7 +642,6 @@ export default function Home() {
         .update({ coach_id: coachId, custom_coach_name: coachNameStr })
         .eq("id", session.user.id);
 
-      // Rechargement immédiat de l'historique de conversation propre à ce nouveau coach
       const { data: msgsData } = await supabase
         .from("messages")
         .select("*")
@@ -704,7 +701,7 @@ export default function Home() {
     setAssignedCoachId(null);
     setAssignedCoachName("Coach");
     setAssignedCoachAvatar(undefined);
-    setMessages([]); // Réinitialisation de l'historique affiché
+    setMessages([]);
 
     await supabase
       .from("profiles")
@@ -734,6 +731,50 @@ export default function Home() {
   const [planCreationStep, setPlanCreationStep] = useState<1 | 2>(1);
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
+
+  // Bascule instantanée entre deux plans (réactivation ou permutation)
+  const handleSwitchActivePlan = async (targetPlan: Plan) => {
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
+    if (!targetUserId) return;
+
+    // 1. Mettre à jour en base : tous les plans de l'utilisateur passent inactifs
+    await supabase
+      .from("plans")
+      .update({ is_active: false, is_archived: true })
+      .eq("user_id", targetUserId);
+
+    // 2. Activer le plan ciblé
+    await supabase
+      .from("plans")
+      .update({ is_active: true, is_archived: false })
+      .eq("id", targetPlan.id);
+
+    // 3. Mettre à jour l'état local
+    const newlyActivatedPlan: Plan = {
+      ...targetPlan,
+      isActive: true,
+      isArchived: false,
+    };
+
+    setArchivedPlans((prev) => {
+      const filtered = prev.filter((p) => p.id !== targetPlan.id);
+      if (activePlan) {
+        return [{ ...activePlan, isActive: false, isArchived: true }, ...filtered];
+      }
+      return filtered;
+    });
+
+    setActivePlan(newlyActivatedPlan);
+    setGoal(newlyActivatedPlan.targetDistance);
+
+    const currentWNum = getCurrentWeekNumber(
+      newlyActivatedPlan.startDate,
+      newlyActivatedPlan.durationWeeks || "12"
+    );
+    setSelectedPlanWeek(currentWNum);
+    setOpenWeeks({ [currentWNum]: true });
+    changeActiveTab("plan");
+  };
 
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
@@ -779,7 +820,6 @@ export default function Home() {
           .select("*")
           .in("user_id", athleteIds);
 
-        // Récupération uniquement des messages liés au coach connecté
         const { data: coachMsgsData } = await supabase
           .from("messages")
           .select("*")
@@ -1133,7 +1173,7 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DU PLAN ET DES SÉANCES
+      // CHARGEMENT DES PLANS ET SÉANCES
       const { data: plansData } = await supabase
         .from("plans")
         .select("*")
@@ -1188,7 +1228,7 @@ export default function Home() {
 
       if (plansData && plansData.length > 0) {
         const activePlanDb = plansData.find((p: any) => p.is_active && !p.is_archived);
-        const archivedPlansDb = plansData.filter((p: any) => p.is_archived);
+        const archivedPlansDb = plansData.filter((p: any) => !p.is_active || p.is_archived);
 
         if (activePlanDb) {
           const planWorkouts = formatWorkoutsList(
@@ -1677,10 +1717,12 @@ export default function Home() {
     setScreen("landing");
   };
 
+  // Archive le plan courant SANS imposer l'écran de création
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
-      setArchivedPlans([{ ...activePlan }, ...archivedPlans]);
+      const archived = { ...activePlan, isActive: false, isArchived: true };
+      setArchivedPlans([archived, ...archivedPlans]);
       setActivePlan(null);
 
       await supabase.from("plans").update({
@@ -1688,8 +1730,6 @@ export default function Home() {
         is_archived: true,
       }).eq("id", activePlan.id);
     }
-    setIsCreatingPlan(true);
-    setPlanCreationStep(1);
     setShowDeletePlanModal(false);
   };
 
@@ -1698,8 +1738,6 @@ export default function Home() {
       await supabase.from("plans").delete().eq("id", activePlan.id);
       setActivePlan(null);
     }
-    setIsCreatingPlan(true);
-    setPlanCreationStep(1);
     setShowDeletePlanModal(false);
   };
 
@@ -2191,12 +2229,20 @@ export default function Home() {
       formattedDistance = `${dist}${elev}`;
     }
 
-    const planId = activePlan ? activePlan.id : `plan_${Date.now()}`;
+    const planId = `plan_${Date.now()}`;
 
-    await supabase
-      .from("plans")
-      .update({ is_active: false })
-      .eq("user_id", targetUserId);
+    // Le plan existant devient archivé
+    if (activePlan) {
+      await supabase
+        .from("plans")
+        .update({ is_active: false, is_archived: true })
+        .eq("id", activePlan.id);
+
+      setArchivedPlans((prev) => [
+        { ...activePlan, isActive: false, isArchived: true },
+        ...prev.filter((p) => p.id !== activePlan.id),
+      ]);
+    }
 
     const { error: planError } = await supabase.from("plans").upsert({
       id: planId,
@@ -2254,16 +2300,6 @@ export default function Home() {
       console.error("❌ Erreur sauvegarde séances :", workoutsError.message);
       alert(`Erreur de sauvegarde des séances : ${workoutsError.message}`);
       return;
-    }
-
-    const currentWorkoutIds = workoutsPayload.map((w) => w.id);
-    if (currentWorkoutIds.length > 0) {
-      const idListStr = `(${currentWorkoutIds.map((id) => `"${id}"`).join(",")})`;
-      await supabase
-        .from("workouts")
-        .delete()
-        .eq("plan_id", planId)
-        .not("id", "in", idListStr);
     }
 
     const createdPlan: Plan = {
@@ -2923,23 +2959,72 @@ export default function Home() {
             {/* 2. PLAN */}
             {activeTab === "plan" && (
               <div className="space-y-6 animate-fadeIn">
-                {activePlan && !isCreatingPlan && (
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <button
-                      onClick={navigateToPlanStats}
-                      className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
-                    >
-                      <span>📊 Évolution Volume & Charge</span>
-                    </button>
+                {/* BARRE D'ACTION & SÉLECTEUR DE PLAN EN PARALLÈLE */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Sélecteur de basculement entre plans existants */}
+                    {(activePlan || archivedPlans.length > 0) && (
+                      <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
+                        <span className="text-[10px] font-bold uppercase text-[#CF9A61]">Plan :</span>
+                        <select
+                          value={activePlan?.id || ""}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            if (selectedId === activePlan?.id) return;
+                            const target = archivedPlans.find((p) => p.id === selectedId);
+                            if (target) handleSwitchActivePlan(target);
+                          }}
+                          className="bg-stone-950 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
+                        >
+                          {activePlan && (
+                            <option value={activePlan.id}>
+                              {activePlan.name} (Actif)
+                            </option>
+                          )}
+                          {archivedPlans.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                    <button
-                      onClick={() => setShowDeletePlanModal(true)}
-                      className="text-[10px] font-bold text-stone-400 hover:text-stone-200 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
-                    >
-                      ➕ Nouveau plan
-                    </button>
+                    {activePlan && !isCreatingPlan && (
+                      <button
+                        onClick={navigateToPlanStats}
+                        className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
+                      >
+                        <span>📊 Volume</span>
+                      </button>
+                    )}
                   </div>
-                )}
+
+                  {!isCreatingPlan && (
+                    <button
+                      onClick={() => {
+                        setDraftWorkouts([]);
+                        setDraftWeekTypes({});
+                        setNewPlanForm({
+                          name: "",
+                          raceCategory: "route",
+                          roadPreset: "10 km",
+                          trackPreset: "5 000 m",
+                          customDistance: "",
+                          targetTime: "",
+                          elevationGain: "",
+                          startDate: new Date().toISOString().split("T")[0],
+                          eventDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+                        });
+                        setIsCreatingPlan(true);
+                        setPlanCreationStep(1);
+                      }}
+                      className="text-[10px] font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-3.5 py-2 rounded-xl transition cursor-pointer shadow-md"
+                    >
+                      ➕ Créer un plan en parallèle
+                    </button>
+                  )}
+                </div>
 
                 {!activePlan && !isCreatingPlan && (
                   <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-xl">
@@ -2948,10 +3033,12 @@ export default function Home() {
                     </div>
                     <div>
                       <h3 className="text-lg font-black uppercase text-stone-100">
-                        Aucun plan en cours
+                        Aucun plan actif
                       </h3>
                       <p className="text-xs text-stone-400 mt-1 leading-relaxed">
-                        {userRole === "coach"
+                        {archivedPlans.length > 0
+                          ? "Sélectionnez un plan dans le menu déroulant ci-dessus ou créez un nouveau plan."
+                          : userRole === "coach"
                           ? `Créez le programme personnalisé pour ${selectedAthlete?.name || "votre athlète"}.`
                           : "Créez votre programme personnalisé étape par étape pour atteindre votre objectif."}
                       </p>
@@ -3056,7 +3143,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL (AVEC SOUS-ROUTAGE VERS LES 6 SOUS-PAGES DÉDIÉES) */}
+            {/* 5. PROFIL */}
             {activeTab === "profil" && !showAthleteLibrary && (
               showPhysiologyPage ? (
                 <PhysiologyPageView
@@ -3098,6 +3185,7 @@ export default function Home() {
                 <ArchivedPlansPageView
                   archivedPlans={archivedPlans}
                   onBack={() => setShowArchivedPlansPage(false)}
+                  onActivatePlan={handleSwitchActivePlan}
                 />
               ) : showConnectedDevicesPage ? (
                 <ConnectedDevicesPageView
