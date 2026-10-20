@@ -777,7 +777,7 @@ export default function Home() {
     changeActiveTab("plan");
   };
 
-  // Suppression définitive d'un plan (depuis les plans archivés)
+  // Suppression définitive d'un plan (depuis les plans archivés ou actifs)
   const handleDeleteSpecificPlan = async (planId: string) => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
@@ -1209,42 +1209,48 @@ export default function Home() {
       const completedMap: Record<string, boolean> = {};
 
       const formatWorkoutsList = (wData: any[]): Workout[] => {
-        return (wData || []).map((w: any) => {
-          const isCompleted = Boolean(
-            w.completed_rpe !== null || 
-            w.completed_km !== null || 
-            w.imported_activity_name !== null
-          );
-          if (isCompleted) {
-            completedMap[w.id] = true;
-          }
-          return {
-            id: w.id,
-            planId: w.plan_id,
-            userId: w.user_id,
-            weekNumber: w.week_number,
-            dayIndex: w.dayIndex ?? w.day_index,
-            dayName: w.day_name,
-            sessionName: w.session_name,
-            isRest: Boolean(w.is_rest),
-            type: w.type,
-            title: w.title,
-            description: w.description || "",
-            km: w.km || "",
-            rpe: w.rpe || "",
-            remark: w.remark || "",
-            steps: Array.isArray(w.steps) ? w.steps : [],
-            completed: isCompleted,
-            completedRpe: w.completed_rpe,
-            athleteComment: w.athlete_comment,
-            shoeId: w.shoe_id,
-            completedKm: w.completed_km,
-            completedTimeMinutes: w.completed_time_minutes,
-            completedElevationGain: w.completed_elevation_gain,
-            importedActivityName: w.imported_activity_name,
-            activityTelemetry: w.activity_telemetry || null,
-          };
-        });
+        return (wData || [])
+          .map((w: any) => {
+            const isCompleted = Boolean(
+              w.completed_rpe !== null || 
+              w.completed_km !== null || 
+              w.imported_activity_name !== null
+            );
+            if (isCompleted) {
+              completedMap[w.id] = true;
+            }
+            return {
+              id: w.id,
+              planId: w.plan_id,
+              userId: w.user_id,
+              weekNumber: Number(w.week_number ?? w.weekNumber ?? 1),
+              dayIndex: Number(w.day_index ?? w.dayIndex ?? 0),
+              dayName: w.day_name,
+              sessionName: w.session_name,
+              isRest: Boolean(w.is_rest),
+              type: w.type,
+              title: w.title,
+              description: w.description || "",
+              km: w.km || "",
+              rpe: w.rpe || "",
+              remark: w.remark || "",
+              steps: Array.isArray(w.steps) ? w.steps : [],
+              completed: isCompleted,
+              completedRpe: w.completed_rpe,
+              athleteComment: w.athlete_comment,
+              shoeId: w.shoe_id,
+              completedKm: w.completed_km,
+              completedTimeMinutes: w.completed_time_minutes,
+              completedElevationGain: w.completed_elevation_gain,
+              importedActivityName: w.imported_activity_name,
+              activityTelemetry: w.activity_telemetry || null,
+            };
+          })
+          // Tri chronologique strict : semaine croissante puis index du jour
+          .sort((a, b) => {
+            if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+            return a.dayIndex - b.dayIndex;
+          });
       };
 
       if (plansData && plansData.length > 0) {
@@ -1337,22 +1343,27 @@ export default function Home() {
               if (!prevPlan) return prevPlan;
               return {
                 ...prevPlan,
-                workouts: prevPlan.workouts.map((w) =>
-                  w.id === updated.id
-                    ? {
-                        ...w,
-                        weekNumber: updated.week_number ?? w.weekNumber,
-                        dayIndex: updated.day_index ?? w.dayIndex,
-                        dayName: updated.day_name ?? w.dayName,
-                        title: updated.title ?? w.title,
-                        km: updated.km ?? w.km,
-                        type: updated.type ?? w.type,
-                        description: updated.description ?? w.description,
-                        rpe: updated.rpe ?? w.rpe,
-                        steps: Array.isArray(updated.steps) ? updated.steps : w.steps,
-                      }
-                    : w
-                ),
+                workouts: prevPlan.workouts
+                  .map((w) =>
+                    w.id === updated.id
+                      ? {
+                          ...w,
+                          weekNumber: Number(updated.week_number ?? w.weekNumber),
+                          dayIndex: Number(updated.day_index ?? w.dayIndex),
+                          dayName: updated.day_name ?? w.dayName,
+                          title: updated.title ?? w.title,
+                          km: updated.km ?? w.km,
+                          type: updated.type ?? w.type,
+                          description: updated.description ?? w.description,
+                          rpe: updated.rpe ?? w.rpe,
+                          steps: Array.isArray(updated.steps) ? updated.steps : w.steps,
+                        }
+                      : w
+                  )
+                  .sort((a, b) => {
+                    if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+                    return a.dayIndex - b.dayIndex;
+                  }),
               };
             });
           }
@@ -1911,17 +1922,22 @@ export default function Home() {
 
     const targetDayName = DAYS_LIST_FR[targetDayIndex];
 
-    const updatedWorkouts = activePlan.workouts.map((w) => {
-      if (w.id === workoutId) {
-        return {
-          ...w,
-          weekNumber: targetWeekNumber,
-          dayIndex: targetDayIndex,
-          dayName: targetDayName,
-        };
-      }
-      return w;
-    });
+    const updatedWorkouts = activePlan.workouts
+      .map((w) => {
+        if (w.id === workoutId) {
+          return {
+            ...w,
+            weekNumber: targetWeekNumber,
+            dayIndex: targetDayIndex,
+            dayName: targetDayName,
+          };
+        }
+        return w;
+      })
+      .sort((a, b) => {
+        if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+        return a.dayIndex - b.dayIndex;
+      });
 
     setActivePlan({
       ...activePlan,
@@ -2847,16 +2863,20 @@ export default function Home() {
                   const planSpecificWorkouts = (allUserWorkouts || [])
                     .filter((w: any) => w.plan_id === planData.id)
                     .sort((a: any, b: any) => {
-                      if (a.week_number !== b.week_number) return a.week_number - b.week_number;
-                      return a.day_index - b.day_index;
+                      const wA = Number(a.week_number ?? a.weekNumber ?? 1);
+                      const wB = Number(b.week_number ?? b.weekNumber ?? 1);
+                      if (wA !== wB) return wA - wB;
+                      const dA = Number(a.day_index ?? a.dayIndex ?? 0);
+                      const dB = Number(b.day_index ?? b.dayIndex ?? 0);
+                      return dA - dB;
                     });
 
                   const freshWorkouts: Workout[] = planSpecificWorkouts.map((w: any) => ({
                     id: w.id,
                     planId: w.plan_id,
                     userId: w.user_id,
-                    weekNumber: w.week_number,
-                    dayIndex: w.day_index,
+                    weekNumber: Number(w.week_number ?? w.weekNumber ?? 1),
+                    dayIndex: Number(w.day_index ?? w.dayIndex ?? 0),
                     dayName: w.day_name,
                     sessionName: w.session_name,
                     isRest: Boolean(w.is_rest),
@@ -3222,6 +3242,7 @@ export default function Home() {
                   onBack={() => setShowArchivedPlansPage(false)}
                   onActivatePlan={handleSwitchActivePlan}
                   onDeletePlan={handleDeleteSpecificPlan}
+                  onSelectWorkoutDetail={setSelectedWorkoutDetail}
                 />
               ) : showConnectedDevicesPage ? (
                 <ConnectedDevicesPageView
