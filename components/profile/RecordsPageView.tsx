@@ -14,18 +14,18 @@ interface RecordsPageViewProps {
   isReadOnly?: boolean;
 }
 
-type StandardDistanceCategory = "5 km" | "10 km" | "Semi-Marathon" | "Marathon" | "Autres Distances";
+type StandardDistanceCategory = "5 km" | "10 km" | "Semi-Marathon" | "Marathon" | "Autres distances";
 
-const CATEGORY_TABS: { key: "all" | "route" | "piste" | "trail" | "nature"; label: string; icon: string }[] = [
-  { key: "all", label: "Toutes", icon: "🌐" },
-  { key: "route", label: "Route", icon: "🛣️" },
-  { key: "piste", label: "Piste", icon: "🏟️" },
-  { key: "trail", label: "Trail", icon: "⛰️" },
-  { key: "nature", label: "Nature & Cross", icon: "🌲" },
+const CATEGORY_TABS: { key: "all" | "route" | "piste" | "trail" | "nature"; label: string }[] = [
+  { key: "all", label: "Toutes les épreuves" },
+  { key: "route", label: "Route" },
+  { key: "piste", label: "Piste" },
+  { key: "trail", label: "Trail" },
+  { key: "nature", label: "Course nature" },
 ];
 
 const getStandardDistanceCategory = (distanceStr: string): StandardDistanceCategory => {
-  if (!distanceStr) return "Autres Distances";
+  if (!distanceStr) return "Autres distances";
   const meters = parseDistanceTextToMeters(distanceStr);
 
   if (meters >= 4800 && meters <= 5200) return "5 km";
@@ -33,7 +33,7 @@ const getStandardDistanceCategory = (distanceStr: string): StandardDistanceCateg
   if (meters >= 20900 && meters <= 21300) return "Semi-Marathon";
   if (meters >= 41800 && meters <= 42500) return "Marathon";
 
-  return "Autres Distances";
+  return "Autres distances";
 };
 
 const DISTANCE_PRIORITY: Record<StandardDistanceCategory, number> = {
@@ -41,36 +41,7 @@ const DISTANCE_PRIORITY: Record<StandardDistanceCategory, number> = {
   "10 km": 2,
   "Semi-Marathon": 3,
   "Marathon": 4,
-  "Autres Distances": 5,
-};
-
-const getPodiumBadge = (rankText?: string) => {
-  if (!rankText) return null;
-  const clean = rankText.toLowerCase().trim();
-
-  if (/^(1er|1ère|1re|1e|1\b|1er\/|1\/)/i.test(clean)) {
-    return {
-      medal: "🥇",
-      bgClass: "bg-amber-400/15 border-amber-400/40 text-amber-300",
-    };
-  }
-  if (/^(2e|2ème|2nd|2nde|2\b|2e\/|2\/)/i.test(clean)) {
-    return {
-      medal: "🥈",
-      bgClass: "bg-slate-300/15 border-slate-300/40 text-slate-200",
-    };
-  }
-  if (/^(3e|3ème|3\b|3e\/|3\/)/i.test(clean)) {
-    return {
-      medal: "🥉",
-      bgClass: "bg-amber-700/20 border-amber-600/40 text-amber-500",
-    };
-  }
-
-  return {
-    medal: "🏁",
-    bgClass: "bg-stone-900 border-stone-800 text-stone-300",
-  };
+  "Autres distances": 5,
 };
 
 const timeToSeconds = (h: number, m: number, s: number): number => {
@@ -115,7 +86,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
   const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
   const [inspectingRace, setInspectingRace] = useState<Race | null>(null);
 
-  // Formulaire Course
+  // Formulaire de saisie
   const [formName, setFormName] = useState("");
   const [formCategory, setFormCategory] = useState<"route" | "piste" | "trail" | "nature">("route");
   const [formDistancePreset, setFormDistancePreset] = useState("10 km");
@@ -204,7 +175,6 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
     }
   };
 
-  // Groupement par type -> distance -> tri par date décroissante
   const groupedRaces = useMemo(() => {
     const filtered = races.filter((r) => {
       if (selectedType === "all") return true;
@@ -216,7 +186,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
       "10 km": [],
       "Semi-Marathon": [],
       "Marathon": [],
-      "Autres Distances": [],
+      "Autres distances": [],
     };
 
     filtered.forEach((r) => {
@@ -250,14 +220,14 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-            <span>Retour Profil</span>
+            <span>Retour profil</span>
           </button>
           <div>
             <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-widest block">
-              Palmarès & Compétitions
+              Palmarès & compétitions
             </span>
             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-stone-100 mt-0.5">
-              Historique des Courses
+              Historique des courses
             </h2>
           </div>
         </div>
@@ -317,7 +287,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                 <option value="route">Route</option>
                 <option value="piste">Piste</option>
                 <option value="trail">Trail</option>
-                <option value="nature">Nature & Cross</option>
+                <option value="nature">Course nature</option>
               </select>
             </div>
 
@@ -346,7 +316,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                     key={dist}
                     type="button"
                     onClick={() => setFormDistancePreset(dist)}
-                    className={`py-2 px-1 text-[10px] font-black uppercase rounded-xl border transition ${
+                    className={`py-2 px-1 text-[10px] font-black uppercase rounded-xl border transition cursor-pointer ${
                       formDistancePreset === dist
                         ? "bg-[#CF9A61] text-stone-950 border-[#CF9A61]"
                         : "bg-stone-950 text-stone-400 border-stone-800 hover:border-stone-700"
@@ -413,7 +383,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
               </label>
               <input
                 type="text"
-                placeholder="Ex. 1er ou 3e Scratch"
+                placeholder="Ex. 1er ou 3e scratch"
                 value={formRank}
                 onChange={(e) => setFormRank(e.target.value)}
                 className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
@@ -467,7 +437,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
         </form>
       )}
 
-      {/* FILTRES PAR DISCIPLINE */}
+      {/* FILTRES MODERNES PAR DISCIPLINE (SANS ÉMOJIS) */}
       <div className="flex overflow-x-auto gap-2 pb-1 custom-scrollbar items-center">
         {CATEGORY_TABS.map((tab) => {
           const isSelected = selectedType === tab.key;
@@ -481,15 +451,14 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
               key={tab.key}
               type="button"
               onClick={() => setSelectedType(tab.key)}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-2 border shrink-0 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-2 border shrink-0 ${
                 isSelected
                   ? "bg-[#CF9A61] text-stone-950 border-[#CF9A61] shadow-md"
                   : "bg-stone-900 text-stone-400 border-stone-800 hover:border-stone-700 hover:text-stone-200"
               }`}
             >
-              <span>{tab.icon}</span>
               <span>{tab.label}</span>
-              <span className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md ${isSelected ? "bg-stone-950/20 text-stone-950" : "bg-stone-950 text-stone-400"}`}>
+              <span className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md font-bold ${isSelected ? "bg-stone-950/20 text-stone-950" : "bg-stone-950 text-stone-400"}`}>
                 {count}
               </span>
             </button>
@@ -497,14 +466,11 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
         })}
       </div>
 
-      {/* LISTE DES COURSES */}
+      {/* LISTE DES COURSES PAR DISTANCE */}
       {totalFilteredCount === 0 ? (
-        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
-          <div className="w-12 h-12 bg-[#CF9A61]/10 border border-[#CF9A61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CF9A61] text-xl">
-            🏆
-          </div>
-          <p className="text-xs text-stone-400">
-            Aucune épreuve enregistrée dans cette catégorie.
+        <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-center space-y-2 shadow-xl">
+          <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">
+            Aucune épreuve enregistrée dans cette catégorie
           </p>
         </div>
       ) : (
@@ -517,28 +483,29 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
 
               return (
                 <div key={distanceCategory} className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-stone-800 pb-2 px-1">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#CF9A61]" />
-                      <h3 className="text-sm font-black uppercase text-stone-200 tracking-wider">
+                  {/* TITRE DE DISTANCE VISIBLE ET MODERNE (SANS ROND BRUN) */}
+                  <div className="flex items-center justify-between border-b border-stone-800/80 pb-2 px-1">
+                    <div className="flex items-baseline gap-2.5">
+                      <h3 className="text-sm font-black uppercase tracking-wider text-stone-100 font-mono">
                         {distanceCategory}
                       </h3>
-                      <span className="text-[10px] text-stone-500 font-mono">
-                        ({raceList.length})
+                      <span className="text-[10px] font-mono font-bold text-stone-500 bg-stone-950 px-2 py-0.5 rounded-md border border-stone-850">
+                        {raceList.length} {raceList.length > 1 ? "courses" : "course"}
                       </span>
                     </div>
 
                     {!isReadOnly && (
                       <button
                         type="button"
-                        onClick={() => handleOpenAdd(distanceCategory === "Autres Distances" ? "custom" : distanceCategory, selectedType === "all" ? "route" : selectedType)}
-                        className="text-[10px] font-bold text-[#CF9A61] hover:underline uppercase cursor-pointer"
+                        onClick={() => handleOpenAdd(distanceCategory === "Autres distances" ? "custom" : distanceCategory, selectedType === "all" ? "route" : selectedType)}
+                        className="text-[10px] font-black text-[#CF9A61] hover:text-[#b88652] uppercase tracking-wider cursor-pointer transition"
                       >
                         ＋ Ajouter
                       </button>
                     )}
                   </div>
 
+                  {/* CARTES DE COURSES */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {raceList.map((race) => {
                       const isTrailOrNature = race.category === "trail" || race.category === "nature";
@@ -596,7 +563,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
             <div className="flex justify-between items-start border-b border-stone-800 pb-3">
               <div>
                 <span className="text-[9.5px] font-black uppercase text-[#CF9A61] tracking-widest block">
-                  Fiche de Course
+                  Fiche de course
                 </span>
                 <h3 className="text-base font-black uppercase text-stone-100 mt-0.5">
                   {inspectingRace.name}
@@ -613,7 +580,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
 
             <div className="grid grid-cols-2 gap-3 text-xs bg-stone-950 p-4 rounded-2xl border border-stone-800">
               <div>
-                <span className="text-[9px] text-stone-500 uppercase font-bold block">Temps Officiel</span>
+                <span className="text-[9px] text-stone-500 uppercase font-bold block">Temps officiel</span>
                 <span className="text-sm font-black text-[#CF9A61] font-mono">{inspectingRace.time}</span>
               </div>
               <div>
@@ -626,8 +593,14 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
               </div>
               <div>
                 <span className="text-[9px] text-stone-500 uppercase font-bold block">Discipline</span>
-                <span className="font-semibold text-stone-300 capitalize">
-                  {inspectingRace.category === "piste" ? "Piste" : inspectingRace.category === "trail" ? "Trail" : inspectingRace.category === "nature" ? "Nature & Cross" : "Route"}
+                <span className="font-semibold text-stone-300">
+                  {inspectingRace.category === "piste"
+                    ? "Piste"
+                    : inspectingRace.category === "trail"
+                    ? "Trail"
+                    : inspectingRace.category === "nature"
+                    ? "Course nature"
+                    : "Route"}
                 </span>
               </div>
 
@@ -669,7 +642,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                     onClick={() => handleOpenEdit(inspectingRace)}
                     className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase rounded-xl transition cursor-pointer"
                   >
-                    ✏️ Modifier
+                    Modifier
                   </button>
                   <button
                     type="button"
@@ -681,7 +654,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                     }}
                     className="px-3.5 py-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
-                    🗑️
+                    Supprimer
                   </button>
                 </>
               )}
