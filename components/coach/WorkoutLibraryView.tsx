@@ -170,8 +170,8 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           </form>
         )}
 
-        {/* LISTE DES BADGES AVEC FLÈCHES VECTORIELLES ET CLIC DIRECT POUR RENOMMER */}
-        <div className="flex overflow-x-auto gap-2 pb-1.5 custom-scrollbar items-center">
+        {/* LISTE DES BADGES : MULTI-LIGNES SUR ORDINATEUR */}
+        <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-2 px-1">
               Aucune catégorie créée. Cliquez sur « Nouvelle catégorie » ci-dessus.
@@ -186,7 +186,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
               return (
                 <div
                   key={cat.id}
-                  className={`flex items-center rounded-2xl border transition-all shrink-0 ${
+                  className={`flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
                     isSelected
                       ? "bg-stone-950 border-[#CDCF61]/60 shadow-md"
                       : "bg-stone-900/80 border-stone-800 hover:border-stone-700"
@@ -202,7 +202,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         onMoveCategory(cat.id, "left");
                       }}
                       title="Déplacer vers la gauche"
-                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer"
+                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer shrink-0"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 18l-6-6 6-6" />
@@ -212,7 +212,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
 
                   {/* Clic direct pour sélectionner ou renommer sans crayon */}
                   {isEditing ? (
-                    <div className="flex items-center px-1.5 py-1">
+                    <div className="flex items-center px-1.5 py-1 min-w-0">
                       <input
                         ref={renameInputRef}
                         type="text"
@@ -239,15 +239,15 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         }
                       }}
                       title={isSelected ? "Cliquez pour renommer cette catégorie" : `Sélectionner ${cat.label}`}
-                      className={`px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
+                      className={`px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0 ${
                         isSelected
                           ? "text-[#CDCF61]"
                           : "text-stone-300 hover:text-white"
                       }`}
                     >
-                      <span>{cat.label}</span>
+                      <span className="break-words line-clamp-2">{cat.label}</span>
                       <span
-                        className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md ${
+                        className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 ${
                           isSelected
                             ? "bg-[#CDCF61]/20 text-[#CDCF61]"
                             : "bg-stone-800 text-stone-400"
@@ -268,7 +268,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         onMoveCategory(cat.id, "right");
                       }}
                       title="Déplacer vers la droite"
-                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer"
+                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer shrink-0"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 18l6-6-6-6" />
@@ -280,7 +280,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   {isSelected && (
                     <>
                       {isConfirming ? (
-                        <div className="flex items-center gap-1 bg-stone-950 border border-[#B34D4D]/50 px-2 py-1 rounded-xl animate-fadeIn mr-1">
+                        <div className="flex items-center gap-1 bg-stone-950 border border-[#B34D4D]/50 px-2 py-1 rounded-xl animate-fadeIn mr-1 shrink-0">
                           <span className="text-[9px] text-[#B34D4D] font-bold">
                             Supprimer ?
                           </span>
@@ -304,7 +304,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                           type="button"
                           title="Supprimer la catégorie"
                           onClick={() => setCategoryToDelete(cat.id)}
-                          className="pr-2.5 pl-1 text-stone-500 hover:text-[#B34D4D] text-xs transition cursor-pointer"
+                          className="pr-2.5 pl-1 text-stone-500 hover:text-[#B34D4D] text-xs transition cursor-pointer shrink-0"
                         >
                           ✕
                         </button>
