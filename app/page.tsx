@@ -1237,13 +1237,13 @@ export default function Home() {
               steps: Array.isArray(w.steps) ? w.steps : [],
               completed: isCompleted,
               completedRpe: w.completed_rpe,
-              athleteComment: w.athlete_comment,
-              shoeId: w.shoe_id,
-              completedKm: w.completed_km,
-              completedTimeMinutes: w.completed_time_minutes,
-              completedElevationGain: w.completed_elevation_gain,
-              importedActivityName: w.imported_activity_name,
-              activityTelemetry: w.activity_telemetry || null,
+              athleteComment: w.athleteComment ?? w.athlete_comment,
+              shoeId: w.shoe_id ?? w.shoeId,
+              completedKm: w.completedKm ?? w.completed_km,
+              completedTimeMinutes: w.completedTimeMinutes ?? w.completed_time_minutes,
+              completedElevationGain: w.completedElevationGain ?? w.completed_elevation_gain,
+              importedActivityName: w.importedActivityName ?? w.imported_activity_name,
+              activityTelemetry: w.activityTelemetry ?? w.activity_telemetry ?? null,
             };
           })
           // Tri chronologique strict : semaine croissante puis index du jour
@@ -2389,6 +2389,22 @@ export default function Home() {
   };
 
   const handleDeleteWorkoutImport = async (workoutId: string) => {
+    const targetWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
+    const assignedShoeId = (targetWorkout as any)?.shoeId ?? (targetWorkout as any)?.shoe_id;
+    const recordedKm = Number(targetWorkout?.completedKm || 0);
+
+    // Déduction des kilomètres sur la chaussure
+    if (session?.user && assignedShoeId && recordedKm > 0) {
+      const targetShoe = shoes.find((s) => s.id === assignedShoeId);
+      if (targetShoe) {
+        const updatedKm = Math.max(0, Number(targetShoe.currentKm) - recordedKm);
+        setShoes((prev) =>
+          prev.map((s) => (s.id === assignedShoeId ? { ...s, currentKm: updatedKm } : s))
+        );
+        await supabase.from("shoes").update({ current_km: updatedKm }).eq("id", assignedShoeId);
+      }
+    }
+
     if (activePlan) {
       const updatedWorkouts = activePlan.workouts.map((w) => {
         if (w.id === workoutId) {
@@ -2450,14 +2466,51 @@ export default function Home() {
     importedActivityName,
     activityTelemetry,
   }: any) => {
-    if (shoeId && completedKm > 0) {
-      setShoes((prevShoes) =>
-        prevShoes.map((shoe) =>
-          shoe.id === shoeId
-            ? { ...shoe, currentKm: shoe.currentKm + completedKm }
-            : shoe
-        )
-      );
+    const kmNumber = Number(completedKm) || 0;
+
+    // Détection d'un débriefing existant pour calculer le delta exact de kilomètres
+    const prevWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
+    const prevShoeId = (prevWorkout as any)?.shoeId ?? (prevWorkout as any)?.shoe_id;
+    const prevKm = Number(prevWorkout?.completedKm || 0);
+
+    // Mise à jour de la balance kilométrique des chaussures dans l'état et dans Supabase
+    if (session?.user) {
+      if (shoeId && prevShoeId === shoeId) {
+        const deltaKm = kmNumber - prevKm;
+        if (deltaKm !== 0) {
+          const currentShoe = shoes.find((s) => s.id === shoeId);
+          if (currentShoe) {
+            const nextKm = Math.max(0, Number(currentShoe.currentKm) + deltaKm);
+            setShoes((prev) =>
+              prev.map((s) => (s.id === shoeId ? { ...s, currentKm: nextKm } : s))
+            );
+            await supabase.from("shoes").update({ current_km: nextKm }).eq("id", shoeId);
+          }
+        }
+      } else {
+        // Changement de paire ou première affectation
+        if (prevShoeId && prevKm > 0) {
+          const oldShoe = shoes.find((s) => s.id === prevShoeId);
+          if (oldShoe) {
+            const nextOldKm = Math.max(0, Number(oldShoe.currentKm) - prevKm);
+            setShoes((prev) =>
+              prev.map((s) => (s.id === prevShoeId ? { ...s, currentKm: nextOldKm } : s))
+            );
+            await supabase.from("shoes").update({ current_km: nextOldKm }).eq("id", prevShoeId);
+          }
+        }
+
+        if (shoeId && kmNumber > 0) {
+          const newShoe = shoes.find((s) => s.id === shoeId);
+          if (newShoe) {
+            const nextNewKm = Number(newShoe.currentKm) + kmNumber;
+            setShoes((prev) =>
+              prev.map((s) => (s.id === shoeId ? { ...s, currentKm: nextNewKm } : s))
+            );
+            await supabase.from("shoes").update({ current_km: nextNewKm }).eq("id", shoeId);
+          }
+        }
+      }
     }
 
     if (activePlan) {
@@ -2469,7 +2522,7 @@ export default function Home() {
             completedRpe,
             athleteComment: comment,
             shoeId,
-            completedKm,
+            completedKm: kmNumber,
             completedTimeMinutes,
             completedElevationGain,
             importedActivityName,
@@ -2493,22 +2546,22 @@ export default function Home() {
         completed_rpe: completedRpe,
         athlete_comment: comment,
         shoe_id: shoeId || null,
-        completed_km: completedKm,
+        completed_km: kmNumber,
         completed_time_minutes: completedTimeMinutes,
         completed_elevation_gain: completedElevationGain,
         imported_activity_name: importedActivityName || null,
         activity_telemetry: activityTelemetry || null,
       }).eq("id", workoutId);
 
-      if (completedKm > 0) {
+      if (kmNumber > 0) {
         const runDate = new Date().toISOString().split("T")[0];
-        const durationHours = completedTimeMinutes / 60;
+        const durationHours = (Number(completedTimeMinutes) || 0) / 60;
         const runId = `debrief_${workoutId}`;
 
         const newRunObj: CompletedRun = {
           id: runId,
           date: runDate,
-          km: completedKm,
+          km: kmNumber,
           durationHours,
           elevation: completedElevationGain,
         };
@@ -2521,7 +2574,7 @@ export default function Home() {
               id: runId,
               user_id: session.user.id,
               date: runDate,
-              km: completedKm,
+              km: kmNumber,
               duration_hours: durationHours,
               elevation: completedElevationGain || 0,
               race_notes: comment || null,
