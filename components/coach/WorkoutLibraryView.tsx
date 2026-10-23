@@ -28,7 +28,7 @@ const EXTENDED_COLOR_PALETTE = [
   "#E2E8F0", "#94A3B8", "#475569", "#1E293B",
 ];
 
-// Calcul de luminance pour texte noir ou blanc automatique
+// Calcul de luminance pour texte noir ou blanc automatique sur fond plein
 const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
   if (!hexColor) return "#0a0a0a";
   const hex = hexColor.replace("#", "");
@@ -38,6 +38,16 @@ const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
   const b = parseInt(fullHex.substring(4, 6), 16) || 0;
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.55 ? "#0a0a0a" : "#ffffff";
+};
+
+// Conversion hex vers rgba pour fond translucide
+const hexToRgba = (hexColor: string, opacity: number): string => {
+  const hex = hexColor.replace("#", "");
+  const fullHex = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const r = parseInt(fullHex.substring(0, 2), 16) || 0;
+  const g = parseInt(fullHex.substring(2, 4), 16) || 0;
+  const b = parseInt(fullHex.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
 const getRpeColor = (rpeVal: number) => {
@@ -168,7 +178,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           )}
         </div>
 
-        {/* FORMULAIRE NOUVELLE CATÉGORIE AVEC GRANDE PALETTE */}
+        {/* FORMULAIRE NOUVELLE CATÉGORIE */}
         {showAddCategoryInput && (
           <form
             onSubmit={handleCreateCategorySubmit}
@@ -199,7 +209,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
               </button>
             </div>
 
-            {/* Nuancier de sélection étendu */}
             <div className="space-y-1.5 pt-1.5 border-t border-stone-900">
               <span className="text-[9.5px] uppercase font-bold text-stone-400 block">
                 Couleur de fond :
@@ -221,7 +230,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           </form>
         )}
 
-        {/* LISTE DES BADGES : FOND EN COULEUR PLEINE + GESTION Z-INDEX */}
+        {/* LISTE DES BADGES : COULEUR VISIBLE MÊME EN CAS D'INACTIVITÉ */}
         <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-2 px-1">
@@ -235,8 +244,13 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
               const isPickingColor = colorPickerCatId === cat.id;
               const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
 
-              const bgColor = cat.color || "#CDCF61";
-              const textColor = isSelected ? getContrastTextColor(bgColor) : "#e7e5e4";
+              const rawColor = cat.color || "#CDCF61";
+
+              // Sélectionné = 100% couleur opaque + texte contrasté noir/blanc
+              // Non sélectionné = Fond teinté 22% + bordure nette 55% + texte coloré lumineux
+              const bgStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.22);
+              const borderStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.55);
+              const textStyle = isSelected ? getContrastTextColor(rawColor) : rawColor;
 
               return (
                 <div
@@ -246,12 +260,12 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       ? "z-40 shadow-2xl ring-2 ring-stone-400"
                       : isSelected
                       ? "z-20 shadow-lg scale-[1.02]"
-                      : "z-10 hover:z-20 hover:border-stone-600 opacity-90 hover:opacity-100"
+                      : "z-10 hover:z-20 hover:scale-[1.01] hover:brightness-110"
                   }`}
                   style={{
-                    backgroundColor: isSelected ? bgColor : "rgba(28, 25, 23, 0.85)",
-                    borderColor: isSelected ? bgColor : "rgba(68, 64, 60, 0.7)",
-                    boxShadow: isSelected ? `0 4px 14px ${bgColor}35` : undefined,
+                    backgroundColor: bgStyle,
+                    borderColor: borderStyle,
+                    boxShadow: isSelected ? `0 4px 14px ${hexToRgba(rawColor, 0.4)}` : undefined,
                   }}
                 >
                   {/* Flèche gauche */}
@@ -265,7 +279,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       }}
                       title="Déplacer vers la gauche"
                       className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
-                      style={{ color: textColor }}
+                      style={{ color: textStyle }}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 18l-6-6 6-6" />
@@ -284,8 +298,8 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       title="Changer la couleur de fond"
                       className="w-4 h-4 rounded-full ml-2 shrink-0 cursor-pointer border shadow-sm hover:scale-125 transition-transform"
                       style={{
-                        backgroundColor: bgColor,
-                        borderColor: textColor === "#0a0a0a" ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.6)",
+                        backgroundColor: rawColor,
+                        borderColor: textStyle === "#0a0a0a" ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.6)",
                       }}
                     />
                   )}
@@ -303,10 +317,10 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                           if (e.key === "Enter") handleSaveRename(cat.id);
                           if (e.key === "Escape") setEditingCategoryId(null);
                         }}
-                        className="bg-stone-950/80 border rounded-xl px-2.5 py-1 text-xs font-black uppercase focus:outline-none w-32 shadow-inner"
+                        className="bg-stone-950/90 border rounded-xl px-2.5 py-1 text-xs font-black uppercase focus:outline-none w-32 shadow-inner"
                         style={{
-                          color: textColor,
-                          borderColor: textColor === "#0a0a0a" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)",
+                          color: textStyle,
+                          borderColor: textStyle === "#0a0a0a" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)",
                         }}
                       />
                     </div>
@@ -325,16 +339,16 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       }}
                       title={isSelected ? "Cliquez pour renommer cette catégorie" : `Sélectionner ${cat.label}`}
                       className="px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0"
-                      style={{ color: textColor }}
+                      style={{ color: textStyle }}
                     >
                       <span className="break-words line-clamp-2">{cat.label}</span>
                       <span
                         className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 font-bold"
                         style={{
                           backgroundColor: isSelected
-                            ? textColor === "#0a0a0a" ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.2)"
-                            : "#292524",
-                          color: isSelected ? textColor : "#a8a29e",
+                            ? textStyle === "#0a0a0a" ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.2)"
+                            : hexToRgba(rawColor, 0.25),
+                          color: textStyle,
                         }}
                       >
                         {count}
@@ -353,7 +367,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       }}
                       title="Déplacer vers la droite"
                       className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
-                      style={{ color: textColor }}
+                      style={{ color: textStyle }}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 18l6-6-6-6" />
@@ -390,7 +404,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                           title="Supprimer la catégorie"
                           onClick={() => setCategoryToDelete(cat.id)}
                           className="pr-2.5 pl-1 hover:opacity-100 opacity-60 text-xs transition cursor-pointer shrink-0"
-                          style={{ color: textColor }}
+                          style={{ color: textStyle }}
                         >
                           ✕
                         </button>
@@ -401,7 +415,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   {/* Popover grande palette au-dessus des autres éléments */}
                   {isPickingColor && onUpdateCategoryColor && (
                     <>
-                      {/* Masque transparent pour fermer en cliquant n'importe où */}
                       <div
                         className="fixed inset-0 z-40"
                         onClick={() => setColorPickerCatId(null)}
@@ -418,7 +431,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                                 setColorPickerCatId(null);
                               }}
                               className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
-                                bgColor === col ? "scale-125 border-white ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
+                                rawColor === col ? "scale-125 border-white ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
                               }`}
                               style={{ backgroundColor: col }}
                             />
@@ -483,7 +496,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   <div className="space-y-2.5">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-start gap-2.5">
-                        {/* FLÈCHES DE RÉORGANISATION */}
                         {onMoveWorkout && (
                           <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0 mt-0.5 shadow-inner">
                             <button
