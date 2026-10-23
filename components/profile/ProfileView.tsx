@@ -645,7 +645,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       Calculateurs & Allures
                     </h4>
                     <p className="text-[10.5px] text-stone-400 mt-0.5">
-                      VMA, modélisation VDOT & seuils, conversions
+                      VMA, modélisation VDOT & seuils, conversions d'allures
                     </p>
                   </div>
                 </div>
@@ -687,7 +687,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 type="button"
                 onClick={onOpenConnectedDevicesPage}
-                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left lg:col-span-2"
+                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-[#007CC3]/10 border border-[#007CC3]/30 flex items-center justify-center text-[#007CC3] text-lg shrink-0">
