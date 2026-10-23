@@ -82,7 +82,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout?.shoeId || safeShoes.find((s) => s.isActive)?.id || ""
   );
 
-  const [activeTabMode, setActiveTabMode] = useState<"manual" | "watch">("manual");
+  // Par défaut sur la vue "watch" (montre)
+  const [activeTabMode, setActiveTabMode] = useState<"manual" | "watch">("watch");
   const [importedActivityName, setImportedActivityName] = useState<string>(
     workout?.importedActivityName || ""
   );
@@ -273,8 +274,22 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SÉLECTEUR D'ONGLETS COMPACT */}
+        {/* SÉLECTEUR D'ONGLETS COMPACT (PAR DÉFAUT : MONTRE) */}
         <div className="flex bg-stone-950 p-0.5 rounded-xl border border-stone-800 gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTabMode("watch")}
+            className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTabMode === "watch"
+                ? "bg-[#CF9A61] text-stone-950 shadow-sm font-black"
+                : "text-stone-400 hover:text-stone-200"
+            }`}
+          >
+            <span>⌚ Montre</span>
+            {isActivityImported && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setActiveTabMode("manual")}
@@ -286,139 +301,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           >
             ✏️ Saisie Manuelle
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTabMode("watch")}
-            className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTabMode === "watch"
-                ? "bg-stone-800 text-stone-100 shadow-sm border border-stone-700 font-black"
-                : "text-stone-400 hover:text-stone-200"
-            }`}
-          >
-            <span>⌚ Montre</span>
-            {isActivityImported && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            )}
-          </button>
         </div>
 
-        {/* 1. SAISIE MANUELLE COMPACTE */}
-        {activeTabMode === "manual" && (
-          <div className="space-y-2.5 animate-fadeIn">
-            {/* DISTANCE & TEMPS CÔTE À CÔTE */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* DISTANCE */}
-              <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
-                <span className="text-[9px] font-bold uppercase text-stone-400 block">
-                  Distance
-                </span>
-                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 focus-within:border-[#CF9A61]">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={distanceKm}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDistanceKm(val === "" ? "" : Math.max(0, parseFloat(val)));
-                    }}
-                    placeholder="0.0"
-                    className="w-full text-sm font-black font-mono text-stone-100 bg-transparent focus:outline-none"
-                  />
-                  <span className="text-[10px] font-bold text-stone-500 pl-1">km</span>
-                </div>
-              </div>
-
-              {/* DÉNIVELÉ */}
-              <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
-                <span className="text-[9px] font-bold uppercase text-stone-400 block">
-                  Dénivelé (D+)
-                </span>
-                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500">
-                  <input
-                    type="number"
-                    min="0"
-                    step="5"
-                    value={elevationGain}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setElevationGain(val === "" ? "" : Math.max(0, parseInt(val, 10)));
-                    }}
-                    placeholder="0"
-                    className="w-full text-sm font-black font-mono text-emerald-400 bg-transparent focus:outline-none"
-                  />
-                  <span className="text-[10px] font-bold text-stone-500 pl-1">m</span>
-                </div>
-              </div>
-            </div>
-
-            {/* TEMPS (H / MIN / SEC) & ALLURE LIVE */}
-            <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1.5">
-              <div className="flex justify-between items-center px-0.5">
-                <span className="text-[9px] font-bold uppercase text-stone-400">
-                  Durée de la sortie
-                </span>
-                {calculatedPace && (
-                  <span className="text-[10px] font-mono font-black text-[#CDCF61]">
-                    ⚡ {calculatedPace.paceFormatted}/km ({calculatedPace.speedKmh} km/h)
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-1.5 text-center">
-                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
-                  <input
-                    type="number"
-                    min="0"
-                    max="23"
-                    value={hours}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setHours(val === "" ? "" : Math.max(0, parseInt(val, 10)));
-                    }}
-                    placeholder="0"
-                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
-                  />
-                  <span className="text-[9px] font-bold text-stone-500">h</span>
-                </div>
-
-                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={minutes}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setMinutes(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
-                    }}
-                    placeholder="00"
-                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
-                  />
-                  <span className="text-[9px] font-bold text-stone-500">m</span>
-                </div>
-
-                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={seconds}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSeconds(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
-                    }}
-                    placeholder="00"
-                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
-                  />
-                  <span className="text-[9px] font-bold text-stone-500">s</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2. IMPORT MONTRE */}
+        {/* 1. IMPORT MONTRE (AFFICHÉ EN PREMIER) */}
         {activeTabMode === "watch" && (
           <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2.5 animate-fadeIn">
             {isActivityImported && importedActivityName ? (
@@ -521,6 +406,122 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 2. SAISIE MANUELLE */}
+        {activeTabMode === "manual" && (
+          <div className="space-y-2.5 animate-fadeIn">
+            {/* DISTANCE & DÉNIVELÉ */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* DISTANCE */}
+              <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
+                <span className="text-[9px] font-bold uppercase text-stone-400 block">
+                  Distance
+                </span>
+                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 focus-within:border-[#CF9A61]">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={distanceKm}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDistanceKm(val === "" ? "" : Math.max(0, parseFloat(val)));
+                    }}
+                    placeholder="0.0"
+                    className="w-full text-sm font-black font-mono text-stone-100 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[10px] font-bold text-stone-500 pl-1">km</span>
+                </div>
+              </div>
+
+              {/* DÉNIVELÉ */}
+              <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
+                <span className="text-[9px] font-bold uppercase text-stone-400 block">
+                  Dénivelé (D+)
+                </span>
+                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500">
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    value={elevationGain}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setElevationGain(val === "" ? "" : Math.max(0, parseInt(val, 10)));
+                    }}
+                    placeholder="0"
+                    className="w-full text-sm font-black font-mono text-emerald-400 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[10px] font-bold text-stone-500 pl-1">m</span>
+                </div>
+              </div>
+            </div>
+
+            {/* TEMPS (H / MIN / SEC) & ALLURE */}
+            <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1.5">
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-[9px] font-bold uppercase text-stone-400">
+                  Durée de la sortie
+                </span>
+                {calculatedPace && (
+                  <span className="text-[10px] font-mono font-black text-[#CDCF61]">
+                    ⚡ {calculatedPace.paceFormatted}/km ({calculatedPace.speedKmh} km/h)
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={hours}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setHours(val === "" ? "" : Math.max(0, parseInt(val, 10)));
+                    }}
+                    placeholder="0"
+                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[9px] font-bold text-stone-500">h</span>
+                </div>
+
+                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={minutes}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMinutes(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
+                    }}
+                    placeholder="00"
+                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[9px] font-bold text-stone-500">m</span>
+                </div>
+
+                <div className="flex items-center bg-stone-900 border border-stone-800 rounded-lg px-2 py-1 focus-within:border-[#CF9A61]">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={seconds}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSeconds(val === "" ? "" : Math.max(0, Math.min(59, parseInt(val, 10))));
+                    }}
+                    placeholder="00"
+                    className="w-full text-center text-xs font-black font-mono text-stone-100 bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[9px] font-bold text-stone-500">s</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

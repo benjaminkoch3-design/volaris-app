@@ -78,7 +78,7 @@ export default function Home() {
   const [screen, setScreen] = useState<"landing" | "auth" | "profile_creation" | "app">("landing");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
-  
+
   // Récupération de l'onglet précédent sauvegardé
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
@@ -322,9 +322,12 @@ export default function Home() {
     const catId = `cat_${Date.now()}`;
     const newCat: LibraryCategory = { id: catId, label, color: color || "#CF9A61" };
     setCustomCategories((prev) => [...prev, newCat]);
-    await supabase.from("library_categories").insert([
+    const { error } = await supabase.from("library_categories").insert([
       { id: catId, user_id: session.user.id, label, color: newCat.color }
     ]);
+    if (error) {
+      console.error("❌ Erreur ajout catégorie :", error.message);
+    }
   };
 
   const handleDeleteCategory = async (catId: string) => {
@@ -340,15 +343,27 @@ export default function Home() {
     setCustomCategories((prev) =>
       prev.map((c) => (c.id === catId ? { ...c, label: newLabel } : c))
     );
-    await supabase.from("library_categories").update({ label: newLabel }).eq("id", catId);
+    const { error } = await supabase.from("library_categories").update({ label: newLabel }).eq("id", catId);
+    if (error) {
+      console.error("❌ Erreur renommage catégorie :", error.message);
+    }
   };
 
   const handleUpdateCategoryColor = async (catId: string, newColor: string) => {
-    if (!session?.user) return;
     setCustomCategories((prev) =>
       prev.map((c) => (c.id === catId ? { ...c, color: newColor } : c))
     );
-    await supabase.from("library_categories").update({ color: newColor }).eq("id", catId);
+
+    if (session?.user) {
+      const { error } = await supabase
+        .from("library_categories")
+        .update({ color: newColor })
+        .eq("id", catId);
+
+      if (error) {
+        console.error("❌ Erreur sauvegarde couleur catégorie :", error.message);
+      }
+    }
   };
 
   const handleMoveCategory = async (catId: string, direction: "left" | "right") => {
@@ -743,24 +758,21 @@ export default function Home() {
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
 
-  // Bascule instantanée entre deux plans (réactivation ou permutation)
+  // Bascule instantanée entre deux plans
   const handleSwitchActivePlan = async (targetPlan: Plan) => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
 
-    // 1. Tous les plans de l'utilisateur passent inactifs
     await supabase
       .from("plans")
       .update({ is_active: false, is_archived: true })
       .eq("user_id", targetUserId);
 
-    // 2. Activer le plan ciblé
     await supabase
       .from("plans")
       .update({ is_active: true, is_archived: false })
       .eq("id", targetPlan.id);
 
-    // 3. Mettre à jour l'état local
     const newlyActivatedPlan: Plan = {
       ...targetPlan,
       isActive: true,
@@ -787,7 +799,7 @@ export default function Home() {
     changeActiveTab("plan");
   };
 
-  // Suppression définitive d'un plan (depuis les plans archivés ou actifs)
+  // Suppression définitive d'un plan
   const handleDeleteSpecificPlan = async (planId: string) => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
@@ -1138,7 +1150,7 @@ export default function Home() {
         }
       }
 
-      // CHARGEMENT DES COURSES (AVEC DATE ET RANK)
+      // CHARGEMENT DES COURSES
       const { data: racesData } = await supabase
         .from("races")
         .select("*")
@@ -1176,7 +1188,7 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DES CATÉGORIES (AVEC COULEUR)
+      // CHARGEMENT DES CATÉGORIES (AVEC COULEUR PERSISTÉE)
       const { data: catsData } = await supabase
         .from("library_categories")
         .select("*")
@@ -1265,7 +1277,6 @@ export default function Home() {
               activityTelemetry: w.activityTelemetry ?? w.activity_telemetry ?? null,
             };
           })
-          // Tri chronologique strict : semaine croissante puis index du jour
           .sort((a, b) => {
             if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
             return a.dayIndex - b.dayIndex;
@@ -1768,7 +1779,7 @@ export default function Home() {
     setScreen("landing");
   };
 
-  // Archive le plan courant SANS imposer l'écran de création
+  // Archive le plan courant
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -2487,12 +2498,11 @@ export default function Home() {
   }: any) => {
     const kmNumber = Number(completedKm) || 0;
 
-    // Détection d'un débriefing existant pour calculer le delta exact de kilomètres
     const prevWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
     const prevShoeId = (prevWorkout as any)?.shoeId ?? (prevWorkout as any)?.shoe_id;
     const prevKm = Number(prevWorkout?.completedKm || 0);
 
-    // Mise à jour de la balance kilométrique des chaussures dans l'état et dans Supabase
+    // Mise à jour de la balance kilométrique des chaussures
     if (session?.user) {
       if (shoeId && prevShoeId === shoeId) {
         const deltaKm = kmNumber - prevKm;
@@ -2507,7 +2517,6 @@ export default function Home() {
           }
         }
       } else {
-        // Changement de paire ou première affectation
         if (prevShoeId && prevKm > 0) {
           const oldShoe = shoes.find((s) => s.id === prevShoeId);
           if (oldShoe) {
@@ -2777,7 +2786,7 @@ export default function Home() {
         workout={workout}
         startDate={newPlanForm.startDate}
         onClose={() => setEditingWorkoutId(null)}
-        onUpdateWorkout={handleUpdateDraftWorkout}
+        onUpdateDraftWorkout={handleUpdateDraftWorkout}
         onAddStep={handleAddStepToWorkout}
         onUpdateStep={handleUpdateStepInWorkout}
         onDeleteStep={handleDeleteStepInWorkout}
@@ -3078,10 +3087,8 @@ export default function Home() {
             {/* 2. PLAN */}
             {activeTab === "plan" && (
               <div className="space-y-6 animate-fadeIn">
-                {/* BARRE D'ACTION SUPÉRIEURE : SÉLECTEUR + ARCHIVAGE/SUPPRESSION + CRÉER EN PARALLÈLE */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-stone-900/60 p-3.5 rounded-2xl border border-stone-800">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Sélecteur de basculement entre plans existants */}
                     {(activePlan || archivedPlans.length > 0) && (
                       <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
                         <span className="text-[10px] font-bold uppercase text-[#CF9A61]">Plan actif :</span>
@@ -3121,7 +3128,6 @@ export default function Home() {
 
                   {!isCreatingPlan && (
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Bouton pour ouvrir la modale d'archivage / suppression du plan actif */}
                       {activePlan && (
                         <button
                           onClick={() => setShowDeletePlanModal(true)}
@@ -3131,7 +3137,6 @@ export default function Home() {
                         </button>
                       )}
 
-                      {/* Bouton Créer un plan en parallèle */}
                       <button
                         onClick={() => {
                           setDraftWorkouts([]);
