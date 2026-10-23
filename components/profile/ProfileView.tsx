@@ -491,55 +491,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="space-y-4 w-full">
           {/* GRILLE 2 COLONNES SUR ORDINATEUR */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 1. CALCULATEURS D'ALLURES & VDOT */}
-            {onOpenCalculators && (
-              <button
-                type="button"
-                onClick={onOpenCalculators}
-                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-sm font-black shrink-0 font-mono">
-                    fx
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
-                      Calculateurs & Allures
-                    </h4>
-                    <p className="text-[10.5px] text-stone-400 mt-0.5">
-                      VMA, modélisation VDOT & seuils, conversions d'allures
-                    </p>
-                  </div>
-                </div>
-                <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition shrink-0 ml-2">➔</span>
-              </button>
-            )}
-
-            {/* 2. BIBLIOTHÈQUE DE SÉANCES */}
-            {onOpenAthleteLibrary && (
-              <button
-                type="button"
-                onClick={onOpenAthleteLibrary}
-                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg shrink-0">
-                    📚
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
-                      Bibliothèque de Séances
-                    </h4>
-                    <p className="text-[10.5px] text-stone-400 mt-0.5">
-                      Gérer mes modèles de séances d'entraînement
-                    </p>
-                  </div>
-                </div>
-                <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition shrink-0 ml-2">➔</span>
-              </button>
-            )}
-
-            {/* 3. VMA, ALLURES, SEUILS & ZONES FC */}
+            
+            {/* 1. VMA, ALLURES, SEUILS & ZONES FC */}
             {onOpenPhysiologyPage && (
               <button
                 type="button"
@@ -570,7 +523,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             )}
 
-            {/* 4. RECORDS PERSONNELS & ÉVOLUTION */}
+            {/* 2. RECORDS PERSONNELS & ÉVOLUTION */}
             {onOpenPersonalBestsPage && (
               <button
                 type="button"
@@ -594,7 +547,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             )}
 
-            {/* 5. PALMARÈS & COURSES OFFICIELLES */}
+            {/* 3. PALMARÈS & COURSES OFFICIELLES */}
             {onOpenRecordsPage && (
               <button
                 type="button"
@@ -615,7 +568,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       </span>
                     </div>
                     <p className="text-[10.5px] text-stone-400 mt-0.5">
-                      Classement par distance, ordre chronologique et podiums
+                      Classement par distance, chronologie et podiums
                     </p>
                   </div>
                 </div>
@@ -623,7 +576,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
             )}
 
-            {/* 6. MES CHAUSSURES DE COURSE */}
+            {/* 4. MES CHAUSSURES DE COURSE */}
             {onOpenShoesPage && (
               <button
                 type="button"
@@ -649,6 +602,54 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </div>
                 </div>
                 <span className="text-stone-500 group-hover:text-[#4DB380] text-sm font-black transition shrink-0 ml-2">➔</span>
+              </button>
+            )}
+
+            {/* 5. BIBLIOTHÈQUE DE SÉANCES */}
+            {onOpenAthleteLibrary && (
+              <button
+                type="button"
+                onClick={onOpenAthleteLibrary}
+                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-lg shrink-0">
+                    📚
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                      Bibliothèque de Séances
+                    </h4>
+                    <p className="text-[10.5px] text-stone-400 mt-0.5">
+                      Gérer mes modèles de séances d'entraînement
+                    </p>
+                  </div>
+                </div>
+                <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition shrink-0 ml-2">➔</span>
+              </button>
+            )}
+
+            {/* 6. CALCULATEURS D'ALLURES & VDOT */}
+            {onOpenCalculators && (
+              <button
+                type="button"
+                onClick={onOpenCalculators}
+                className="w-full bg-gradient-to-r from-stone-900 via-stone-900 to-stone-950 border border-stone-800 hover:border-[#CF9A61]/50 p-4 rounded-3xl flex items-center justify-between shadow-xl transition cursor-pointer group text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-[#CF9A61] text-sm font-black shrink-0 font-mono">
+                    fx
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
+                      Calculateurs & Allures
+                    </h4>
+                    <p className="text-[10.5px] text-stone-400 mt-0.5">
+                      VMA, modélisation VDOT & seuils, conversions
+                    </p>
+                  </div>
+                </div>
+                <span className="text-stone-500 group-hover:text-[#CF9A61] text-sm font-black transition shrink-0 ml-2">➔</span>
               </button>
             )}
 
