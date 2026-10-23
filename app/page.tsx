@@ -2775,32 +2775,32 @@ export default function Home() {
   }
 
   if (editingWorkoutId) {
-    const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
-    if (!workout) {
-      setEditingWorkoutId(null);
-      return null;
-    }
+      const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
+      if (!workout) {
+        setEditingWorkoutId(null);
+        return null;
+      }
 
-    return (
-      <WorkoutEditor
-        workout={workout}
-        startDate={newPlanForm.startDate}
-        onClose={() => setEditingWorkoutId(null)}
-        onUpdateDraftWorkout={handleUpdateDraftWorkout}
-        onAddStep={handleAddStepToWorkout}
-        onUpdateStep={handleUpdateStepInWorkout}
-        onDeleteStep={handleDeleteStepInWorkout}
-        onMoveStep={handleMoveStepInWorkout}
-        onDropStep={handleDropStepInWorkout}
-        draggedStepPath={draggedStepPath}
-        setDraggedStepPath={setDraggedStepPath}
-        libraryWorkouts={libraryWorkouts}
-        categories={customCategories}
-        userRole={userRole}
-        vma={currentAthleteVma}
-      />
-    );
-  }
+      return (
+        <WorkoutEditor
+          workout={workout}
+          startDate={newPlanForm.startDate}
+          onClose={() => setEditingWorkoutId(null)}
+          onUpdateWorkout={handleUpdateDraftWorkout}
+          onAddStep={handleAddStepToWorkout}
+          onUpdateStep={handleUpdateStepInWorkout}
+          onDeleteStep={handleDeleteStepInWorkout}
+          onMoveStep={handleMoveStepInWorkout}
+          onDropStep={handleDropStepInWorkout}
+          draggedStepPath={draggedStepPath}
+          setDraggedStepPath={setDraggedStepPath}
+          libraryWorkouts={libraryWorkouts}
+          categories={customCategories}
+          userRole={userRole}
+          vma={currentAthleteVma}
+        />
+      );
+    }
 
   if (selectedWorkoutDetail && activePlan) {
     return (
