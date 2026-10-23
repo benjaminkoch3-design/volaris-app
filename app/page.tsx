@@ -36,6 +36,7 @@ import {
 import { Header } from "../components/common/Header";
 import { BottomNav, ActiveTab } from "../components/common/BottomNav";
 import { DeletePlanModal } from "../components/common/DeletePlanModal";
+import { PaceCalculatorsView } from "../components/common/PaceCalculatorView";
 
 // Auth & Profil
 import { LandingScreen } from "../components/auth/LandingScreen";
@@ -97,6 +98,9 @@ export default function Home() {
   const [allCoachAthletesPlans, setAllCoachAthletesPlans] = useState<Plan[]>([]);
   const [allCoachAthletesWorkouts, setAllCoachAthletesWorkouts] = useState<Workout[]>([]);
 
+  // État d'affichage de la page d'aide aux calculs (VDOT / VMA / Allures)
+  const [showCalculatorsView, setShowCalculatorsView] = useState<boolean>(false);
+
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
     changeActiveTab("stats");
@@ -104,6 +108,7 @@ export default function Home() {
 
   const changeActiveTab = (newTab: ActiveTab) => {
     setActiveTab(newTab);
+    setShowCalculatorsView(false);
     if (typeof window !== "undefined") {
       localStorage.setItem("volaris_active_tab", newTab);
     }
@@ -326,7 +331,7 @@ export default function Home() {
       { id: catId, user_id: session.user.id, label, color: newCat.color }
     ]);
     if (error) {
-      console.error("❌ Erreur ajout catégorie :", error.message);
+      console.error("Erreur ajout catégorie :", error.message);
     }
   };
 
@@ -345,7 +350,7 @@ export default function Home() {
     );
     const { error } = await supabase.from("library_categories").update({ label: newLabel }).eq("id", catId);
     if (error) {
-      console.error("❌ Erreur renommage catégorie :", error.message);
+      console.error("Erreur renommage catégorie :", error.message);
     }
   };
 
@@ -361,7 +366,7 @@ export default function Home() {
         .eq("id", catId);
 
       if (error) {
-        console.error("❌ Erreur sauvegarde couleur catégorie :", error.message);
+        console.error("Erreur sauvegarde couleur catégorie :", error.message);
       }
     }
   };
@@ -1499,7 +1504,7 @@ export default function Home() {
       }
 
       if (error) {
-        console.error("❌ Erreur sauvegarde profil :", error.message);
+        console.error("Erreur sauvegarde profil :", error.message);
         alert(`Erreur de sauvegarde : ${error.message}`);
       }
     } catch (err) {
@@ -1539,7 +1544,7 @@ export default function Home() {
     const { data, error } = await supabase.from("races").insert([racePayload]).select().single();
 
     if (error) {
-      console.error("❌ Erreur Supabase lors de l'ajout de la course :", error);
+      console.error("Erreur Supabase lors de l'ajout de la course :", error);
       alert(`Erreur d'enregistrement : ${error.message}`);
       return;
     }
@@ -1998,7 +2003,7 @@ export default function Home() {
         .eq("id", workoutId);
 
       if (error) {
-        console.error("❌ Erreur déplacement séance :", error.message);
+        console.error("Erreur déplacement séance :", error.message);
       }
     } catch (err) {
       console.error("Exception déplacement séance :", err);
@@ -2329,7 +2334,7 @@ export default function Home() {
     });
 
     if (planError) {
-      console.error("❌ Erreur sauvegarde plan :", planError.message);
+      console.error("Erreur sauvegarde plan :", planError.message);
       alert(`Erreur de sauvegarde du plan : ${planError.message}`);
       return;
     }
@@ -2365,7 +2370,7 @@ export default function Home() {
       .upsert(workoutsPayload, { onConflict: "id" });
 
     if (workoutsError) {
-      console.error("❌ Erreur sauvegarde séances :", workoutsError.message);
+      console.error("Erreur sauvegarde séances :", workoutsError.message);
       alert(`Erreur de sauvegarde des séances : ${workoutsError.message}`);
       return;
     }
@@ -2775,32 +2780,32 @@ export default function Home() {
   }
 
   if (editingWorkoutId) {
-      const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
-      if (!workout) {
-        setEditingWorkoutId(null);
-        return null;
-      }
-
-      return (
-        <WorkoutEditor
-          workout={workout}
-          startDate={newPlanForm.startDate}
-          onClose={() => setEditingWorkoutId(null)}
-          onUpdateWorkout={handleUpdateDraftWorkout}
-          onAddStep={handleAddStepToWorkout}
-          onUpdateStep={handleUpdateStepInWorkout}
-          onDeleteStep={handleDeleteStepInWorkout}
-          onMoveStep={handleMoveStepInWorkout}
-          onDropStep={handleDropStepInWorkout}
-          draggedStepPath={draggedStepPath}
-          setDraggedStepPath={setDraggedStepPath}
-          libraryWorkouts={libraryWorkouts}
-          categories={customCategories}
-          userRole={userRole}
-          vma={currentAthleteVma}
-        />
-      );
+    const workout = draftWorkouts.find((w) => w.id === editingWorkoutId);
+    if (!workout) {
+      setEditingWorkoutId(null);
+      return null;
     }
+
+    return (
+      <WorkoutEditor
+        workout={workout}
+        startDate={newPlanForm.startDate}
+        onClose={() => setEditingWorkoutId(null)}
+        onUpdateWorkout={handleUpdateDraftWorkout}
+        onAddStep={handleAddStepToWorkout}
+        onUpdateStep={handleUpdateStepInWorkout}
+        onDeleteStep={handleDeleteStepInWorkout}
+        onMoveStep={handleMoveStepInWorkout}
+        onDropStep={handleDropStepInWorkout}
+        draggedStepPath={draggedStepPath}
+        setDraggedStepPath={setDraggedStepPath}
+        libraryWorkouts={libraryWorkouts}
+        categories={customCategories}
+        userRole={userRole}
+        vma={currentAthleteVma}
+      />
+    );
+  }
 
   if (selectedWorkoutDetail && activePlan) {
     return (
@@ -3012,7 +3017,16 @@ export default function Home() {
           </div>
         )}
 
-        {userRole === "coach" && !inspectingAthleteId && activeTab === "library" && (
+        {/* AFFICHAGE DU CALCULATEUR D'ALLURES & VDOT */}
+        {showCalculatorsView && (
+          <PaceCalculatorsView
+            userRole={userRole}
+            initialVma={currentAthleteVma}
+            onBack={() => setShowCalculatorsView(false)}
+          />
+        )}
+
+        {userRole === "coach" && !inspectingAthleteId && !showCalculatorsView && activeTab === "library" && (
           <WorkoutLibraryView
             libraryWorkouts={libraryWorkouts}
             categories={customCategories}
@@ -3025,6 +3039,7 @@ export default function Home() {
             onCreateNewTemplate={handleCreateNewTemplate}
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
+            onOpenCalculators={() => setShowCalculatorsView(true)}
           />
         )}
 
