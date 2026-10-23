@@ -36,7 +36,7 @@ import {
 import { Header } from "../components/common/Header";
 import { BottomNav, ActiveTab } from "../components/common/BottomNav";
 import { DeletePlanModal } from "../components/common/DeletePlanModal";
-import { PaceCalculatorsView } from "../components/common/PaceCalculatorView";
+import { PaceCalculatorsView } from "../components/common/PaceCalculatorsView";
 
 // Auth & Profil
 import { LandingScreen } from "../components/auth/LandingScreen";
@@ -3296,7 +3296,7 @@ export default function Home() {
             )}
 
             {/* 5. PROFIL */}
-            {activeTab === "profil" && !showAthleteLibrary && (
+            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && (
               showPhysiologyPage ? (
                 <PhysiologyPageView
                   vma={vma}
@@ -3422,6 +3422,7 @@ export default function Home() {
                   onOpenShoesPage={() => setShowShoesPage(true)}
                   onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
                   onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
+                  onOpenCalculators={() => setShowCalculatorsView(true)}
                   isReadOnly={isCoachInspecting}
                 />
               )
@@ -3445,6 +3446,7 @@ export default function Home() {
           setShowShoesPage(false);
           setShowArchivedPlansPage(false);
           setShowConnectedDevicesPage(false);
+          setShowCalculatorsView(false);
         }}
       />
     </main>

@@ -11,6 +11,14 @@ interface PaceCalculatorsViewProps {
 
 type TabType = "vma" | "vdot" | "speed_and_race";
 
+interface RaceReference {
+  id: string;
+  distMeters: number;
+  h: number | "";
+  m: number | "";
+  s: number | "";
+}
+
 const formatTime = (totalSec: number): string => {
   if (isNaN(totalSec) || totalSec <= 0 || !isFinite(totalSec)) return "--:--";
   const h = Math.floor(totalSec / 3600);
@@ -22,10 +30,9 @@ const formatTime = (totalSec: number): string => {
   return `${m}:${s < 10 ? "0" : ""}${s}`;
 };
 
-// Formule Jack Daniels VDOT
 const calculateVDOTFromRace = (distMeters: number, timeMinutes: number): number => {
   if (distMeters <= 0 || timeMinutes <= 0) return 0;
-  const speed = distMeters / timeMinutes; // m/min
+  const speed = distMeters / timeMinutes;
   const vo2 = -4.60 + 0.182258 * speed + 0.000104 * Math.pow(speed, 2);
   const percentMax =
     0.8 +
@@ -34,7 +41,6 @@ const calculateVDOTFromRace = (distMeters: number, timeMinutes: number): number 
   return Math.round((vo2 / percentMax) * 10) / 10;
 };
 
-// Vitesse m/min -> Allure sec/km
 const vdotToPace = (vdot: number, intensity: number): number => {
   const targetVo2 = vdot * intensity;
   const a = 0.000104;
@@ -58,7 +64,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>("vma");
 
   // ==========================================
-  // 1. ÉTAT VMA (200m, 400m, 800m & 60% à 110%)
+  // 1. ALLURES CIBLES & VMA
   // ==========================================
   const defaultVma = initialVma ? parseFloat(String(initialVma)) || 16 : 16;
   const [vmaInput, setVmaInput] = useState<number | "">(defaultVma);
@@ -82,7 +88,6 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
   const vmaTable = useMemo(() => {
     const vma = Number(vmaInput) || 0;
     if (vma <= 0) return [];
-    // 60% à 110% par pas de 5%
     const percentages = [60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110];
     return percentages.map((pct) => {
       const spd = (vma * pct) / 100;
@@ -99,62 +104,91 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
   }, [vmaInput]);
 
   // ==========================================
-  // 2. ÉTAT VDOT & SEUILS MARIUS BAKKEN
+  // 2. MODÉLISATION VDOT & SEUILS MULTI-CHRONOS
   // ==========================================
-  const [vdotDistM, setVdotDistM] = useState<number>(5000);
-  const [vdotH, setVdotH] = useState<number | "">("");
-  const [vdotM, setVdotM] = useState<number | "">(20);
-  const [vdotS, setVdotS] = useState<number | "">(0);
+  const [raceReferences, setRaceReferences] = useState<RaceReference[]>([
+    { id: "ref_1", distMeters: 5000, h: "", m: 19, s: 30 },
+    { id: "ref_2", distMeters: 10000, h: "", m: 40, s: 45 },
+  ]);
 
-  const vdotScore = useMemo(() => {
-    const totalMin =
-      ((Number(vdotH) || 0) * 3600 + (Number(vdotM) || 0) * 60 + (Number(vdotS) || 0)) / 60;
-    if (totalMin <= 0) return 0;
-    return calculateVDOTFromRace(vdotDistM, totalMin);
-  }, [vdotDistM, vdotH, vdotM, vdotS]);
+  const handleAddReference = () => {
+    setRaceReferences((prev) => [
+      ...prev,
+      { id: `ref_${Date.now()}`, distMeters: 10000, h: "", m: 45, s: 0 },
+    ]);
+  };
+
+  const handleRemoveReference = (id: string) => {
+    if (raceReferences.length <= 1) return;
+    setRaceReferences((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleUpdateReference = (id: string, field: keyof RaceReference, val: any) => {
+    setRaceReferences((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [field]: val } : r))
+    );
+  };
+
+  const calculatedVdots = useMemo(() => {
+    return raceReferences.map((ref) => {
+      const totalMin =
+        ((Number(ref.h) || 0) * 3600 + (Number(ref.m) || 0) * 60 + (Number(ref.s) || 0)) / 60;
+      if (totalMin <= 0) return { ...ref, vdot: 0 };
+      const score = calculateVDOTFromRace(ref.distMeters, totalMin);
+      return { ...ref, vdot: score };
+    });
+  }, [raceReferences]);
+
+  const validVdots = calculatedVdots.filter((r) => r.vdot > 0);
+  const averageVdot = useMemo(() => {
+    if (validVdots.length === 0) return 0;
+    const sum = validVdots.reduce((acc, curr) => acc + curr.vdot, 0);
+    return Math.round((sum / validVdots.length) * 10) / 10;
+  }, [validVdots]);
 
   const vdotThresholdDetails = useMemo(() => {
-    if (vdotScore <= 0) return null;
-    const baseThresholdSec = vdotToPace(vdotScore, 0.88);
-    const baseSpeed = 3600 / baseThresholdSec;
+    if (averageVdot <= 0) return null;
+    const baseThresholdSec = vdotToPace(averageVdot, 0.88);
 
-    // Calculs selon Bakken :
-    // Courts : -1% à +1% de la vitesse de seuil
-    const shortMinSpeed = baseSpeed * 0.99;
-    const shortMaxSpeed = baseSpeed * 1.01;
-    // Moyens : -2% à 0% de la vitesse de seuil
-    const medMinSpeed = baseSpeed * 0.98;
-    const medMaxSpeed = baseSpeed * 1.00;
-    // Longs : -4% à -2% de la vitesse de seuil
-    const longMinSpeed = baseSpeed * 0.96;
-    const longMaxSpeed = baseSpeed * 0.98;
+    // Ajustements demandés sur l'allure (sec/km) :
+    // Courts : -1% à +1% de l'allure de seuil
+    const shortPaceMin = baseThresholdSec * 0.99;
+    const shortPaceMax = baseThresholdSec * 1.01;
+
+    // Moyens : +3% à +6% (allure légèrement plus lente/accessible)
+    const medPaceMin = baseThresholdSec * 1.03;
+    const medPaceMax = baseThresholdSec * 1.06;
+
+    // Longs : +6% à +9% (allure plus durable)
+    const longPaceMin = baseThresholdSec * 1.06;
+    const longPaceMax = baseThresholdSec * 1.09;
 
     return {
       baseThresholdPace: formatTime(baseThresholdSec),
-      baseThresholdSpeed: baseSpeed.toFixed(2),
+      baseThresholdSpeed: (3600 / baseThresholdSec).toFixed(2),
       shortIntervals: {
-        pace: `${formatTime(3600 / shortMaxSpeed)} - ${formatTime(3600 / shortMinSpeed)}`,
-        speed: `${shortMinSpeed.toFixed(2)} - ${shortMaxSpeed.toFixed(2)} km/h`,
+        pace: `${formatTime(shortPaceMin)} — ${formatTime(shortPaceMax)}`,
+        speed: `${(3600 / shortPaceMax).toFixed(2)} — ${(3600 / shortPaceMin).toFixed(2)} km/h`,
       },
       mediumIntervals: {
-        pace: `${formatTime(3600 / medMaxSpeed)} - ${formatTime(3600 / medMinSpeed)}`,
-        speed: `${medMinSpeed.toFixed(2)} - ${medMaxSpeed.toFixed(2)} km/h`,
+        pace: `${formatTime(medPaceMin)} — ${formatTime(medPaceMax)}`,
+        speed: `${(3600 / medPaceMax).toFixed(2)} — ${(3600 / medPaceMin).toFixed(2)} km/h`,
       },
       longIntervals: {
-        pace: `${formatTime(3600 / longMaxSpeed)} - ${formatTime(3600 / longMinSpeed)}`,
-        speed: `${longMinSpeed.toFixed(2)} - ${longMaxSpeed.toFixed(2)} km/h`,
+        pace: `${formatTime(longPaceMin)} — ${formatTime(longPaceMax)}`,
+        speed: `${(3600 / longPaceMax).toFixed(2)} — ${(3600 / longPaceMin).toFixed(2)} km/h`,
       },
       classicZones: {
-        easy: `${formatTime(vdotToPace(vdotScore, 0.62))} - ${formatTime(vdotToPace(vdotScore, 0.70))}`,
-        marathon: formatTime(vdotToPace(vdotScore, 0.80)),
-        interval: formatTime(vdotToPace(vdotScore, 0.98)),
-        repetition: formatTime(vdotToPace(vdotScore, 1.05)),
+        easy: `${formatTime(vdotToPace(averageVdot, 0.62))} — ${formatTime(vdotToPace(averageVdot, 0.70))}`,
+        marathon: formatTime(vdotToPace(averageVdot, 0.80)),
+        interval: formatTime(vdotToPace(averageVdot, 0.98)),
+        repetition: formatTime(vdotToPace(averageVdot, 1.05)),
       },
     };
-  }, [vdotScore]);
+  }, [averageVdot]);
 
   // ==========================================
-  // 3. ÉTAT FUSIONNÉ : CONVERTISSEUR & CHRONO
+  // 3. MÉTRIQUES & CONVERSIONS
   // ==========================================
   const [speedVal, setSpeedVal] = useState<number | "">(12);
   const [paceMin, setPaceMin] = useState<number | "">(5);
@@ -203,7 +237,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
         { label: "1 km", time: formatTime(paceSec) },
         { label: "5 km", time: formatTime(paceSec * 5) },
         { label: "10 km", time: formatTime(paceSec * 10) },
-        { label: "Semi-Marathon", time: formatTime(paceSec * 21.0975) },
+        { label: "Semi-marathon", time: formatTime(paceSec * 21.0975) },
         { label: "Marathon", time: formatTime(paceSec * 42.195) },
       ],
     };
@@ -228,16 +262,16 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
           )}
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: themeColor }}>
-              {isCoach ? "Outils & Assistance • Entraîneur" : "Mes Outils de Calcul • Athlète"}
+              {isCoach ? "Analyse & Prescription d'allures" : "Calculateur d'allures & Physiologie"}
             </span>
             <h2 className="text-xl md:text-2xl font-black uppercase text-stone-100 tracking-tight mt-0.5">
-              Calculateur d'Allures & VDOT
+              Plateforme de Calcul Métrique
             </h2>
           </div>
         </div>
       </div>
 
-      {/* SÉLECTEUR D'ONGLETS (3 ONGLETS) */}
+      {/* SÉLECTEUR D'ONGLETS MODERNISÉ SANS EMOJIS */}
       <div className="flex bg-stone-900/70 border border-stone-800 p-1.5 rounded-2xl gap-1.5 overflow-x-auto custom-scrollbar">
         <button
           type="button"
@@ -249,7 +283,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
           }`}
           style={activeTab === "vma" ? { backgroundColor: themeColor } : undefined}
         >
-          🎯 VMA & Allures Cibles
+          Allures cibles & VMA
         </button>
 
         <button
@@ -262,7 +296,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
           }`}
           style={activeTab === "vdot" ? { backgroundColor: themeColor } : undefined}
         >
-          📊 VDOT & Seuils par Intervalles
+          Modélisation VDOT & Seuils
         </button>
 
         <button
@@ -275,18 +309,18 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
           }`}
           style={activeTab === "speed_and_race" ? { backgroundColor: themeColor } : undefined}
         >
-          ⏱️ Allures, Conversions & Chrono
+          Métriques & Conversions
         </button>
       </div>
 
       {/* ========================================================= */}
-      {/* 1. VMA & POURCENTAGES (200m, 400m, 800m & 60% à 110%)     */}
+      {/* 1. ALLURES CIBLES & VMA                                    */}
       {/* ========================================================= */}
       {activeTab === "vma" && (
         <div className="space-y-6 animate-fadeIn">
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl space-y-4">
             <h3 className="text-sm font-black uppercase tracking-wider text-stone-200">
-              Calculateur personnalisé
+              Paramètres personnalisés
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -349,13 +383,12 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
             )}
           </div>
 
-          {/* TABLEAU 60% À 110% */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-black uppercase tracking-wider text-stone-200">
-                Tableau complet des allures (base VMA {vmaInput || "--"} km/h)
+                Tableau des correspondances (VMA {vmaInput || "--"} km/h)
               </h3>
-              <span className="text-[10px] font-bold text-stone-500 uppercase">60% à 110% par 5%</span>
+              <span className="text-[10px] font-bold text-stone-500 uppercase">60 % à 110 %</span>
             </div>
 
             <div className="overflow-x-auto custom-scrollbar">
@@ -399,83 +432,129 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* 2. VDOT & SEUILS MARIUS BAKKEN (COURT / MOYEN / LONG)      */}
+      {/* 2. MODÉLISATION VDOT & SEUILS MULTI-CHRONOS               */}
       {/* ========================================================= */}
       {activeTab === "vdot" && (
         <div className="space-y-6 animate-fadeIn">
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl space-y-4">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: themeColor }}>
-                Méthode Jack Daniels & Marius Bakken
-              </span>
-              <h3 className="text-base font-black uppercase text-stone-100 mt-0.5">
-                Calculer le VDOT et moduler le seuil par type d'intervalle
-              </h3>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: themeColor }}>
+                  Indice VDOT pondéré
+                </span>
+                <h3 className="text-base font-black uppercase text-stone-100 mt-0.5">
+                  Performances de référence
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddReference}
+                className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl border border-stone-700 bg-stone-950 hover:bg-stone-850 text-stone-200 transition cursor-pointer"
+              >
+                + Ajouter une course
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-stone-400">
-                  Distance de référence
-                </label>
-                <select
-                  value={vdotDistM}
-                  onChange={(e) => setVdotDistM(parseInt(e.target.value, 10))}
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-stone-100 focus:outline-none cursor-pointer"
+            <div className="space-y-2.5">
+              {calculatedVdots.map((ref, idx) => (
+                <div
+                  key={ref.id}
+                  className="bg-stone-950 p-3 rounded-2xl border border-stone-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3"
                 >
-                  <option value={1500}>1 500 m</option>
-                  <option value={3000}>3 000 m</option>
-                  <option value={5000}>5 km</option>
-                  <option value={10000}>10 km</option>
-                  <option value={21097}>Semi-Marathon (21.1 km)</option>
-                  <option value={42195}>Marathon (42.2 km)</option>
-                </select>
-              </div>
+                  <div className="flex items-center gap-2 w-full md:w-auto">
+                    <span className="text-[10px] font-mono font-bold text-stone-500 w-5">#{idx + 1}</span>
+                    <select
+                      value={ref.distMeters}
+                      onChange={(e) =>
+                        handleUpdateReference(ref.id, "distMeters", parseInt(e.target.value, 10))
+                      }
+                      className="bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-stone-100 focus:outline-none cursor-pointer"
+                    >
+                      <option value={1500}>1 500 m</option>
+                      <option value={3000}>3 000 m</option>
+                      <option value={5000}>5 km</option>
+                      <option value={10000}>10 km</option>
+                      <option value={21097.5}>Semi-marathon (21.1 km)</option>
+                      <option value={42195}>Marathon (42.2 km)</option>
+                    </select>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-stone-400">
-                  Temps réalisé (h / min / sec)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0 h"
-                    value={vdotH}
-                    onChange={(e) => setVdotH(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                    className="bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    placeholder="20 min"
-                    value={vdotM}
-                    onChange={(e) => setVdotM(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                    className="bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    placeholder="00 s"
-                    value={vdotS}
-                    onChange={(e) => setVdotS(e.target.value === "" ? "" : parseInt(e.target.value, 10))}
-                    className="bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-2 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
-                  />
+                  <div className="flex items-center gap-2 w-full md:w-auto">
+                    <span className="text-[10px] uppercase text-stone-400 font-bold">Chrono :</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="h"
+                      value={ref.h}
+                      onChange={(e) =>
+                        handleUpdateReference(
+                          ref.id,
+                          "h",
+                          e.target.value === "" ? "" : parseInt(e.target.value, 10)
+                        )
+                      }
+                      className="w-12 bg-stone-900 border border-stone-800 rounded-xl px-1.5 py-1 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      placeholder="min"
+                      value={ref.m}
+                      onChange={(e) =>
+                        handleUpdateReference(
+                          ref.id,
+                          "m",
+                          e.target.value === "" ? "" : parseInt(e.target.value, 10)
+                        )
+                      }
+                      className="w-14 bg-stone-900 border border-stone-800 rounded-xl px-1.5 py-1 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      placeholder="s"
+                      value={ref.s}
+                      onChange={(e) =>
+                        handleUpdateReference(
+                          ref.id,
+                          "s",
+                          e.target.value === "" ? "" : parseInt(e.target.value, 10)
+                        )
+                      }
+                      className="w-14 bg-stone-900 border border-stone-800 rounded-xl px-1.5 py-1 text-center text-xs font-mono font-bold text-stone-100 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+                    <span className="text-xs font-mono font-black" style={{ color: themeColor }}>
+                      VDOT : {ref.vdot > 0 ? ref.vdot : "--"}
+                    </span>
+                    {raceReferences.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveReference(ref.id)}
+                        className="text-stone-500 hover:text-red-400 text-xs px-1 cursor-pointer"
+                        title="Supprimer la référence"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
 
             <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] uppercase font-bold text-stone-400">Score VDOT</span>
+                <span className="text-[10px] uppercase font-bold text-stone-400">VDOT moyen calculé</span>
                 <p className="text-2xl font-black font-mono mt-0.5" style={{ color: themeColor }}>
-                  {vdotScore > 0 ? vdotScore : "--"}
+                  {averageVdot > 0 ? averageVdot : "--"}
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-stone-400">Seuil de base (T-Pace)</span>
+                <span className="text-[10px] uppercase font-bold text-stone-400">Allure de seuil étalon (T-Pace)</span>
                 <p className="text-xl font-black font-mono text-stone-100 mt-0.5">
                   {vdotThresholdDetails ? `${vdotThresholdDetails.baseThresholdPace} /km` : "--:--"}
                 </p>
@@ -485,23 +564,21 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
               </div>
             </div>
 
-            {/* SEUILS PAR TYPE D'INTERVALLES SELON MARIUS BAKKEN */}
             {vdotThresholdDetails && (
               <div className="space-y-3 pt-3 border-t border-stone-800">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-400">
-                    ⚡ Modulations du seuil selon l'intervalle (Méthode Bakken)
+                  <h4 className="text-xs font-black uppercase tracking-wider text-stone-200">
+                    Seuils cibles par format d'intervalle
                   </h4>
-                  <span className="text-[10px] text-stone-500 font-bold uppercase">Allures cibles lactates</span>
+                  <span className="text-[10px] text-stone-500 font-bold uppercase">Allures dérivées</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* Courts */}
                   <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
                     <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles Courts</span>
+                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles courts</span>
                       <span className="text-[9px] font-mono bg-stone-900 border border-stone-800 px-1.5 py-0.5 rounded text-amber-400 font-bold">
-                        -1% à +1%
+                        -1 % à +1 %
                       </span>
                     </div>
                     <span className="text-lg font-black font-mono text-stone-100 block">
@@ -511,16 +588,15 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                       {vdotThresholdDetails.shortIntervals.speed}
                     </span>
                     <p className="text-[9.5px] text-stone-500 leading-tight">
-                      Fractions courtes (ex: 400 m à 1 000 m ou 60s à 3 min). Rythme dynamique sans dérive lactique.
+                      Fractions rapides (ex: 400 m à 1 000 m ou 60s à 3 min). Travail nerveux sous contrôle d'acide lactique.
                     </p>
                   </div>
 
-                  {/* Moyens */}
                   <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
                     <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles Moyens</span>
+                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles moyens</span>
                       <span className="text-[9px] font-mono bg-stone-900 border border-stone-800 px-1.5 py-0.5 rounded text-amber-400 font-bold">
-                        -2% à 0%
+                        +3 % à +6 %
                       </span>
                     </div>
                     <span className="text-lg font-black font-mono text-stone-100 block">
@@ -530,16 +606,15 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                       {vdotThresholdDetails.mediumIntervals.speed}
                     </span>
                     <p className="text-[9.5px] text-stone-500 leading-tight">
-                      Fractions moyennes (ex: 1 000 m à 2 000 m ou 3 à 6 min). Cœur de la charge au seuil.
+                      Fractions médianes (ex: 1 000 m à 2 000 m ou 3 à 6 min). Stabilisation du débit aérobie au seuil.
                     </p>
                   </div>
 
-                  {/* Longs */}
                   <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
                     <div className="flex justify-between items-start">
-                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles Longs</span>
+                      <span className="text-[10px] font-black uppercase text-stone-200">Intervalles longs</span>
                       <span className="text-[9px] font-mono bg-stone-900 border border-stone-800 px-1.5 py-0.5 rounded text-amber-400 font-bold">
-                        -4% à -2%
+                        +6 % à +9 %
                       </span>
                     </div>
                     <span className="text-lg font-black font-mono text-stone-100 block">
@@ -549,27 +624,26 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                       {vdotThresholdDetails.longIntervals.speed}
                     </span>
                     <p className="text-[9.5px] text-stone-500 leading-tight">
-                      Fractions longues ou tempo (ex: 2 000 m à 4 000 m ou 8 à 15 min). Allure contrôlée et durable.
+                      Fractions longues ou tempo continu (ex: 2 000 m à 4 000 m ou 8 à 15 min). Tenue d'allure semi-marathon.
                     </p>
                   </div>
                 </div>
 
-                {/* AUTRES ALLURES DANIELS */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
                   <div className="bg-stone-950/60 p-2.5 rounded-xl border border-stone-800 text-center">
-                    <span className="text-[9px] uppercase font-bold text-emerald-400 block">Endurance (Easy)</span>
+                    <span className="text-[9px] uppercase font-bold text-emerald-400 block">Endurance fondamentale</span>
                     <span className="text-xs font-mono font-bold text-stone-200 mt-0.5 block">{vdotThresholdDetails.classicZones.easy} /km</span>
                   </div>
                   <div className="bg-stone-950/60 p-2.5 rounded-xl border border-stone-800 text-center">
-                    <span className="text-[9px] uppercase font-bold text-blue-400 block">Marathon</span>
+                    <span className="text-[9px] uppercase font-bold text-blue-400 block">Allure marathon</span>
                     <span className="text-xs font-mono font-bold text-stone-200 mt-0.5 block">{vdotThresholdDetails.classicZones.marathon} /km</span>
                   </div>
                   <div className="bg-stone-950/60 p-2.5 rounded-xl border border-stone-800 text-center">
-                    <span className="text-[9px] uppercase font-bold text-orange-400 block">Intervalle (VO2)</span>
+                    <span className="text-[9px] uppercase font-bold text-orange-400 block">Allure VO2max</span>
                     <span className="text-xs font-mono font-bold text-stone-200 mt-0.5 block">{vdotThresholdDetails.classicZones.interval} /km</span>
                   </div>
                   <div className="bg-stone-950/60 p-2.5 rounded-xl border border-stone-800 text-center">
-                    <span className="text-[9px] uppercase font-bold text-rose-400 block">Répétition (Vitesse)</span>
+                    <span className="text-[9px] uppercase font-bold text-rose-400 block">Vitesse pure</span>
                     <span className="text-xs font-mono font-bold text-stone-200 mt-0.5 block">{vdotThresholdDetails.classicZones.repetition} /km</span>
                   </div>
                 </div>
@@ -580,24 +654,23 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* 3. FUSION : CONVERTISSEUR SYNCHRO & CHRONO RUN-MOTION     */}
+      {/* 3. MÉTRIQUES & CONVERSIONS                                 */}
       {/* ========================================================= */}
       {activeTab === "speed_and_race" && (
         <div className="space-y-6 animate-fadeIn">
-          {/* CONVERTISSEUR INTERACTIF SYNCHRONISÉ */}
+          {/* CONVERTISSEUR INSTANTANÉ SYNCHRONISÉ */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl space-y-3">
             <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: themeColor }}>
-              Convertisseur instantané bidirectionnel
+              Synchronisation instantanée
             </span>
             <h3 className="text-sm font-black uppercase text-stone-100">
               Vitesse (km/h) ⇄ Allure (min/km)
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              {/* Vitesse */}
               <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-stone-400 block">
-                  Vitesse en km/h
+                  Vitesse
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -614,10 +687,9 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                 </div>
               </div>
 
-              {/* Allure */}
               <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-stone-400 block">
-                  Allure équivalente (min : sec)
+                  Allure
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="grid grid-cols-2 gap-2 flex-1">
@@ -652,14 +724,14 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
             </div>
           </div>
 
-          {/* CALCULATEUR DISTANCE / TEMPS / CHRONO (STYLE RUN-MOTION) */}
+          {/* CALCULATEUR CHRONO & TEMPS DE PASSAGE */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl space-y-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: themeColor }}>
-                Calculateur Distance & Temps
+                Estimation chronométrique
               </span>
               <h3 className="text-base font-black uppercase text-stone-100 mt-0.5">
-                Vitesse moyenne, allure et temps de passage
+                Allure moyenne & temps de passage
               </h3>
             </div>
 
@@ -673,7 +745,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                 >
                   <option value="5000">5 km</option>
                   <option value="10000">10 km</option>
-                  <option value="21097.5">Semi-Marathon (21.097 km)</option>
+                  <option value="21097.5">Semi-marathon (21.097 km)</option>
                   <option value="42195">Marathon (42.195 km)</option>
                   <option value="custom">Distance personnalisée (mètres)</option>
                 </select>
@@ -741,7 +813,7 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
 
                 <div className="bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-2">
                   <span className="text-[10px] uppercase font-black text-stone-400 tracking-wider block">
-                    Temps de passage à cette même allure
+                    Temps de passage à allure équivalente
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
                     {runMotionCalc.passages.map((p) => (
