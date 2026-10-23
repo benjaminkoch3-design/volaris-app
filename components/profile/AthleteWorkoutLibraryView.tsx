@@ -19,17 +19,27 @@ interface AthleteWorkoutLibraryViewProps {
   onBackToProfile: () => void;
 }
 
-const COLOR_PALETTE = [
-  "#CF9A61", // Cuivre / Bronze Volaris Athlète
-  "#CDCF61", // Or / Lime
-  "#10B981", // Émeraude
-  "#06B6D4", // Cyan
-  "#3B82F6", // Bleu Roi
-  "#8B5CF6", // Violet
-  "#EC4899", // Rose
-  "#F97316", // Ambre / Orange
-  "#64748B", // Ardoise
+// Grande palette étendue de 24 teintes
+const EXTENDED_COLOR_PALETTE = [
+  "#CF9A61", "#CDCF61", "#F59E0B", "#D97706",
+  "#EF4444", "#DC2626", "#F43F5E", "#BE123C",
+  "#EC4899", "#A855F7", "#7C3AED", "#6366F1",
+  "#3B82F6", "#0284C7", "#06B6D4", "#0D9488",
+  "#10B981", "#059669", "#84CC16", "#65A30D",
+  "#E2E8F0", "#94A3B8", "#475569", "#1E293B",
 ];
+
+// Calcul de luminance pour texte noir ou blanc automatique
+const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
+  if (!hexColor) return "#0a0a0a";
+  const hex = hexColor.replace("#", "");
+  const fullHex = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const r = parseInt(fullHex.substring(0, 2), 16) || 0;
+  const g = parseInt(fullHex.substring(2, 4), 16) || 0;
+  const b = parseInt(fullHex.substring(4, 6), 16) || 0;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#0a0a0a" : "#ffffff";
+};
 
 const getRpeColor = (rpeVal: number) => {
   if (rpeVal <= 3) return "#10b981";
@@ -57,7 +67,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   );
   const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
-  const [newCategoryColor, setNewCategoryColor] = useState<string>(COLOR_PALETTE[0]);
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(EXTENDED_COLOR_PALETTE[0]);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
   // Édition en ligne directe au clic et popover couleur
@@ -84,7 +94,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
     if (!newCategoryLabel.trim()) return;
     onAddCategory(newCategoryLabel.trim(), newCategoryColor);
     setNewCategoryLabel("");
-    setNewCategoryColor(COLOR_PALETTE[0]);
+    setNewCategoryColor(EXTENDED_COLOR_PALETTE[0]);
     setShowAddCategoryInput(false);
   };
 
@@ -169,11 +179,11 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           )}
         </div>
 
-        {/* FORMULAIRE NOUVELLE CATÉGORIE AVEC PALETTE */}
+        {/* FORMULAIRE NOUVELLE CATÉGORIE AVEC GRANDE PALETTE */}
         {showAddCategoryInput && (
           <form
             onSubmit={handleCreateCategorySubmit}
-            className="space-y-3 bg-stone-950 p-3 rounded-2xl border border-stone-800 animate-fadeIn"
+            className="space-y-3 bg-stone-950 p-3.5 rounded-2xl border border-stone-800 animate-fadeIn"
           >
             <div className="flex items-center gap-2">
               <input
@@ -200,17 +210,19 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
               </button>
             </div>
 
-            {/* Nuancier de sélection */}
-            <div className="flex items-center gap-2 pt-1 border-t border-stone-900">
-              <span className="text-[9.5px] uppercase font-bold text-stone-400">Couleur :</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {COLOR_PALETTE.map((c) => (
+            {/* Nuancier étendu */}
+            <div className="space-y-1.5 pt-1.5 border-t border-stone-900">
+              <span className="text-[9.5px] uppercase font-bold text-stone-400 block">
+                Couleur de fond :
+              </span>
+              <div className="grid grid-cols-12 gap-1.5 max-w-md">
+                {EXTENDED_COLOR_PALETTE.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setNewCategoryColor(c)}
-                    className={`w-5 h-5 rounded-full transition-transform cursor-pointer border ${
-                      newCategoryColor === c ? "scale-125 border-white shadow-md ring-2 ring-stone-950" : "border-transparent hover:scale-110"
+                    className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
+                      newCategoryColor === c ? "scale-125 border-white shadow-md ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
                     }`}
                     style={{ backgroundColor: c }}
                   />
@@ -220,7 +232,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           </form>
         )}
 
-        {/* LISTE DES BADGES : MULTI-LIGNES SUR ORDINATEUR AVEC COULEUR DYNAMIQUE */}
+        {/* LISTE DES BADGES : FOND EN COULEUR PLEINE + TEXTE AUTO */}
         <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-2 px-1">
@@ -233,16 +245,20 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
               const isEditing = editingCategoryId === cat.id;
               const isPickingColor = colorPickerCatId === cat.id;
               const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
-              const catColor = cat.color || "#CF9A61";
+
+              const bgColor = cat.color || "#CF9A61";
+              const textColor = isSelected ? getContrastTextColor(bgColor) : "#e7e5e4";
 
               return (
                 <div
                   key={cat.id}
-                  className="relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px]"
+                  className={`relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
+                    isSelected ? "shadow-lg scale-[1.02]" : "hover:border-stone-600 opacity-90 hover:opacity-100"
+                  }`}
                   style={{
-                    backgroundColor: isSelected ? "#0c0a09" : "rgba(28, 25, 23, 0.8)",
-                    borderColor: isSelected ? catColor : "rgba(41, 37, 36, 0.8)",
-                    boxShadow: isSelected ? `0 0 12px ${catColor}25` : undefined,
+                    backgroundColor: isSelected ? bgColor : "rgba(28, 25, 23, 0.85)",
+                    borderColor: isSelected ? bgColor : "rgba(68, 64, 60, 0.7)",
+                    boxShadow: isSelected ? `0 4px 14px ${bgColor}35` : undefined,
                   }}
                 >
                   {/* Flèche gauche */}
@@ -255,7 +271,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                         onMoveCategory(cat.id, "left");
                       }}
                       title="Déplacer vers la gauche"
-                      className="p-2 text-stone-400 hover:text-white disabled:opacity-20 transition cursor-pointer shrink-0"
+                      className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
+                      style={{ color: textColor }}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 18l-6-6 6-6" />
@@ -271,9 +288,12 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                         e.stopPropagation();
                         setColorPickerCatId(isPickingColor ? null : cat.id);
                       }}
-                      title="Modifier la couleur"
-                      className="w-3.5 h-3.5 rounded-full ml-2 shrink-0 cursor-pointer border border-stone-700 hover:scale-125 transition-transform"
-                      style={{ backgroundColor: catColor }}
+                      title="Changer la couleur de fond"
+                      className="w-4 h-4 rounded-full ml-2 shrink-0 cursor-pointer border shadow-sm hover:scale-125 transition-transform"
+                      style={{
+                        backgroundColor: bgColor,
+                        borderColor: textColor === "#0a0a0a" ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.6)",
+                      }}
                     />
                   )}
 
@@ -290,8 +310,11 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                           if (e.key === "Enter") handleSaveRename(cat.id);
                           if (e.key === "Escape") setEditingCategoryId(null);
                         }}
-                        className="bg-stone-900 border rounded-xl px-2.5 py-1 text-xs text-stone-100 font-black uppercase focus:outline-none w-32 shadow-inner"
-                        style={{ borderColor: catColor }}
+                        className="bg-stone-950/80 border rounded-xl px-2.5 py-1 text-xs font-black uppercase focus:outline-none w-32 shadow-inner"
+                        style={{
+                          color: textColor,
+                          borderColor: textColor === "#0a0a0a" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)",
+                        }}
                       />
                     </div>
                   ) : (
@@ -309,14 +332,16 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                       }}
                       title={isSelected ? "Cliquez sur le nom pour le renommer" : `Sélectionner ${cat.label}`}
                       className="px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0"
-                      style={{ color: isSelected ? catColor : "#d6d3d1" }}
+                      style={{ color: textColor }}
                     >
                       <span className="break-words line-clamp-2">{cat.label}</span>
                       <span
                         className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 font-bold"
                         style={{
-                          backgroundColor: isSelected ? `${catColor}25` : "#292524",
-                          color: isSelected ? catColor : "#a8a29e",
+                          backgroundColor: isSelected
+                            ? textColor === "#0a0a0a" ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.2)"
+                            : "#292524",
+                          color: isSelected ? textColor : "#a8a29e",
                         }}
                       >
                         {count}
@@ -334,7 +359,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                         onMoveCategory(cat.id, "right");
                       }}
                       title="Déplacer vers la droite"
-                      className="p-2 text-stone-400 hover:text-white disabled:opacity-20 transition cursor-pointer shrink-0"
+                      className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
+                      style={{ color: textColor }}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 18l6-6-6-6" />
@@ -370,7 +396,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                           type="button"
                           title="Supprimer la catégorie"
                           onClick={() => setCategoryToDelete(cat.id)}
-                          className="pr-2.5 pl-1 text-stone-500 hover:text-[#B34D4D] text-xs transition cursor-pointer shrink-0"
+                          className="pr-2.5 pl-1 hover:opacity-100 opacity-60 text-xs transition cursor-pointer shrink-0"
+                          style={{ color: textColor }}
                         >
                           ✕
                         </button>
@@ -378,23 +405,25 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                     </>
                   )}
 
-                  {/* Popover sélecteur de couleur */}
+                  {/* Popover grande palette au clic */}
                   {isPickingColor && onUpdateCategoryColor && (
-                    <div className="absolute top-full left-0 mt-2 z-50 p-2 bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl flex items-center gap-1.5 animate-scaleUp">
-                      {COLOR_PALETTE.map((col) => (
-                        <button
-                          key={col}
-                          type="button"
-                          onClick={() => {
-                            onUpdateCategoryColor(cat.id, col);
-                            setColorPickerCatId(null);
-                          }}
-                          className={`w-5 h-5 rounded-full transition-transform cursor-pointer border ${
-                            catColor === col ? "scale-125 border-white ring-2 ring-stone-900" : "border-transparent hover:scale-110"
-                          }`}
-                          style={{ backgroundColor: col }}
-                        />
-                      ))}
+                    <div className="absolute top-full left-0 mt-2 z-50 p-2.5 bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl animate-scaleUp">
+                      <div className="grid grid-cols-8 gap-1.5">
+                        {EXTENDED_COLOR_PALETTE.map((col) => (
+                          <button
+                            key={col}
+                            type="button"
+                            onClick={() => {
+                              onUpdateCategoryColor(cat.id, col);
+                              setColorPickerCatId(null);
+                            }}
+                            className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
+                              bgColor === col ? "scale-125 border-white ring-2 ring-stone-900" : "border-stone-800 hover:scale-110"
+                            }`}
+                            style={{ backgroundColor: col }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -406,7 +435,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
         {currentCategory && (
           <div className="text-[10.5px] text-stone-500 px-1 flex items-center justify-between">
             <span>
-              Catégorie active : <strong className="font-bold" style={{ color: currentCategory.color || "#CF9A61" }}>{currentCategory.label}</strong> (cliquez sur la pastille pour changer de couleur ou sur le nom pour renommer)
+              Catégorie active : <strong className="font-bold text-stone-200">{currentCategory.label}</strong> (cliquez sur la pastille pour changer le fond ou sur le nom pour renommer)
             </span>
           </div>
         )}
@@ -421,7 +450,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             </div>
             <p className="text-xs text-stone-400">
               Aucune séance dans la catégorie{" "}
-              <strong style={{ color: currentCategory?.color || "#CF9A61" }}>{currentCategory?.label}</strong>.
+              <strong className="text-stone-200">{currentCategory?.label}</strong>.
             </p>
             <button
               type="button"
@@ -437,6 +466,9 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
               const rpeVal = parseInt(workout.rpe || "5", 10);
               const rpeColor = getRpeColor(rpeVal);
               const typeConfig = getWorkoutTypeConfig((workout as any).type || "footing");
+
+              const catColor = currentCategory?.color || "#CF9A61";
+              const catTextColor = getContrastTextColor(catColor);
 
               return (
                 <div
@@ -490,11 +522,12 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                         </div>
                       </div>
 
+                      {/* Badge catégorie en couleur pleine */}
                       <span
-                        className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-stone-950 shrink-0 font-mono"
+                        className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg shrink-0 font-mono shadow-sm"
                         style={{
-                          color: currentCategory?.color || "#d6d3d1",
-                          borderColor: currentCategory?.color ? `${currentCategory.color}40` : "#292524",
+                          backgroundColor: catColor,
+                          color: catTextColor,
                         }}
                       >
                         {currentCategory?.label}
