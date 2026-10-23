@@ -18,7 +18,7 @@ interface WorkoutLibraryViewProps {
   onDeleteTemplate: (id: string) => void;
 }
 
-// Grande palette de 24 couleurs variées
+// Grande palette étendue de 24 teintes
 const EXTENDED_COLOR_PALETTE = [
   "#CDCF61", "#CF9A61", "#F59E0B", "#D97706",
   "#EF4444", "#DC2626", "#F43F5E", "#BE123C",
@@ -36,7 +36,6 @@ const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
   const r = parseInt(fullHex.substring(0, 2), 16) || 0;
   const g = parseInt(fullHex.substring(2, 4), 16) || 0;
   const b = parseInt(fullHex.substring(4, 6), 16) || 0;
-  // Formule standard de luminance perçue
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.55 ? "#0a0a0a" : "#ffffff";
 };
@@ -222,7 +221,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           </form>
         )}
 
-        {/* LISTE DES BADGES : FOND EN COULEUR PLEINE + TEXTE NOIR OU BLANC */}
+        {/* LISTE DES BADGES : FOND EN COULEUR PLEINE + GESTION Z-INDEX */}
         <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-2 px-1">
@@ -243,7 +242,11 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                 <div
                   key={cat.id}
                   className={`relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
-                    isSelected ? "shadow-lg scale-[1.02]" : "hover:border-stone-600 opacity-90 hover:opacity-100"
+                    isPickingColor
+                      ? "z-40 shadow-2xl ring-2 ring-stone-400"
+                      : isSelected
+                      ? "z-20 shadow-lg scale-[1.02]"
+                      : "z-10 hover:z-20 hover:border-stone-600 opacity-90 hover:opacity-100"
                   }`}
                   style={{
                     backgroundColor: isSelected ? bgColor : "rgba(28, 25, 23, 0.85)",
@@ -270,7 +273,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     </button>
                   )}
 
-                  {/* Pastille de sélection de couleur au clic */}
+                  {/* Pastille de sélection de couleur */}
                   {isSelected && onUpdateCategoryColor && (
                     <button
                       type="button"
@@ -395,26 +398,34 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     </>
                   )}
 
-                  {/* Popover grande palette au clic sur la pastille */}
+                  {/* Popover grande palette au-dessus des autres éléments */}
                   {isPickingColor && onUpdateCategoryColor && (
-                    <div className="absolute top-full left-0 mt-2 z-50 p-2.5 bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl animate-scaleUp">
-                      <div className="grid grid-cols-8 gap-1.5">
-                        {EXTENDED_COLOR_PALETTE.map((col) => (
-                          <button
-                            key={col}
-                            type="button"
-                            onClick={() => {
-                              onUpdateCategoryColor(cat.id, col);
-                              setColorPickerCatId(null);
-                            }}
-                            className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
-                              bgColor === col ? "scale-125 border-white ring-2 ring-stone-900" : "border-stone-800 hover:scale-110"
-                            }`}
-                            style={{ backgroundColor: col }}
-                          />
-                        ))}
+                    <>
+                      {/* Masque transparent pour fermer en cliquant n'importe où */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setColorPickerCatId(null)}
+                      />
+                      <div className="absolute top-full left-0 mt-2 z-50 p-2.5 bg-stone-900 border border-stone-700 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.8)] animate-scaleUp">
+                        <div className="grid grid-cols-8 gap-1.5 w-max">
+                          {EXTENDED_COLOR_PALETTE.map((col) => (
+                            <button
+                              key={col}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateCategoryColor(cat.id, col);
+                                setColorPickerCatId(null);
+                              }}
+                              className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
+                                bgColor === col ? "scale-125 border-white ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
+                              }`}
+                              style={{ backgroundColor: col }}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               );
