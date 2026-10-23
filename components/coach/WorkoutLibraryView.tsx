@@ -7,15 +7,29 @@ import { getWorkoutTypeConfig } from "../../utils/calculations";
 interface WorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
   categories: LibraryCategory[];
-  onAddCategory: (label: string) => void;
+  onAddCategory: (label: string, color?: string) => void;
   onDeleteCategory: (id: string) => void;
   onRenameCategory?: (id: string, newLabel: string) => void;
+  onUpdateCategoryColor?: (id: string, color: string) => void;
   onMoveCategory?: (id: string, direction: "left" | "right") => void;
   onMoveWorkout?: (workoutId: string, direction: "up" | "down") => void;
   onCreateNewTemplate: (categoryId: string) => void;
   onEditTemplate: (id: string) => void;
   onDeleteTemplate: (id: string) => void;
 }
+
+// Nuancier de couleurs modernes et adaptées au thème sombre
+const COLOR_PALETTE = [
+  "#CDCF61", // Or / Lime Volaris Coach
+  "#CF9A61", // Cuivre / Bronze
+  "#10B981", // Émeraude
+  "#06B6D4", // Cyan
+  "#3B82F6", // Bleu Roi
+  "#8B5CF6", // Violet
+  "#EC4899", // Rose
+  "#F97316", // Ambre / Orange
+  "#64748B", // Ardoise
+];
 
 const getRpeColor = (rpeVal: number) => {
   if (rpeVal <= 3) return "#10b981";
@@ -30,6 +44,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   onAddCategory,
   onDeleteCategory,
   onRenameCategory,
+  onUpdateCategoryColor,
   onMoveCategory,
   onMoveWorkout,
   onCreateNewTemplate,
@@ -41,11 +56,13 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   );
   const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(COLOR_PALETTE[0]);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
-  // Édition en ligne directe au clic sur la catégorie
+  // Édition directe du label et sélecteur de couleur
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editedCategoryLabel, setEditedCategoryLabel] = useState("");
+  const [colorPickerCatId, setColorPickerCatId] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,8 +81,9 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   const handleCreateCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryLabel.trim()) return;
-    onAddCategory(newCategoryLabel.trim());
+    onAddCategory(newCategoryLabel.trim(), newCategoryColor);
     setNewCategoryLabel("");
+    setNewCategoryColor(COLOR_PALETTE[0]);
     setShowAddCategoryInput(false);
   };
 
@@ -81,6 +99,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   const handleStartRename = (cat: LibraryCategory) => {
     setEditingCategoryId(cat.id);
     setEditedCategoryLabel(cat.label);
+    setColorPickerCatId(null);
   };
 
   const handleSaveRename = (catId: string) => {
@@ -140,37 +159,58 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           )}
         </div>
 
+        {/* FORMULAIRE NOUVELLE CATÉGORIE AVEC PALETTE */}
         {showAddCategoryInput && (
           <form
             onSubmit={handleCreateCategorySubmit}
-            className="flex items-center gap-2 bg-stone-950 p-2 rounded-2xl border border-stone-800 animate-fadeIn"
+            className="space-y-3 bg-stone-950 p-3 rounded-2xl border border-stone-800 animate-fadeIn"
           >
-            <input
-              type="text"
-              required
-              autoFocus
-              placeholder="Ex : VMA Courte, Allure Marathon, Trail D+..."
-              value={newCategoryLabel}
-              onChange={(e) => setNewCategoryLabel(e.target.value)}
-              className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CDCF61]"
-            />
-            <button
-              type="submit"
-              className="py-2 px-3.5 bg-[#CDCF61] hover:bg-[#b8bb52] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
-            >
-              Ajouter
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddCategoryInput(false)}
-              className="py-2 px-2.5 text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                required
+                autoFocus
+                placeholder="Nom de la catégorie..."
+                value={newCategoryLabel}
+                onChange={(e) => setNewCategoryLabel(e.target.value)}
+                className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CDCF61]"
+              />
+              <button
+                type="submit"
+                className="py-2 px-3.5 bg-[#CDCF61] hover:bg-[#b8bb52] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+              >
+                Ajouter
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddCategoryInput(false)}
+                className="py-2 px-2.5 text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Nuancier de sélection */}
+            <div className="flex items-center gap-2 pt-1 border-t border-stone-900">
+              <span className="text-[9.5px] uppercase font-bold text-stone-400">Couleur :</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {COLOR_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewCategoryColor(c)}
+                    className={`w-5 h-5 rounded-full transition-transform cursor-pointer border ${
+                      newCategoryColor === c ? "scale-125 border-white shadow-md ring-2 ring-stone-950" : "border-transparent hover:scale-110"
+                    }`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
           </form>
         )}
 
-        {/* LISTE DES BADGES : MULTI-LIGNES SUR ORDINATEUR */}
+        {/* LISTE DES BADGES : MULTI-LIGNES SUR ORDINATEUR AVEC PALETTE DYNAMIQUE */}
         <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
           {categories.length === 0 ? (
             <p className="text-xs text-stone-500 italic py-2 px-1">
@@ -181,18 +221,21 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
               const isSelected = selectedCategoryId === cat.id;
               const isConfirming = categoryToDelete === cat.id;
               const isEditing = editingCategoryId === cat.id;
+              const isPickingColor = colorPickerCatId === cat.id;
               const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
+              const catColor = cat.color || "#CDCF61";
 
               return (
                 <div
                   key={cat.id}
-                  className={`flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
-                    isSelected
-                      ? "bg-stone-950 border-[#CDCF61]/60 shadow-md"
-                      : "bg-stone-900/80 border-stone-800 hover:border-stone-700"
-                  }`}
+                  className="relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px]"
+                  style={{
+                    backgroundColor: isSelected ? "#0c0a09" : "rgba(28, 25, 23, 0.8)",
+                    borderColor: isSelected ? catColor : "rgba(41, 37, 36, 0.8)",
+                    boxShadow: isSelected ? `0 0 12px ${catColor}25` : undefined,
+                  }}
                 >
-                  {/* Flèche gauche moderne (SVG) */}
+                  {/* Flèche gauche */}
                   {isSelected && onMoveCategory && (
                     <button
                       type="button"
@@ -202,7 +245,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         onMoveCategory(cat.id, "left");
                       }}
                       title="Déplacer vers la gauche"
-                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer shrink-0"
+                      className="p-2 text-stone-400 hover:text-white disabled:opacity-20 transition cursor-pointer shrink-0"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M15 18l-6-6 6-6" />
@@ -210,7 +253,21 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     </button>
                   )}
 
-                  {/* Clic direct pour sélectionner ou renommer sans crayon */}
+                  {/* Pastille de personnalisation de la couleur au clic */}
+                  {isSelected && onUpdateCategoryColor && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setColorPickerCatId(isPickingColor ? null : cat.id);
+                      }}
+                      title="Modifier la couleur"
+                      className="w-3.5 h-3.5 rounded-full ml-2 shrink-0 cursor-pointer border border-stone-700 hover:scale-125 transition-transform"
+                      style={{ backgroundColor: catColor }}
+                    />
+                  )}
+
+                  {/* Renommage en ligne ou Affichage du libellé */}
                   {isEditing ? (
                     <div className="flex items-center px-1.5 py-1 min-w-0">
                       <input
@@ -223,7 +280,8 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                           if (e.key === "Enter") handleSaveRename(cat.id);
                           if (e.key === "Escape") setEditingCategoryId(null);
                         }}
-                        className="bg-stone-900 border border-[#CDCF61] rounded-xl px-2.5 py-1 text-xs text-stone-100 font-black uppercase focus:outline-none w-32 shadow-inner"
+                        className="bg-stone-900 border rounded-xl px-2.5 py-1 text-xs text-stone-100 font-black uppercase focus:outline-none w-32 shadow-inner"
+                        style={{ borderColor: catColor }}
                       />
                     </div>
                   ) : (
@@ -236,29 +294,27 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                           setSelectedCategoryId(cat.id);
                           setCategoryToDelete(null);
                           setEditingCategoryId(null);
+                          setColorPickerCatId(null);
                         }
                       }}
                       title={isSelected ? "Cliquez pour renommer cette catégorie" : `Sélectionner ${cat.label}`}
-                      className={`px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0 ${
-                        isSelected
-                          ? "text-[#CDCF61]"
-                          : "text-stone-300 hover:text-white"
-                      }`}
+                      className="px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0"
+                      style={{ color: isSelected ? catColor : "#d6d3d1" }}
                     >
                       <span className="break-words line-clamp-2">{cat.label}</span>
                       <span
-                        className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 ${
-                          isSelected
-                            ? "bg-[#CDCF61]/20 text-[#CDCF61]"
-                            : "bg-stone-800 text-stone-400"
-                        }`}
+                        className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 font-bold"
+                        style={{
+                          backgroundColor: isSelected ? `${catColor}25` : "#292524",
+                          color: isSelected ? catColor : "#a8a29e",
+                        }}
                       >
                         {count}
                       </span>
                     </button>
                   )}
 
-                  {/* Flèche droite moderne (SVG) */}
+                  {/* Flèche droite */}
                   {isSelected && onMoveCategory && (
                     <button
                       type="button"
@@ -268,7 +324,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         onMoveCategory(cat.id, "right");
                       }}
                       title="Déplacer vers la droite"
-                      className="p-2 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 transition cursor-pointer shrink-0"
+                      className="p-2 text-stone-400 hover:text-white disabled:opacity-20 transition cursor-pointer shrink-0"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 18l6-6-6-6" />
@@ -276,7 +332,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     </button>
                   )}
 
-                  {/* Suppression sécurisée */}
+                  {/* Suppression */}
                   {isSelected && (
                     <>
                       {isConfirming ? (
@@ -311,6 +367,26 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                       )}
                     </>
                   )}
+
+                  {/* Popover sélecteur de couleur */}
+                  {isPickingColor && onUpdateCategoryColor && (
+                    <div className="absolute top-full left-0 mt-2 z-50 p-2 bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl flex items-center gap-1.5 animate-scaleUp">
+                      {COLOR_PALETTE.map((col) => (
+                        <button
+                          key={col}
+                          type="button"
+                          onClick={() => {
+                            onUpdateCategoryColor(cat.id, col);
+                            setColorPickerCatId(null);
+                          }}
+                          className={`w-5 h-5 rounded-full transition-transform cursor-pointer border ${
+                            catColor === col ? "scale-125 border-white ring-2 ring-stone-900" : "border-transparent hover:scale-110"
+                          }`}
+                          style={{ backgroundColor: col }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -320,7 +396,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
         {currentCategory && (
           <div className="text-[10.5px] text-stone-500 px-1 flex items-center justify-between">
             <span>
-              Catégorie active : <strong className="text-stone-300 font-bold">{currentCategory.label}</strong> (cliquez sur son nom pour la renommer)
+              Catégorie active : <strong className="font-bold" style={{ color: currentCategory.color || "#CDCF61" }}>{currentCategory.label}</strong> (cliquez sur la pastille pour changer de couleur ou sur le nom pour renommer)
             </span>
           </div>
         )}
@@ -335,7 +411,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
             </div>
             <p className="text-xs text-stone-400">
               Aucune séance enregistrée dans la catégorie{" "}
-              <strong className="text-[#CDCF61]">
+              <strong style={{ color: currentCategory?.color || "#CDCF61" }}>
                 {currentCategory?.label}
               </strong>
               .
@@ -353,7 +429,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
             {filteredWorkouts.map((workout, workoutIdx) => {
               const rpeVal = parseInt(workout.rpe || "5", 10);
               const rpeColor = getRpeColor(rpeVal);
-
               const workoutType = (workout as any).type || "footing";
               const typeConfig = getWorkoutTypeConfig(workoutType);
 
@@ -365,7 +440,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                   <div className="space-y-2.5">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-start gap-2.5">
-                        {/* FLÈCHES DE RÉORGANISATION MODERNES (SVG) */}
+                        {/* FLÈCHES DE RÉORGANISATION */}
                         {onMoveWorkout && (
                           <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0 mt-0.5 shadow-inner">
                             <button
@@ -409,7 +484,13 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                         </div>
                       </div>
 
-                      <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-stone-950 text-stone-300 border-stone-800 shrink-0 font-mono">
+                      <span
+                        className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border bg-stone-950 shrink-0 font-mono"
+                        style={{
+                          color: currentCategory?.color || "#d6d3d1",
+                          borderColor: currentCategory?.color ? `${currentCategory.color}40` : "#292524",
+                        }}
+                      >
                         {currentCategory?.label}
                       </span>
                     </div>
@@ -421,7 +502,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
                     )}
                   </div>
 
-                  {/* MÉTRIQUES : KM, RPE ET BOUTONS ACTIONS */}
+                  {/* MÉTRIQUES : KM, RPE ET ACTIONS */}
                   <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-stone-800/80">
                     <div className="flex items-center gap-2">
                       {workout.km && (
@@ -465,4 +546,4 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
       </div>
     </div>
   );
-};
+};  

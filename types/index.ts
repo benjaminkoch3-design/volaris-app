@@ -199,12 +199,13 @@ export interface ChatMessage {
 }
 
 // ==========================================
-// TYPES POUR LA BIBLIOTHÈQUE DU COACH
+// TYPES POUR LA BIBLIOTHÈQUE DU COACH ET DE L'ATHLÈTE
 // ==========================================
 
 export interface LibraryCategory {
   id: string;
   label: string;
+  color?: string; // Code couleur hexadécimal optionnel (ex: "#CF9A61", "#3B82F6", "#10B981")
 }
 
 export interface LibraryWorkout {

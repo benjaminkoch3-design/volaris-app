@@ -317,12 +317,14 @@ export default function Home() {
   const [customCategories, setCustomCategories] = useState<LibraryCategory[]>([]);
   const [libraryWorkouts, setLibraryWorkouts] = useState<LibraryWorkout[]>([]);
 
-  const handleAddCategory = async (label: string) => {
+  const handleAddCategory = async (label: string, color?: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
-    const newCat = { id: catId, label };
+    const newCat: LibraryCategory = { id: catId, label, color: color || "#CF9A61" };
     setCustomCategories((prev) => [...prev, newCat]);
-    await supabase.from("library_categories").insert([{ id: catId, user_id: session.user.id, label }]);
+    await supabase.from("library_categories").insert([
+      { id: catId, user_id: session.user.id, label, color: newCat.color }
+    ]);
   };
 
   const handleDeleteCategory = async (catId: string) => {
@@ -339,6 +341,14 @@ export default function Home() {
       prev.map((c) => (c.id === catId ? { ...c, label: newLabel } : c))
     );
     await supabase.from("library_categories").update({ label: newLabel }).eq("id", catId);
+  };
+
+  const handleUpdateCategoryColor = async (catId: string, newColor: string) => {
+    if (!session?.user) return;
+    setCustomCategories((prev) =>
+      prev.map((c) => (c.id === catId ? { ...c, color: newColor } : c))
+    );
+    await supabase.from("library_categories").update({ color: newColor }).eq("id", catId);
   };
 
   const handleMoveCategory = async (catId: string, direction: "left" | "right") => {
@@ -1166,13 +1176,22 @@ export default function Home() {
         })));
       }
 
+      // CHARGEMENT DES CATÉGORIES (AVEC COULEUR)
       const { data: catsData } = await supabase
         .from("library_categories")
         .select("*")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: true });
 
-      if (catsData) setCustomCategories(catsData.map((c: any) => ({ id: c.id, label: c.label })));
+      if (catsData) {
+        setCustomCategories(
+          catsData.map((c: any) => ({
+            id: c.id,
+            label: c.label,
+            color: c.color || "#CF9A61",
+          }))
+        );
+      }
 
       const { data: libraryData } = await supabase
         .from("library_workouts")
@@ -2991,6 +3010,7 @@ export default function Home() {
             onAddCategory={handleAddCategory}
             onDeleteCategory={handleDeleteCategory}
             onRenameCategory={handleRenameCategory}
+            onUpdateCategoryColor={handleUpdateCategoryColor}
             onMoveCategory={handleMoveCategory}
             onMoveWorkout={handleMoveWorkout}
             onCreateNewTemplate={handleCreateNewTemplate}
@@ -3005,6 +3025,10 @@ export default function Home() {
             categories={customCategories}
             onAddCategory={handleAddCategory}
             onDeleteCategory={handleDeleteCategory}
+            onRenameCategory={handleRenameCategory}
+            onUpdateCategoryColor={handleUpdateCategoryColor}
+            onMoveCategory={handleMoveCategory}
+            onMoveWorkout={handleMoveWorkout}
             onCreateNewTemplate={handleCreateNewTemplate}
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
