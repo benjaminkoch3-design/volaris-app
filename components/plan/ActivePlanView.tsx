@@ -399,27 +399,43 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </span>
                             </div>
 
-                            {/* 📋 AFFICHAGE DE LA NOTE DU COACH POUR L'ATHLÈTE */}
-                            {coachNoteForDay && (
-                              <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
-                                <span className="text-xs">📋</span>
-                                <div>
-                                  <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
-                                    Consigne du Coach :
-                                  </span>
-                                  <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
-                                    {coachNoteForDay}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-
                             {!hasActiveWorkouts ? (
-                              <div className="py-4 text-center text-xs text-stone-600 italic select-none">
-                                Repos
+                              <div className="space-y-2">
+                                <div className="py-2 text-center text-xs text-stone-600 italic select-none">
+                                  Repos
+                                </div>
+                                {/* 📋 AFFICHAGE DE LA NOTE DU COACH MÊME S'IL Y A REPOS */}
+                                {coachNoteForDay && (
+                                  <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
+                                    <span className="text-xs">📋</span>
+                                    <div>
+                                      <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
+                                        Consigne du Coach :
+                                      </span>
+                                      <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
+                                        {coachNoteForDay}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <div className="space-y-2.5">
+                                {/* 📋 AFFICHAGE DE LA NOTE DU COACH JUSTE ICI (AU DÉBUT DE LA LISTE DES SÉANCES DU JOUR) */}
+                                {coachNoteForDay && (
+                                  <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
+                                    <span className="text-xs">📋</span>
+                                    <div>
+                                      <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
+                                        Consigne du Coach :
+                                      </span>
+                                      <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
+                                        {coachNoteForDay}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
                                 {dayWorkouts
                                   .filter((w) => !w.isRest)
                                   .map((w) => {
