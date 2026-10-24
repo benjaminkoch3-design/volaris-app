@@ -85,7 +85,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
   // Récupération sécurisée des notes du coach pour l'athlète connecté ou inspecté
   useEffect(() => {
     const fetchPublicCoachNotes = async () => {
-      // 1. Récupération de l'ID cible (via le plan ou l'utilisateur connecté)
       let targetAthleteId = activePlan.userId || (activePlan as any).user_id;
 
       if (!targetAthleteId) {
@@ -97,7 +96,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
       if (!targetAthleteId) return;
 
-      // 2. Interrogation de la table des notes visibles
       const { data, error } = await supabase
         .from("coach_day_notes")
         .select("date, note_text")
@@ -360,17 +358,22 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           dIdx
                         );
 
-                        // Conversion en format ISO AAAA-MM-JJ
+                        // Conversion sécurisée en format ISO AAAA-MM-JJ pour correspondre à la base de données
                         const isoDateStr = (() => {
                           if (!exactDate) return "";
-                          if (exactDate.includes("/")) {
-                            const [day, month, year] = exactDate.split("/");
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(exactDate)) return exactDate;
+                          const parts = exactDate.split("/");
+                          if (parts.length === 3) {
+                            let [day, month, year] = parts;
+                            if (year.length === 2) {
+                              year = `20${year}`;
+                            }
                             return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
                           }
                           return exactDate;
                         })();
 
-                        const coachNoteForDay = coachDayNotes[isoDateStr];
+                        const coachNoteForDay = coachDayNotes[isoDateStr] || coachDayNotes[exactDate];
 
                         const dayWorkouts = rawWeekWorkouts.filter(
                           (w) => w.dayIndex === dIdx
@@ -406,9 +409,9 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </span>
                             </div>
 
-                            {/* 📋 NOTE DU COACH DIRECTEMENT ENCADRÉE EN HAUT DE LA CARTE DU JOUR */}
+                            {/* 📋 AFFICHAGE DE LA NOTE DU COACH SUR LA PAGE DU PLAN */}
                             {coachNoteForDay && (
-                              <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/50 rounded-xl p-3 flex items-start gap-2 shadow-sm">
+                              <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/60 rounded-xl p-3 flex items-start gap-2 shadow-md animate-fadeIn">
                                 <span className="text-sm">📋</span>
                                 <div className="min-w-0 flex-1">
                                   <span className="text-[10px] font-black uppercase text-[#CDCF61] block tracking-wider">
@@ -447,7 +450,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                             ? "opacity-30 border-dashed"
                                             : isDone
                                             ? "bg-stone-950/40 border-stone-800 text-stone-500"
-                                            : "bg-stone-900 border-stone-800 hover:border-[#CF9A61]/60 text-stone-100 shadow-md"
+                                            : "bg-stone-900 border-stone-800 hover:border-[#CDCF61]/60 text-stone-100 shadow-md"
                                         }`}
                                       >
                                         <div className="space-y-2">
