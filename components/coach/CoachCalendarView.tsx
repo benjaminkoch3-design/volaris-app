@@ -41,6 +41,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   onSelectDate,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  // État local pour filtrer par athlète ("all" ou id de l'athlète)
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>("all");
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -85,6 +87,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
     if (!isPlanActive || isPlanArchived) return;
 
     const planUserId = plan.userId || plan.user_id;
+
+    // Application du filtre par athlète
+    if (selectedAthleteId !== "all" && planUserId !== selectedAthleteId) return;
+
     const athlete = managedAthletes.find((a) => a.id === planUserId);
     if (!athlete || (!plan.startDate && !plan.start_date)) return;
 
@@ -119,8 +125,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
   return (
     <div className="space-y-5 animate-fadeIn font-sans w-full">
-      {/* BANDEAU NAVIGATION MOIS */}
-      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex items-center justify-between shadow-sm dark:shadow-lg transition-colors">
+      {/* BANDEAU NAVIGATION MOIS & FILTRE ATHLÈTE */}
+      <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg transition-colors">
         <div>
           <span className="text-[10px] font-black text-[#CDCF61] uppercase tracking-widest block">
             Agenda d'Entraînement
@@ -130,28 +136,49 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleCurrentMonth}
-            className="text-[10px] font-bold text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
-          >
-            Aujourd'hui
-          </button>
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
-          >
-            ▶
-          </button>
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
+          {/* SÉLECTEUR DE FILTRAGE PAR ATHLÈTE */}
+          <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl">
+            <span className="text-[10px] font-bold text-stone-500 uppercase">Athlète :</span>
+            <select
+              value={selectedAthleteId}
+              onChange={(e) => setSelectedAthleteId(e.target.value)}
+              className="bg-transparent text-[11px] font-bold text-stone-900 dark:text-stone-100 focus:outline-none cursor-pointer"
+            >
+              <option value="all" className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100">
+                Tous les athlètes ({managedAthletes.length})
+              </option>
+              {managedAthletes.map((a) => (
+                <option key={a.id} value={a.id} className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100">
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleCurrentMonth}
+              className="text-[10px] font-bold text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+            >
+              Aujourd'hui
+            </button>
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1.5 bg-stone-100 dark:bg-stone-950 hover:bg-stone-200 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-xl border border-stone-300 dark:border-stone-800 transition cursor-pointer"
+            >
+              ▶
+            </button>
+          </div>
         </div>
       </div>
 
