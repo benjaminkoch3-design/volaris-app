@@ -101,14 +101,13 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onToggleRole}
-              className={`text-[9.5px] font-black px-3 py-1.5 rounded-full transition cursor-pointer shadow-md border border-stone-800/20 dark:border-stone-800 text-stone-950 flex items-center gap-1.5 whitespace-nowrap ${
+              className={`text-[9.5px] font-black px-3 py-1.5 rounded-full transition cursor-pointer shadow-md border border-stone-800/20 dark:border-stone-800 text-stone-950 whitespace-nowrap ${
                 isCoach
                   ? "bg-[#CF9A61] hover:bg-[#b88652]"
                   : "bg-[#CDCF61] hover:bg-[#b8bb52]"
               }`}
               title={isCoach ? "Basculer sur mon compte Athlète" : "Basculer sur mon compte Coach"}
             >
-              <span>🔄</span>
               <span>{isCoach ? "Passer Athlète" : "Passer Coach"}</span>
             </button>
           )}
