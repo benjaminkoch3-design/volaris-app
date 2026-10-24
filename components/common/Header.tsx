@@ -87,15 +87,14 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* BOUTON ACTUALISER LA PAGE */}
+          {/* BOUTON ACTUALISER (DEUX FLÈCHES EN ROND) */}
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="text-stone-900 dark:text-stone-100 bg-stone-100 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 font-extrabold text-[9.5px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap"
-            title="Actualiser la page et recharger les données"
+            className="text-stone-900 dark:text-stone-100 bg-stone-100 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 p-2 rounded-xl transition cursor-pointer flex items-center justify-center shadow-md"
+            title="Actualiser la page"
           >
-            <span>🔄</span>
-            <span className="hidden sm:inline">Actualiser</span>
+            <span className="text-sm">🔄</span>
           </button>
 
           {onToggleRole && (
