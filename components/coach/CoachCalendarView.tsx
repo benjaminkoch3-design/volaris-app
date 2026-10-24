@@ -175,7 +175,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
     const nextState = !coachCheckedWorkouts[workoutId];
     setCoachCheckedWorkouts((prev) => ({ ...prev, [workoutId]: nextState }));
 
-    // Met aussi à jour l'objet global allWorkouts en mémoire si nécessaire
     const targetW = allWorkouts.find((w: any) => w.id === workoutId);
     if (targetW) {
       (targetW as any).coach_checked = nextState;
@@ -380,7 +379,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
               </button>
             </div>
 
-            {selectedAthleteId !== "all" ? (
+            {selectedAthleteId !== "all" && (
               <div className="bg-stone-950 border border-stone-800 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase text-stone-200 flex items-center gap-1.5">
@@ -413,10 +412,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     Enregistrer la note
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-stone-950 border border-stone-800 rounded-2xl p-3 text-center text-xs text-stone-400 italic">
-                Sélectionne un athlète dans le filtre en haut pour rédiger une note spécifique.
               </div>
             )}
 
