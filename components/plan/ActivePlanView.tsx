@@ -84,7 +84,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
   // État local pour stocker les notes du coach destinées à l'athlète : Record<dateStr, noteText>
   const [coachDayNotes, setCoachDayNotes] = useState<Record<string, string>>({});
 
-  // Récupération des notes publiques du coach depuis Supabase
+  // Récupération des notes publiques du coach depuis Supabase[cite: 3, 4]
   useEffect(() => {
     const fetchPublicCoachNotes = async () => {
       const athleteId = activePlan.userId || (activePlan as any).user_id;
@@ -287,7 +287,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                 key={wNum}
                 className={`rounded-3xl border transition-all overflow-hidden ${
                   isCurrentWeek
-                    ? "border-[#CF9A61]/80 bg-stone-900/90 shadow-xl"
+                    ? "border-[#CDCF61]/80 bg-stone-900/90 shadow-xl"
                     : "border-stone-800/80 bg-stone-900/60"
                 }`}
               >
@@ -303,7 +303,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                       </span>
 
                       {isCurrentWeek && (
-                        <span className="text-[9px] font-black uppercase bg-[#CF9A61] text-stone-950 px-2 py-0.5 rounded-full">
+                        <span className="text-[9px] font-black uppercase bg-[#CDCF61] text-stone-950 px-2 py-0.5 rounded-full">
                           En cours
                         </span>
                       )}
@@ -379,7 +379,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                             onDrop={(e) => handleDrop(e, wNum, dIdx)}
                             className={`rounded-2xl border transition-all p-3 flex flex-col justify-between space-y-2.5 ${
                               isDragOverThisDay
-                                ? "border-[#CF9A61] bg-[#CF9A61]/10 ring-2 ring-[#CF9A61]/40"
+                                ? "border-[#CDCF61] bg-[#CDCF61]/10 ring-2 ring-[#CDCF61]/40"
                                 : "border-stone-800/90 bg-stone-950/50"
                             }`}
                           >
@@ -406,13 +406,13 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                 </div>
                                 {/* 📋 AFFICHAGE DE LA NOTE DU COACH MÊME S'IL Y A REPOS */}
                                 {coachNoteForDay && (
-                                  <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
+                                  <div className="bg-[#CDCF61]/15 border border-[#CDCF61]/40 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
                                     <span className="text-xs">📋</span>
                                     <div>
                                       <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
                                         Consigne du Coach :
                                       </span>
-                                      <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
+                                      <p className="text-[11px] font-medium text-stone-100 mt-0.5 whitespace-pre-line leading-snug">
                                         {coachNoteForDay}
                                       </p>
                                     </div>
@@ -421,21 +421,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </div>
                             ) : (
                               <div className="space-y-2.5">
-                                {/* 📋 AFFICHAGE DE LA NOTE DU COACH JUSTE ICI (AU DÉBUT DE LA LISTE DES SÉANCES DU JOUR) */}
-                                {coachNoteForDay && (
-                                  <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
-                                    <span className="text-xs">📋</span>
-                                    <div>
-                                      <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
-                                        Consigne du Coach :
-                                      </span>
-                                      <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
-                                        {coachNoteForDay}
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
-
                                 {dayWorkouts
                                   .filter((w) => !w.isRest)
                                   .map((w) => {
@@ -456,7 +441,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                             ? "opacity-30 border-dashed"
                                             : isDone
                                             ? "bg-stone-950/40 border-stone-800 text-stone-500"
-                                            : "bg-stone-900 border-stone-800 hover:border-[#CF9A61]/60 text-stone-100 shadow-md"
+                                            : "bg-stone-900 border-stone-800 hover:border-[#CDCF61]/60 text-stone-100 shadow-md"
                                         }`}
                                       >
                                         <div className="space-y-2">
@@ -498,22 +483,44 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                                 className={`w-6 h-6 rounded-lg flex items-center justify-center border text-xs font-bold transition flex-shrink-0 cursor-pointer ${
                                                   isDone
                                                     ? "bg-[#4DB380]/20 border-[#4DB380]/40 text-[#4DB380]"
-                                                    : "border-stone-700 text-stone-400 hover:border-[#CF9A61]"
+                                                    : "border-stone-700 text-stone-400 hover:border-[#CDCF61]"
                                                 }`}
                                                 title="Cocher / Décocher la séance"
                                               >
                                                 {isDone ? "✓" : ""}
                                               </div>
-                                              <h5
-                                                className={`text-xs font-bold truncate ${
-                                                  isDone
-                                                    ? "line-through text-stone-500"
-                                                    : "text-stone-100"
-                                                }`}
-                                              >
-                                                {w.title || "Séance"}
-                                              </h5>
+                                              
+                                              {/* TITRE ET NOTE DU COACH DIRECTEMENT À CÔTÉ DU TITRE */}
+                                              <div className="flex flex-col min-w-0 flex-1 space-y-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  <h5
+                                                    className={`text-xs font-bold truncate ${
+                                                      isDone
+                                                        ? "line-through text-stone-500"
+                                                        : "text-stone-100"
+                                                    }`}
+                                                  >
+                                                    {w.title || "Séance"}
+                                                  </h5>
+                                                </div>
+
+                                                {/* 📋 NOTE DU COACH AFFICHÉE DIRECTEMENT SOUS LE TITRE DE LA SÉANCE */}
+                                                {coachNoteForDay && (
+                                                  <div className="bg-[#CDCF61]/15 border border-[#CDCF61]/40 rounded-lg p-2 flex items-start gap-1.5 shadow-xs">
+                                                    <span className="text-[10px]">📋</span>
+                                                    <div className="min-w-0 flex-1">
+                                                      <span className="text-[9px] font-black uppercase text-[#CDCF61] block tracking-wider">
+                                                        Consigne Coach :
+                                                      </span>
+                                                      <p className="text-[10.5px] font-medium text-stone-100 mt-0.5 whitespace-pre-line leading-tight">
+                                                        {coachNoteForDay}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
                                             </div>
+
                                             <span className="text-xs text-[#CF9A61] font-bold ml-1">
                                               ➔
                                             </span>
