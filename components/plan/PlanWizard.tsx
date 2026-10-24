@@ -63,6 +63,28 @@ const getRpeGradientColor = (rpeStr?: string) => {
   return "#ef4444";
 };
 
+// Fonction utilitaire pour réorganiser l'affichage des jours selon la date de début réelle du plan
+const getRotatedDaysOrder = (startDateStr: string, weekNum: number) => {
+  if (!startDateStr) return DAYS_ORDER_FR.map((name, idx) => ({ dayName: name, originalIndex: idx }));
+  const [y, m, d] = startDateStr.split("-").map(Number);
+  const planStart = new Date(y, m - 1, d);
+
+  // Calcule la date exacte du premier jour de la semaine `weekNum`
+  const weekStartDate = new Date(planStart);
+  weekStartDate.setDate(planStart.getDate() + (weekNum - 1) * 7);
+
+  const jsDay = weekStartDate.getDay(); // 0 = Dimanche, 1 = Lundi, etc.
+  const startIdx = jsDay === 0 ? 6 : jsDay - 1; // 0 = Lundi, ..., 6 = Dimanche
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const originalIndex = (startIdx + i) % 7;
+    return {
+      dayName: DAYS_ORDER_FR[originalIndex],
+      originalIndex: originalIndex,
+    };
+  });
+};
+
 export const PlanWizard: React.FC<PlanWizardProps> = ({
   planCreationStep,
   setPlanCreationStep,
@@ -555,10 +577,9 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({
 
                   {isOpen && (
                     <div className="p-4 pt-2 space-y-4 border-t border-stone-800/60 bg-stone-900/40">
-                      {Array.from({ length: 7 }, (_, dIdx) => {
+                      {getRotatedDaysOrder(newPlanForm.startDate, wNum).map(({ dayName, originalIndex: dIdx }) => {
                         const targetKey = `w${wNum}_d${dIdx}`;
                         const isDragOverThisDay = dragOverTarget === targetKey;
-                        const dayName = DAYS_ORDER_FR[dIdx];
                         const exactDate = getExactDayDate(
                           newPlanForm.startDate,
                           wNum,
