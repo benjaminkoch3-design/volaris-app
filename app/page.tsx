@@ -1810,27 +1810,39 @@ export default function Home() {
   };
 
   const handleStartEmptyWorkoutSetup = (e: React.FormEvent) => {
-    e.preventDefault();
-    const weeks = calculateWeeks(newPlanForm.startDate, newPlanForm.eventDate);
+      e.preventDefault();
+      const weeks = calculateWeeks(newPlanForm.startDate, newPlanForm.eventDate);
 
-    const initialWeekTypes: Record<number, { type: WeekType; customLabel?: string }> = {};
-    for (let w = 1; w <= weeks; w++) {
-      if (w === weeks) initialWeekTypes[w] = { type: "affutage" };
-      else if (w % 4 === 0) initialWeekTypes[w] = { type: "recup" };
-      else if (w % 2 === 0) initialWeekTypes[w] = { type: "specifique" };
-      else initialWeekTypes[w] = { type: "charge" };
-    }
-    setDraftWeekTypes(initialWeekTypes);
+      const initialWeekTypes: Record<number, { type: WeekType; customLabel?: string }> = {};
+      for (let w = 1; w <= weeks; w++) {
+        if (w === weeks) initialWeekTypes[w] = { type: "affutage" };
+        else if (w % 4 === 0) initialWeekTypes[w] = { type: "recup" };
+        else if (w % 2 === 0) initialWeekTypes[w] = { type: "specifique" };
+        else initialWeekTypes[w] = { type: "charge" };
+      }
+      setDraftWeekTypes(initialWeekTypes);
 
-    const [startYear, startMonth, startDay] = newPlanForm.startDate.split("-").map(Number);
-    const planStartDate = new Date(startYear, startMonth - 1, startDay);
+      const [startYear, startMonth, startDay] = newPlanForm.startDate.split("-").map(Number);
+      const planStartDate = new Date(startYear, startMonth - 1, startDay);
 
-    const initialWorkouts: Workout[] = [];
+      // 🔥 MODIFICATION ICI : On décale pour que le premier jour du plan corresponde 
+      // au jour réel de la semaine de la date de début (et non plus forcé à Lundi = index 0)
+      const jsDay = planStartDate.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+      const startDayIndex = jsDay === 0 ? 6 : jsDay - 1; // Converti au format européen (0 = Lundi, 6 = Dimanche)
 
-    for (let w = 1; w <= weeks; w++) {
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const initialWorkouts: Workout[] = [];
+      let totalDaysCount = weeks * 7;
+
+      for (let i = 0; i < totalDaysCount; i++) {
         const currentDayDate = new Date(planStartDate);
-        currentDayDate.setDate(planStartDate.getDate() + ((w - 1) * 7 + dayOffset));
+        currentDayDate.setDate(planStartDate.getDate() + i);
+
+        // Calcul correct du numéro de semaine et de l'index du jour dans la grille
+        const absoluteDayIndex = startDayIndex + i;
+        const w = Math.floor(absoluteDayIndex / 7) + 1;
+        const dayOffset = absoluteDayIndex % 7;
+
+        if (w > weeks) break; // Sécurité si on dépasse la dernière semaine
 
         const exactDayName = DAYS_LIST_FR[dayOffset];
         const workoutId = `w${w}_d${dayOffset}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -1851,12 +1863,11 @@ export default function Home() {
           steps: [],
         });
       }
-    }
 
-    setDraftWorkouts(initialWorkouts);
-    setOpenCreationWeeks({ 1: true });
-    setPlanCreationStep(2);
-  };
+      setDraftWorkouts(initialWorkouts);
+      setOpenCreationWeeks({ 1: true });
+      setPlanCreationStep(2);
+    };
 
   const handleEditActivePlan = () => {
     if (!activePlan) return;
