@@ -87,6 +87,17 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* BOUTON ACTUALISER LA PAGE */}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-stone-900 dark:text-stone-100 bg-stone-100 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-800 font-extrabold text-[9.5px] uppercase px-3 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 shadow-md whitespace-nowrap"
+            title="Actualiser la page et recharger les données"
+          >
+            <span>🔄</span>
+            <span className="hidden sm:inline">Actualiser</span>
+          </button>
+
           {onToggleRole && (
             <button
               type="button"
