@@ -353,12 +353,11 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           dIdx
                         );
 
-                        // Calcul du format ISO AAAA-MM-JJ pour matcher la clé Supabase
+                        // Conversion robuste du format de date en ISO (AAAA-MM-JJ)
                         const isoDateStr = (() => {
                           if (!exactDate) return "";
-                          const parts = exactDate.split("/");
-                          if (parts.length === 3) {
-                            const [day, month, year] = parts;
+                          if (exactDate.includes("/")) {
+                            const [day, month, year] = exactDate.split("/");
                             return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
                           }
                           return exactDate;

@@ -45,13 +45,22 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>("all");
   const [selectedDateModal, setSelectedDateModal] = useState<string | null>(null);
 
-  // Notes du coach par athlète et date : Record<"athleteId_dateStr", { text: string, visibleToAthlete: boolean }>
   const [coachNotes, setCoachNotes] = useState<Record<string, { text: string; visibleToAthlete: boolean }>>({});
   const [currentNoteText, setCurrentNoteText] = useState("");
   const [currentNoteVisible, setCurrentNoteVisible] = useState(false);
 
-  // Suivi des séances vues par le coach : Record<workoutId, boolean>
+  // État local synchronisé avec les props allWorkouts
   const [coachCheckedWorkouts, setCoachCheckedWorkouts] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const checksMap: Record<string, boolean> = {};
+    allWorkouts.forEach((w: any) => {
+      if (w.coach_checked === true || w.coachChecked === true) {
+        checksMap[w.id] = true;
+      }
+    });
+    setCoachCheckedWorkouts(checksMap);
+  }, [allWorkouts]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -67,19 +76,17 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const daysInMonth = lastDayOfMonth.getDate();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Chargement des notes et des validations coach au démarrage
   useEffect(() => {
-    const fetchCoachNotesAndChecks = async () => {
-      // 1. Récupération des notes
+    const fetchCoachNotes = async () => {
       let query = supabase.from("coach_day_notes").select("*");
       if (selectedAthleteId !== "all") {
         query = query.eq("athlete_id", selectedAthleteId);
       }
-      const { data: notesData } = await query;
+      const { data } = await query;
 
-      if (notesData) {
+      if (data) {
         const notesMap: Record<string, { text: string; visibleToAthlete: boolean }> = {};
-        notesData.forEach((row: any) => {
+        data.forEach((row: any) => {
           notesMap[`${row.athlete_id}_${row.date}`] = {
             text: row.note_text,
             visibleToAthlete: row.visible_to_athlete,
@@ -87,19 +94,9 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         });
         setCoachNotes(notesMap);
       }
-
-      // 2. Initialisation des checks coach d'après les workouts reçus
-      const checksMap: Record<string, boolean> = {};
-      allWorkouts.forEach((w: any) => {
-        if (w.coach_checked || w.coachChecked) {
-          checksMap[w.id] = true;
-        }
-      });
-      setCoachCheckedWorkouts(checksMap);
     };
-
-    fetchCoachNotesAndChecks();
-  }, [selectedAthleteId, allWorkouts]);
+    fetchCoachNotes();
+  }, [selectedAthleteId]);
 
   const isWorkoutDebriefed = (w: any): boolean => {
     const hasExplicitFlag = w.completed === true || w.isCompleted === true;
@@ -110,7 +107,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
     return hasExplicitFlag || hasRealRpe || hasRealComment || hasRealCompletedKm;
   };
 
-  // Regroupement des séances par date
   const sessionsByDate: Record<string, { athlete: AthleteProfile; workout: Workout; plan: Plan }[]> = {};
 
   allPlans.forEach((item) => {
@@ -171,16 +167,23 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
       note_text: currentNoteText,
       visible_to_athlete: currentNoteVisible,
     }, { onConflict: "athlete_id,date" });
+
+    alert("Note enregistrée avec succès !");
   };
 
   const handleToggleCoachCheck = async (workoutId: string) => {
     const nextState = !coachCheckedWorkouts[workoutId];
     setCoachCheckedWorkouts((prev) => ({ ...prev, [workoutId]: nextState }));
 
+    // Met aussi à jour l'objet global allWorkouts en mémoire si nécessaire
+    const targetW = allWorkouts.find((w: any) => w.id === workoutId);
+    if (targetW) {
+      (targetW as any).coach_checked = nextState;
+    }
+
     await supabase.from("workouts").update({ coach_checked: nextState }).eq("id", workoutId);
   };
 
-  // Helper pour savoir si un jour donné contient des notes visibles
   const hasNoteForDate = (dateStr: string) => {
     if (selectedAthleteId !== "all") {
       return Boolean(coachNotes[`${selectedAthleteId}_${dateStr}`]?.text);
@@ -190,7 +193,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
   return (
     <div className="space-y-5 animate-fadeIn font-sans w-full relative">
-      {/* BANDEAU NAVIGATION & FILTRE ATHLÈTE */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg transition-colors">
         <div>
           <span className="text-[10px] font-black text-[#CDCF61] uppercase tracking-widest block">
@@ -246,7 +248,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
       </div>
 
-      {/* GRILLE MENSUELLE */}
       <div className="bg-white dark:bg-stone-900/90 border border-stone-200 dark:border-stone-800 rounded-3xl p-3.5 shadow-sm dark:shadow-xl space-y-2 transition-colors">
         <div className="grid grid-cols-7 gap-1 text-center pb-2 border-b border-stone-200 dark:border-stone-800/80">
           {DAYS_SHORT_FR.map((d) => (
@@ -288,7 +289,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     : "bg-stone-50/40 dark:bg-stone-950/40 border-stone-200/60 dark:border-stone-800/50 hover:border-stone-300 dark:hover:border-stone-700"
                 }`}
               >
-                {/* EN-TÊTE DU JOUR AVEC BADGE NOTE */}
                 <div className="flex items-center justify-between mb-1">
                   <span
                     className={`text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center ${
@@ -300,18 +300,13 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     {dayNum}
                   </span>
 
-                  {/* 📝 BADGE VISIBLE SUR L'AGENDA SI UNE NOTE EXISTE */}
                   {hasNote && (
-                    <span
-                      className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 rounded font-black"
-                      title="Note coach enregistrée pour cette journée"
-                    >
+                    <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 rounded font-black">
                       📝
                     </span>
                   )}
                 </div>
 
-                {/* SÉANCES DU JOUR */}
                 <div className="space-y-1 w-full overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
                   {daySessions.map((s, idx) => {
                     const w = s.workout as any;
@@ -338,31 +333,19 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           </span>
                         </div>
 
-                        {/* INDICATEURS VISUELS SUR LES VIGNETTES */}
                         <div className="flex items-center gap-0.5 shrink-0">
-                          {/* 👁️ CHECK COACH */}
                           {isCoachChecked && (
-                            <span
-                              className="text-[8px] font-black text-amber-950 bg-amber-300 px-0.5 rounded leading-none py-0.5 shadow-xs"
-                              title="Vu par le coach"
-                            >
+                            <span className="text-[8px] font-black text-amber-950 bg-amber-300 px-0.5 rounded leading-none py-0.5 shadow-xs">
                               👁️
                             </span>
                           )}
 
-                          {/* ✓ ATHLÈTE DEBRIEF / ✕ NON DEBRIEF */}
                           {isDone ? (
-                            <span
-                              className="text-[8.5px] font-black text-emerald-950 bg-white px-1 rounded leading-none py-0.5 shadow-xs"
-                              title="Débriefée par l'athlète"
-                            >
+                            <span className="text-[8.5px] font-black text-emerald-950 bg-white px-1 rounded leading-none py-0.5 shadow-xs">
                               ✓
                             </span>
                           ) : isPast ? (
-                            <span
-                              className="text-[8.5px] font-black text-red-600 bg-white border border-red-200 px-1 rounded leading-none py-0.5 shadow-xs"
-                              title="Non débriefée"
-                            >
+                            <span className="text-[8.5px] font-black text-red-600 bg-white border border-red-200 px-1 rounded leading-none py-0.5 shadow-xs">
                               ✕
                             </span>
                           ) : null}
@@ -377,7 +360,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
       </div>
 
-      {/* 📄 MODALE DÉTAILLÉE DU JOUR SELECTIONNÉ */}
       {selectedDateModal && (
         <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-2xl w-full space-y-5 shadow-2xl my-auto animate-fadeIn">
@@ -398,7 +380,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
               </button>
             </div>
 
-            {/* SECTION SAISIE NOTE COACH */}
             {selectedAthleteId !== "all" ? (
               <div className="bg-stone-950 border border-stone-800 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -439,7 +420,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
               </div>
             )}
 
-            {/* LISTE DES SÉANCES DU JOUR */}
             <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1 custom-scrollbar">
               <h4 className="text-xs font-black uppercase tracking-wider text-stone-400">
                 Séances au programme ({modalSessions.length})
@@ -482,7 +462,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         </h5>
 
                         <div className="flex items-center gap-2 flex-wrap">
-                          {/* CHECKBOX "VU PAR LE COACH" */}
                           <label
                             className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-xl border cursor-pointer transition ${
                               isCoachChecked
