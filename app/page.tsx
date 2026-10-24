@@ -2878,9 +2878,9 @@ export default function Home() {
             managedAthletes={managedAthletes}
             allPlans={allCoachAthletesPlans}
             allWorkouts={allCoachAthletesWorkouts}
-            onSelectDate={(dateStr) => {
-              setSelectedCalendarDate(dateStr);
-              changeActiveTab("today");
+            onSelectWorkoutDetail={(workout, plan) => {
+              setSelectedWorkoutDetail(workout);
+              if (plan) setActivePlan(plan);
             }}
           />
         )}

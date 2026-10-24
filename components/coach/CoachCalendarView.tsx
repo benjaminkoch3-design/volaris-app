@@ -2,12 +2,14 @@
 
 import React, { useState } from "react";
 import { AthleteProfile, Plan, Workout, WorkoutType } from "../../types";
+import { getWorkoutTypeConfig } from "../../utils/calculations";
 
 interface CoachCalendarViewProps {
   managedAthletes: AthleteProfile[];
   allPlans: Plan[];
   allWorkouts: Workout[];
-  onSelectDate: (dateStr: string) => void;
+  onSelectDate?: (dateStr: string) => void;
+  onSelectWorkoutDetail?: (workout: Workout, plan?: Plan) => void;
 }
 
 const MONTHS_FR = [
@@ -17,32 +19,33 @@ const MONTHS_FR = [
 
 const DAYS_SHORT_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-// 🎨 Palette calquée sur WORKOUT_TYPES_CONFIG
 const WORKOUT_COLORS: Record<
   Exclude<WorkoutType, "repos">,
   { bg: string }
 > = {
-  recup: { bg: "#0284c7" },          // sky-600
-  footing: { bg: "#059669" },        // emerald-600
-  footing_actif: { bg: "#047857" },  // emerald-700
-  cotes: { bg: "#92400e" },          // amber-800
-  vma: { bg: "#dc2626" },            // red-600
-  seuil: { bg: "#ea580c" },          // orange-600
-  specifique: { bg: "#9333ea" },     // purple-600
-  sortie_longue: { bg: "#db2777" },  // pink-600
-  activation: { bg: "#1d4ed8" },     // blue-700
-  course: { bg: "#d97706" },         // amber-600
+  recup: { bg: "#0284c7" },
+  footing: { bg: "#059669" },
+  footing_actif: { bg: "#047857" },
+  cotes: { bg: "#92400e" },
+  vma: { bg: "#dc2626" },
+  seuil: { bg: "#ea580c" },
+  specifique: { bg: "#9333ea" },
+  sortie_longue: { bg: "#db2777" },
+  activation: { bg: "#1d4ed8" },
+  course: { bg: "#d97706" },
 };
 
 export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   managedAthletes,
   allPlans,
   allWorkouts,
-  onSelectDate,
+  onSelectWorkoutDetail,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  // État local pour filtrer par athlète ("all" ou id de l'athlète)
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>("all");
+  
+  // État local pour gérer la vue dédiée d'un jour spécifique
+  const [selectedDateModal, setSelectedDateModal] = useState<string | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -58,26 +61,17 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const daysInMonth = lastDayOfMonth.getDate();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Détection stricte d'un débriefing effectué par l'athlète
   const isWorkoutDebriefed = (w: any): boolean => {
     const hasExplicitFlag = w.completed === true || w.isCompleted === true;
-    const hasRealRpe =
-      w.completedRpe !== undefined &&
-      w.completedRpe !== null &&
-      Number(w.completedRpe) > 0;
-    const hasRealComment =
-      typeof w.athleteComment === "string" && w.athleteComment.trim().length > 0;
-    const hasRealCompletedKm =
-      w.completedKm !== undefined &&
-      w.completedKm !== null &&
-      Number(w.completedKm) > 0 &&
-      w.isKmValidated === true;
+    const hasRealRpe = w.completedRpe !== undefined && w.completedRpe !== null && Number(w.completedRpe) > 0;
+    const hasRealComment = typeof w.athleteComment === "string" && w.athleteComment.trim().length > 0;
+    const hasRealCompletedKm = w.completedKm !== undefined && w.completedKm !== null && Number(w.completedKm) > 0 && w.isKmValidated === true;
 
     return hasExplicitFlag || hasRealRpe || hasRealComment || hasRealCompletedKm;
   };
 
-  // Regroupement des séances par date
-  const sessionsByDate: Record<string, { athlete: AthleteProfile; workout: Workout }[]> = {};
+  // Calcul & regroupement des séances par date
+  const sessionsByDate: Record<string, { athlete: AthleteProfile; workout: Workout; plan: Plan }[]> = {};
 
   allPlans.forEach((item) => {
     const plan = item as any;
@@ -87,8 +81,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
     if (!isPlanActive || isPlanArchived) return;
 
     const planUserId = plan.userId || plan.user_id;
-
-    // Application du filtre par athlète
     if (selectedAthleteId !== "all" && planUserId !== selectedAthleteId) return;
 
     const athlete = managedAthletes.find((a) => a.id === planUserId);
@@ -119,12 +111,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
       const key = `${y}-${m}-${d}`;
 
       if (!sessionsByDate[key]) sessionsByDate[key] = [];
-      sessionsByDate[key].push({ athlete, workout: wItem });
+      sessionsByDate[key].push({ athlete, workout: wItem, plan: item });
     });
   });
 
+  const modalSessions = selectedDateModal ? sessionsByDate[selectedDateModal] || [] : [];
+
   return (
-    <div className="space-y-5 animate-fadeIn font-sans w-full">
+    <div className="space-y-5 animate-fadeIn font-sans w-full relative">
       {/* BANDEAU NAVIGATION MOIS & FILTRE ATHLÈTE */}
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg transition-colors">
         <div>
@@ -137,7 +131,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-          {/* SÉLECTEUR DE FILTRAGE PAR ATHLÈTE */}
+          {/* FILTRE PAR ATHLÈTE */}
           <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl">
             <span className="text-[10px] font-bold text-stone-500 uppercase">Athlète :</span>
             <select
@@ -207,7 +201,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             return (
               <div
                 key={dateStr}
-                onClick={() => onSelectDate(dateStr)}
+                onClick={() => setSelectedDateModal(dateStr)}
                 className={`min-h-[95px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-start group ${
                   isToday
                     ? "bg-[#CDCF61]/15 border-[#CDCF61]/70 shadow-md"
@@ -216,7 +210,6 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     : "bg-stone-50/40 dark:bg-stone-950/40 border-stone-200/60 dark:border-stone-800/50 hover:border-stone-300 dark:hover:border-stone-700"
                 }`}
               >
-                {/* NUMÉRO DU JOUR */}
                 <div className="flex items-center justify-between mb-1">
                   <span
                     className={`text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center ${
@@ -229,37 +222,21 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   </span>
                 </div>
 
-                {/* LISTE DES SÉANCES DU JOUR */}
                 <div className="space-y-1 w-full overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
                   {daySessions.map((s, idx) => {
                     const w = s.workout as any;
                     const isDone = isWorkoutDebriefed(w);
-
                     const typeKey = (w.type || "footing") as Exclude<WorkoutType, "repos">;
-                    const colorScheme =
-                      WORKOUT_COLORS[typeKey] ||
-                      (w.color ? { bg: w.color } : { bg: "#059669" });
-
+                    const colorScheme = WORKOUT_COLORS[typeKey] || { bg: "#059669" };
                     const workoutTitle = w.title || w.type || "Séance";
                     const initialLetter = (s.athlete.name || "A").trim().charAt(0).toUpperCase();
 
                     return (
                       <div
                         key={idx}
-                        style={{
-                          backgroundColor: colorScheme.bg,
-                          borderColor: `${colorScheme.bg}dd`,
-                        }}
+                        style={{ backgroundColor: colorScheme.bg, borderColor: `${colorScheme.bg}dd` }}
                         className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md border flex items-center justify-between gap-1 transition-all shadow-xs w-full text-white"
-                        title={`${s.athlete.name}\n${workoutTitle} ${
-                          isDone
-                            ? "(Validée ✓)"
-                            : isPast
-                            ? "(Non débriefée ✕)"
-                            : "(Prévue)"
-                        }`}
                       >
-                        {/* Initiale de l'athlète + Titre */}
                         <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
                           <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7.5px] font-black shrink-0 bg-black/30 text-white">
                             {initialLetter}
@@ -269,21 +246,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           </span>
                         </div>
 
-                        {/* Statut d'exécution */}
                         {isDone ? (
-                          <span
-                            className="text-[8.5px] font-black text-emerald-950 bg-white px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
-                            title="Validée"
-                          >
-                            ✓
-                          </span>
+                          <span className="text-[8.5px] font-black text-emerald-950 bg-white px-1 rounded shrink-0 leading-none py-0.5 shadow-xs">✓</span>
                         ) : isPast ? (
-                          <span
-                            className="text-[8.5px] font-black text-red-600 bg-white border border-red-200 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs"
-                            title="Non débriefée / Manquée"
-                          >
-                            ✕
-                          </span>
+                          <span className="text-[8.5px] font-black text-red-600 bg-white border border-red-200 px-1 rounded shrink-0 leading-none py-0.5 shadow-xs">✕</span>
                         ) : null}
                       </div>
                     );
@@ -294,6 +260,109 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* 📄 MODALE DE LA VUE DÉDIÉE DU JOUR SELECTIONNÉ */}
+      {selectedDateModal && (
+        <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-2xl w-full space-y-4 shadow-2xl my-auto animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-stone-800 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-[#CDCF61] tracking-wider block">
+                  Programme Athlètes du jour
+                </span>
+                <h3 className="text-base font-black uppercase text-stone-100">
+                  {selectedDateModal.split("-").reverse().join("/")}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedDateModal(null)}
+                className="text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800"
+              >
+                ✕ Fermer
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+              {modalSessions.length === 0 ? (
+                <p className="text-xs text-stone-500 italic text-center py-8">
+                  Aucune séance programmée pour les athlètes ce jour-là.
+                </p>
+              ) : (
+                modalSessions.map((s, idx) => {
+                  const w = s.workout;
+                  const typeConfig = getWorkoutTypeConfig(w.type);
+                  const isDone = isWorkoutDebriefed(w);
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3.5 bg-stone-950 border border-stone-800 rounded-2xl space-y-2 hover:border-stone-700 transition"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#CDCF61]/20 text-[#CDCF61] text-xs font-black flex items-center justify-center border border-[#CDCF61]/40">
+                            {s.athlete.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="text-xs font-black text-stone-100">
+                            {s.athlete.name}
+                          </span>
+                        </div>
+
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${typeConfig.badgeClass}`}>
+                          {typeConfig.label}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1 border-t border-stone-900">
+                        <h4 className="text-xs font-bold text-stone-200">
+                          {w.title || "Séance"}
+                        </h4>
+
+                        <div className="flex items-center gap-2">
+                          {w.km && (
+                            <span className="text-[9px] font-extrabold bg-stone-900 text-stone-300 px-2 py-0.5 rounded border border-stone-800 font-mono">
+                              {w.km} km
+                            </span>
+                          )}
+
+                          {isDone ? (
+                            <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                              ✓ Validée
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-black text-stone-500 bg-stone-900 px-2 py-0.5 rounded border border-stone-800">
+                              Prévue
+                            </span>
+                          )}
+
+                          {onSelectWorkoutDetail && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onSelectWorkoutDetail(w, s.plan);
+                                setSelectedDateModal(null);
+                              }}
+                              className="text-[9.5px] font-extrabold text-[#CDCF61] bg-[#CDCF61]/10 hover:bg-[#CDCF61]/20 border border-[#CDCF61]/30 px-2 py-0.5 rounded-lg transition cursor-pointer"
+                            >
+                              Détails ➔
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {w.description && (
+                        <p className="text-[10.5px] text-stone-400 line-clamp-2">
+                          {w.description}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
