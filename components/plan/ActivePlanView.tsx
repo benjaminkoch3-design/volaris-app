@@ -1,8 +1,9 @@
 // app/components/plan/ActivePlanView.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plan, Workout, WeekType } from "../../types";
 import { WEEK_TYPES_CONFIG } from "../../constants";
+import { supabase } from "../../lib/supabaseClient";
 import {
   getCurrentWeekNumber,
   getWeekTypeLabel,
@@ -79,6 +80,35 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  // État local pour stocker les notes du coach destinées à l'athlète : Record<dateStr, noteText>
+  const [coachDayNotes, setCoachDayNotes] = useState<Record<string, string>>({});
+
+  // Récupération des notes publiques du coach depuis Supabase
+  useEffect(() => {
+    const fetchPublicCoachNotes = async () => {
+      const athleteId = activePlan.userId || (activePlan as any).user_id;
+      if (!athleteId) return;
+
+      const { data, error } = await supabase
+        .from("coach_day_notes")
+        .select("date, note_text")
+        .eq("athlete_id", athleteId)
+        .eq("visible_to_athlete", true);
+
+      if (!error && data) {
+        const notesMap: Record<string, string> = {};
+        data.forEach((row: any) => {
+          if (row.note_text && row.note_text.trim() !== "") {
+            notesMap[row.date] = row.note_text;
+          }
+        });
+        setCoachDayNotes(notesMap);
+      }
+    };
+
+    fetchPublicCoachNotes();
+  }, [activePlan]);
 
   const handleDragStart = (e: React.DragEvent, workoutId: string) => {
     e.dataTransfer.setData("text/plain", workoutId);
@@ -323,6 +353,19 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           dIdx
                         );
 
+                        // Calcul du format ISO AAAA-MM-JJ pour matcher la clé Supabase
+                        const isoDateStr = (() => {
+                          if (!exactDate) return "";
+                          const parts = exactDate.split("/");
+                          if (parts.length === 3) {
+                            const [day, month, year] = parts;
+                            return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+                          }
+                          return exactDate;
+                        })();
+
+                        const coachNoteForDay = coachDayNotes[isoDateStr];
+
                         const dayWorkouts = rawWeekWorkouts.filter(
                           (w) => w.dayIndex === dIdx
                         );
@@ -356,6 +399,21 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                                   : "Repos"}
                               </span>
                             </div>
+
+                            {/* 📋 AFFICHAGE DE LA NOTE DU COACH POUR L'ATHLÈTE */}
+                            {coachNoteForDay && (
+                              <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-xl p-2.5 flex items-start gap-2 shadow-xs">
+                                <span className="text-xs">📋</span>
+                                <div>
+                                  <span className="text-[9.5px] font-black uppercase text-[#CDCF61] block tracking-wider">
+                                    Consigne du Coach :
+                                  </span>
+                                  <p className="text-[11px] font-medium text-stone-200 mt-0.5 whitespace-pre-line leading-snug">
+                                    {coachNoteForDay}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
 
                             {!hasActiveWorkouts ? (
                               <div className="py-4 text-center text-xs text-stone-600 italic select-none">
