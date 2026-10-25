@@ -72,7 +72,6 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   onEditTemplate,
   onDeleteTemplate,
   onBackToProfile,
-  onOpenCalculators,
 }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
@@ -171,33 +170,6 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           <span>Créer une séance</span>
           <span className="text-sm">＋</span>
         </button>
-      </div>
-
-      {/* BANNIÈRE OUTIL DE CALCUL (AVANT LES CATÉGORIES) */}
-      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CF9A61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-lg shrink-0">
-            🧮
-          </div>
-          <div>
-            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
-              Aide aux calculs & Allures
-            </h3>
-            <p className="text-[11px] text-stone-400">
-              VMA, grille de pourcentages, VDOT Daniels et convertisseur km/h ⇄ min/km.
-            </p>
-          </div>
-        </div>
-
-        {onOpenCalculators && (
-          <button
-            type="button"
-            onClick={onOpenCalculators}
-            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
-          >
-            Ouvrir les calculateurs ➔
-          </button>
-        )}
       </div>
 
       {/* SÉLECTEUR & GESTION DES CATÉGORIES */}
