@@ -824,6 +824,27 @@ export default function Home() {
     }
   };
 
+  // Remonter en haut de la page à chaque changement de vue, d'onglet, de sous-page ou d'éditeur
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [
+    activeTab,
+    inspectingAthleteId,
+    showAthleteLibrary,
+    showPhysiologyPage,
+    showPersonalBestsPage,
+    showRecordsPage,
+    showShoesPage,
+    showArchivedPlansPage,
+    showConnectedDevicesPage,
+    showCalculatorsView,
+    isCreatingPlan,
+    editingWorkoutId,
+    editingLibraryId,
+    selectedWorkoutDetail,
+    debriefWorkout,
+  ]);
+
   useEffect(() => {
     if (!session?.user || userRole !== "coach") return;
 
