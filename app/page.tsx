@@ -114,7 +114,9 @@ export default function Home() {
   const [showZoneTemplatesView, setShowZoneTemplatesView] = useState<boolean>(false);
   const [coachZoneTemplates, setCoachZoneTemplates] = useState<ZoneTemplate[]>([]);
 
-  const handleSaveCoachZoneTemplate = (template: ZoneTemplate) => {
+  const handleSaveCoachZoneTemplate = async (template: ZoneTemplate) => {
+    if (!session?.user) return;
+
     setCoachZoneTemplates((prev) => {
       const exists = prev.some((t) => t.id === template.id);
       if (exists) {
@@ -122,12 +124,34 @@ export default function Home() {
       }
       return [template, ...prev];
     });
-    // TODO: Sauvegarde Supabase ici plus tard
+
+    const { error } = await supabase.from("coach_zone_templates").upsert({
+      id: template.id,
+      user_id: session.user.id,
+      name: template.name,
+      description: template.description || null,
+      zones: template.zones,
+    });
+
+    if (error) {
+      console.error("Erreur sauvegarde modèle de zones :", error.message);
+      alert(`Erreur de sauvegarde : ${error.message}`);
+    }
   };
 
-  const handleDeleteCoachZoneTemplate = (templateId: string) => {
+  const handleDeleteCoachZoneTemplate = async (templateId: string) => {
+    if (!session?.user) return;
+
     setCoachZoneTemplates((prev) => prev.filter((t) => t.id !== templateId));
-    // TODO: Suppression Supabase ici plus tard
+
+    const { error } = await supabase
+      .from("coach_zone_templates")
+      .delete()
+      .eq("id", templateId);
+
+    if (error) {
+      console.error("Erreur suppression modèle de zones :", error.message);
+    }
   };
 
   const navigateToPlanStats = () => {
@@ -1286,6 +1310,26 @@ export default function Home() {
           steps: l.steps || [],
           createdAt: l.created_at || "",
         })));
+      }
+
+      // CHARGEMENT DES MODÈLES DE ZONES DU COACH
+      if (userRole === "coach") {
+        const { data: zoneTemplatesData } = await supabase
+          .from("coach_zone_templates")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+
+        if (zoneTemplatesData) {
+          setCoachZoneTemplates(
+            zoneTemplatesData.map((z: any) => ({
+              id: z.id,
+              name: z.name,
+              description: z.description || "",
+              zones: z.zones || [],
+            }))
+          );
+        }
       }
 
       // CHARGEMENT DES PLANS ET SÉANCES
