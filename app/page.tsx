@@ -65,6 +65,7 @@ import { ActivePlanView } from "../components/plan/ActivePlanView";
 import { AnnualStats } from "../components/stats/AnnualStats";
 import { ManagedAthletes } from "../components/coach/ManagedAthletes";
 import { WorkoutLibraryView } from "../components/coach/WorkoutLibraryView";
+import { CoachZoneTemplatesView, ZoneTemplate } from "../components/coach/CoachZoneTemplatesView";
 import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
 import { CoachCalendarView } from "../components/coach/CoachCalendarView";
 
@@ -109,6 +110,26 @@ export default function Home() {
   // État d'affichage de la page d'aide aux calculs (VDOT / VMA / Allures)
   const [showCalculatorsView, setShowCalculatorsView] = useState<boolean>(false);
 
+  // État d'affichage de la vue de gestion des modèles de zones d'allures du coach
+  const [showZoneTemplatesView, setShowZoneTemplatesView] = useState<boolean>(false);
+  const [coachZoneTemplates, setCoachZoneTemplates] = useState<ZoneTemplate[]>([]);
+
+  const handleSaveCoachZoneTemplate = (template: ZoneTemplate) => {
+    setCoachZoneTemplates((prev) => {
+      const exists = prev.some((t) => t.id === template.id);
+      if (exists) {
+        return prev.map((t) => (t.id === template.id ? template : t));
+      }
+      return [template, ...prev];
+    });
+    // TODO: Sauvegarde Supabase ici plus tard
+  };
+
+  const handleDeleteCoachZoneTemplate = (templateId: string) => {
+    setCoachZoneTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    // TODO: Suppression Supabase ici plus tard
+  };
+
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
     changeActiveTab("stats");
@@ -117,6 +138,7 @@ export default function Home() {
   const changeActiveTab = (newTab: ActiveTab) => {
     setActiveTab(newTab);
     setShowCalculatorsView(false);
+    setShowZoneTemplatesView(false);
     
     // Force la date à aujourd'hui dès qu'on clique sur l'onglet "today"
     if (newTab === "today") {
@@ -852,6 +874,7 @@ export default function Home() {
     showArchivedPlansPage,
     showConnectedDevicesPage,
     showCalculatorsView,
+    showZoneTemplatesView,
     isCreatingPlan,
     editingWorkoutId,
     editingLibraryId,
@@ -1867,10 +1890,8 @@ export default function Home() {
       const [startYear, startMonth, startDay] = newPlanForm.startDate.split("-").map(Number);
       const planStartDate = new Date(startYear, startMonth - 1, startDay);
 
-      // 🔥 MODIFICATION ICI : On décale pour que le premier jour du plan corresponde 
-      // au jour réel de la semaine de la date de début (et non plus forcé à Lundi = index 0)
-      const jsDay = planStartDate.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
-      const startDayIndex = jsDay === 0 ? 6 : jsDay - 1; // Converti au format européen (0 = Lundi, 6 = Dimanche)
+      const jsDay = planStartDate.getDay();
+      const startDayIndex = jsDay === 0 ? 6 : jsDay - 1;
 
       const initialWorkouts: Workout[] = [];
       let totalDaysCount = weeks * 7;
@@ -1879,12 +1900,11 @@ export default function Home() {
         const currentDayDate = new Date(planStartDate);
         currentDayDate.setDate(planStartDate.getDate() + i);
 
-        // Calcul correct du numéro de semaine et de l'index du jour dans la grille
         const absoluteDayIndex = startDayIndex + i;
         const w = Math.floor(absoluteDayIndex / 7) + 1;
         const dayOffset = absoluteDayIndex % 7;
 
-        if (w > weeks) break; // Sécurité si on dépasse la dernière semaine
+        if (w > weeks) break;
 
         const exactDayName = DAYS_LIST_FR[dayOffset];
         const workoutId = `w${w}_d${dayOffset}_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -2355,10 +2375,8 @@ export default function Home() {
       formattedDistance = `${dist}${elev}`;
     }
 
-    // Récupération de l'ID du plan actif s'il existe pour le modifier, sinon création d'un nouveau
     const planId = activePlan?.id || `plan_${Date.now()}`;
 
-    // Le plan existant ne s'archive que si on en crée un nouveau en parallèle (pas lors d'une simple modification)
     if (activePlan && activePlan.id !== planId) {
       await supabase
         .from("plans")
@@ -2482,7 +2500,6 @@ export default function Home() {
     const assignedShoeId = (targetWorkout as any)?.shoeId ?? (targetWorkout as any)?.shoe_id;
     const recordedKm = Number(targetWorkout?.completedKm || 0);
 
-    // Déduction des kilomètres sur la chaussure
     if (session?.user && assignedShoeId && recordedKm > 0) {
       const targetShoe = shoes.find((s) => s.id === assignedShoeId);
       if (targetShoe) {
@@ -2561,7 +2578,6 @@ export default function Home() {
     const prevShoeId = (prevWorkout as any)?.shoeId ?? (prevWorkout as any)?.shoe_id;
     const prevKm = Number(prevWorkout?.completedKm || 0);
 
-    // Mise à jour de la balance kilométrique des chaussures
     if (session?.user) {
       if (shoeId && prevShoeId === shoeId) {
         const deltaKm = kmNumber - prevKm;
@@ -3080,7 +3096,17 @@ export default function Home() {
           />
         )}
 
-        {userRole === "coach" && !inspectingAthleteId && !showCalculatorsView && activeTab === "library" && (
+        {/* VUE DE GESTION DES MODÈLES DE ZONES DU COACH */}
+        {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
+          <CoachZoneTemplatesView
+            templates={coachZoneTemplates}
+            onSaveTemplate={handleSaveCoachZoneTemplate}
+            onDeleteTemplate={handleDeleteCoachZoneTemplate}
+            onBack={() => setShowZoneTemplatesView(false)}
+          />
+        )}
+
+        {userRole === "coach" && !inspectingAthleteId && !showZoneTemplatesView && !showCalculatorsView && activeTab === "library" && (
           <WorkoutLibraryView
             libraryWorkouts={libraryWorkouts}
             categories={customCategories}
@@ -3094,6 +3120,7 @@ export default function Home() {
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
             onOpenCalculators={() => setShowCalculatorsView(true)}
+            onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
           />
         )}
 
@@ -3350,7 +3377,7 @@ export default function Home() {
             )}
 
             {/* 5. PROFIL */}
-            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && (
+            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && !showZoneTemplatesView && (
               showPhysiologyPage ? (
                 <PhysiologyPageView
                   vma={vma}
@@ -3501,6 +3528,7 @@ export default function Home() {
           setShowArchivedPlansPage(false);
           setShowConnectedDevicesPage(false);
           setShowCalculatorsView(false);
+          setShowZoneTemplatesView(false);
         }}
       />
     </main>

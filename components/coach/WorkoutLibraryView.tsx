@@ -17,6 +17,7 @@ interface WorkoutLibraryViewProps {
   onEditTemplate: (id: string) => void;
   onDeleteTemplate: (id: string) => void;
   onOpenCalculators?: () => void;
+  onOpenZoneTemplates?: () => void;
 }
 
 // Grande palette étendue de 24 teintes
@@ -71,6 +72,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   onEditTemplate,
   onDeleteTemplate,
   onOpenCalculators,
+  onOpenZoneTemplates,
 }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
@@ -160,6 +162,33 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
           <span>Créer une séance</span>
           <span className="text-sm">＋</span>
         </button>
+      </div>
+
+      {/* BANNIÈRE GESTION DES MODÈLES DE ZONES (% VMA) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center text-lg shrink-0">
+            ⚡
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
+              Modèles de Zones d'Allures (% VMA)
+            </h3>
+            <p className="text-[11px] text-stone-400">
+              Créez et personnalisez vos grilles de pourcentages de VMA pour structurer vos entraînements.
+            </p>
+          </div>
+        </div>
+
+        {onOpenZoneTemplates && (
+          <button
+            type="button"
+            onClick={onOpenZoneTemplates}
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+          >
+            Gérer les zones ➔
+          </button>
+        )}
       </div>
 
       {/* BANNIÈRE OUTIL DE CALCUL (AVANT LES CATÉGORIES) */}
