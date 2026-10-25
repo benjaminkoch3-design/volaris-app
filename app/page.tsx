@@ -2355,10 +2355,11 @@ export default function Home() {
       formattedDistance = `${dist}${elev}`;
     }
 
-    const planId = `plan_${Date.now()}`;
+    // Récupération de l'ID du plan actif s'il existe pour le modifier, sinon création d'un nouveau
+    const planId = activePlan?.id || `plan_${Date.now()}`;
 
-    // Le plan existant devient inactif / archivé
-    if (activePlan) {
+    // Le plan existant ne s'archive que si on en crée un nouveau en parallèle (pas lors d'une simple modification)
+    if (activePlan && activePlan.id !== planId) {
       await supabase
         .from("plans")
         .update({ is_active: false, is_archived: true })
