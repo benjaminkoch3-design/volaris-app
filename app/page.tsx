@@ -1451,31 +1451,30 @@ export default function Home() {
       if (!managedAthletes || managedAthletes.length === 0) return sessions;
 
       managedAthletes.forEach((athlete) => {
+        // 1. Récupérer TOUS les plans de cet athlète
         const athletePlans = allCoachAthletesPlans.filter((p: any) => {
           const planUserId = p.userId || p.user_id;
           return planUserId === athlete.id;
         });
 
-        const activePlanForAthlete = 
-          athletePlans.find((p: any) => {
-            const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
-            const isPlanArchived = p.isArchived !== undefined ? p.isArchived : (p.is_archived === true);
-            return isPlanActive && !isPlanArchived;
-          }) || athletePlans[0];
+        if (athletePlans.length === 0) return;
 
-        if (!activePlanForAthlete) return;
-
+        // 2. Récupérer TOUTES les séances de cet athlète
         const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
           const wUserId = w.userId || w.user_id;
-          const wPlanId = w.planId || w.plan_id;
-          return wUserId === athlete.id && wPlanId === activePlanForAthlete.id;
+          return wUserId === athlete.id;
         });
 
-        const planStart = activePlanForAthlete.startDate || (activePlanForAthlete as any).start_date;
-        if (!planStart || typeof planStart !== "string") return;
-
+        // 3. Vérifier chaque séance par rapport à la date recherchée
         athleteWorkouts.forEach((w: any) => {
           try {
+            const wPlanId = w.planId || w.plan_id;
+            const plan = athletePlans.find((p: any) => p.id === wPlanId);
+            if (!plan) return;
+
+            const planStart = plan.startDate || (plan as any).start_date;
+            if (!planStart || typeof planStart !== "string") return;
+
             const [sY, sM, sD] = planStart.split("-").map(Number);
             if (!sY || !sM || !sD) return;
 
@@ -1491,11 +1490,14 @@ export default function Home() {
             const matchDate = `${y}-${m}-${d}`;
 
             if (matchDate === dateStr) {
-              sessions.push({
-                athlete,
-                plan: activePlanForAthlete,
-                workout: w,
-              });
+              // Éviter les doublons si la séance est déjà présente
+              if (!sessions.some((s) => s.workout.id === w.id)) {
+                sessions.push({
+                  athlete,
+                  plan,
+                  workout: w,
+                });
+              }
             }
           } catch (e) {
             console.warn("Erreur calcul date séance coach :", e);
