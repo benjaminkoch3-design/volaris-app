@@ -24,14 +24,29 @@ const CATEGORY_TABS: { key: "all" | "route" | "piste" | "trail" | "nature"; labe
   { key: "nature", label: "Course nature" },
 ];
 
+// Fonction robuste pour catégoriser sans erreur (résout le bug des semi/marathons dans "Autres")
 const getStandardDistanceCategory = (distanceStr: string): StandardDistanceCategory => {
   if (!distanceStr) return "Autres distances";
-  const meters = parseDistanceTextToMeters(distanceStr);
+  const lower = distanceStr.toLowerCase().trim();
 
-  if (meters >= 4800 && meters <= 5200) return "5 km";
-  if (meters >= 9800 && meters <= 10200) return "10 km";
-  if (meters >= 20900 && meters <= 21300) return "Semi-Marathon";
-  if (meters >= 41800 && meters <= 42500) return "Marathon";
+  if (lower.includes("semi") || lower.includes("21.1") || lower.includes("21 km")) {
+    return "Semi-Marathon";
+  }
+  if (lower.includes("marathon") && !lower.includes("semi")) {
+    return "Marathon";
+  }
+  if (lower.includes("10k") || lower.includes("10 km") || lower.includes("10000")) {
+    return "10 km";
+  }
+  if (lower.includes("5k") || lower.includes("5 km") || lower.includes("5000")) {
+    return "5 km";
+  }
+
+  const meters = parseDistanceTextToMeters(distanceStr);
+  if (meters >= 4500 && meters <= 5500) return "5 km";
+  if (meters >= 9500 && meters <= 10500) return "10 km";
+  if (meters >= 20000 && meters <= 22000) return "Semi-Marathon";
+  if (meters >= 41000 && meters <= 43000) return "Marathon";
 
   return "Autres distances";
 };
@@ -103,8 +118,9 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
     setEditingRaceId(null);
     setFormName("");
     setFormCategory(defaultCategory);
-    setFormDistancePreset(["5 km", "10 km", "Semi-Marathon", "Marathon"].includes(defaultDist) ? defaultDist : "custom");
-    setFormCustomDistance(defaultDist === "custom" ? "" : defaultDist);
+    const validPresets = ["5 km", "10 km", "Semi-Marathon", "Marathon"];
+    setFormDistancePreset(validPresets.includes(defaultDist) ? defaultDist : "custom");
+    setFormCustomDistance(validPresets.includes(defaultDist) ? "" : defaultDist);
     setFormDate(new Date().toISOString().split("T")[0]);
     setFormHours("");
     setFormMinutes("");
@@ -120,7 +136,8 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
     setEditingRaceId(race.id);
     setFormName(race.name);
     setFormCategory((race.category as any) || "route");
-    const isPreset = ["5 km", "10 km", "Semi-Marathon", "Marathon"].includes(race.distance);
+    const validPresets = ["5 km", "10 km", "Semi-Marathon", "Marathon"];
+    const isPreset = validPresets.includes(race.distance);
     setFormDistancePreset(isPreset ? race.distance : "custom");
     setFormCustomDistance(isPreset ? "" : race.distance);
     setFormDate(race.date || new Date().toISOString().split("T")[0]);
@@ -311,18 +328,24 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                 Distance
               </label>
               <div className="grid grid-cols-5 gap-1.5">
-                {(["5 km", "10 km", "Semi-Marathon", "Marathon", "custom"] as const).map((dist) => (
+                {[
+                  { key: "5 km", label: "5 km" },
+                  { key: "10 km", label: "10 km" },
+                  { key: "Semi-Marathon", label: "Semi" },
+                  { key: "Marathon", label: "Marathon" },
+                  { key: "custom", label: "Autre" }
+                ].map((item) => (
                   <button
-                    key={dist}
+                    key={item.key}
                     type="button"
-                    onClick={() => setFormDistancePreset(dist)}
+                    onClick={() => setFormDistancePreset(item.key)}
                     className={`py-2 px-1 text-[10px] font-black uppercase rounded-xl border transition cursor-pointer ${
-                      formDistancePreset === dist
+                      formDistancePreset === item.key
                         ? "bg-[#CF9A61] text-stone-950 border-[#CF9A61]"
                         : "bg-stone-950 text-stone-400 border-stone-800 hover:border-stone-700"
                     }`}
                   >
-                    {dist === "custom" ? "Autre" : dist.replace("-Marathon", " Semi")}
+                    {item.label}
                   </button>
                 ))}
               </div>
@@ -437,7 +460,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
         </form>
       )}
 
-      {/* FILTRES MODERNES PAR DISCIPLINE (SANS ÉMOJIS) */}
+      {/* FILTRES PAR DISCIPLINE */}
       <div className="flex overflow-x-auto gap-2 pb-1 custom-scrollbar items-center">
         {CATEGORY_TABS.map((tab) => {
           const isSelected = selectedType === tab.key;
@@ -483,7 +506,6 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
 
               return (
                 <div key={distanceCategory} className="space-y-3">
-                  {/* TITRE DE DISTANCE VISIBLE ET MODERNE (SANS ROND BRUN) */}
                   <div className="flex items-center justify-between border-b border-stone-800/80 pb-2 px-1">
                     <div className="flex items-baseline gap-2.5">
                       <h3 className="text-sm font-black uppercase tracking-wider text-stone-100 font-mono">
@@ -505,7 +527,6 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
                     )}
                   </div>
 
-                  {/* CARTES DE COURSES */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {raceList.map((race) => {
                       const isTrailOrNature = race.category === "trail" || race.category === "nature";
@@ -556,7 +577,7 @@ export const RecordsPageView: React.FC<RecordsPageViewProps> = ({
         </div>
       )}
 
-      {/* MODALE DE CONSULTATION DÉTAILLÉE ÉPURÉE */}
+      {/* MODALE DE CONSULTATION DÉTAILLÉE */}
       {inspectingRace && (
         <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-scaleUp">

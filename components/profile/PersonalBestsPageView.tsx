@@ -36,32 +36,13 @@ const formatSeconds = (totalSec: number): string => {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 };
 
-// Fonction élargie et sécurisée pour catégoriser les distances sans erreur
 const getDistanceCategory = (distanceStr: string): StandardFormat | null => {
   if (!distanceStr) return null;
-  const lower = distanceStr.toLowerCase().trim();
-
-  // Détection textuelle directe (évite les bugs de conversion métrique)
-  if (lower.includes("semi") || lower.includes("21.1") || lower.includes("21 km")) {
-    return "Semi-Marathon";
-  }
-  if (lower.includes("marathon") && !lower.includes("semi")) {
-    return "Marathon";
-  }
-  if (lower.includes("10k") || lower.includes("10 km") || lower.includes("10000")) {
-    return "10 km";
-  }
-  if (lower.includes("5k") || lower.includes("5 km") || lower.includes("5000")) {
-    return "5 km";
-  }
-
-  // Fallback sur la conversion en mètres avec des plages élargies
   const m = parseDistanceTextToMeters(distanceStr);
-  if (m >= 4500 && m <= 5500) return "5 km";
-  if (m >= 9500 && m <= 10500) return "10 km";
-  if (m >= 20000 && m <= 22000) return "Semi-Marathon";
-  if (m >= 41000 && m <= 43000) return "Marathon";
-  
+  if (m >= 4800 && m <= 5200) return "5 km";
+  if (m >= 9800 && m <= 10200) return "10 km";
+  if (m >= 20900 && m <= 21300) return "Semi-Marathon";
+  if (m >= 41800 && m <= 42500) return "Marathon";
   return null;
 };
 
@@ -139,6 +120,7 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
 
     const points = yearlyProgression.map((d, idx) => {
       const x = margin.left + (idx / (yearlyProgression.length - 1)) * innerWidth;
+      // Inversion : le meilleur temps (plus petit) est en haut du graphe
       const y = margin.top + ((d.seconds - yMin) / (yMax - yMin)) * innerHeight;
       return { ...d, x, y };
     });
@@ -224,7 +206,7 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* CARTE DU RECORD ABSOLU */}
+          {/* CARTE DU RECORD ABSOLU AVEC ORIGINE DE LA COURSE */}
           <div className="p-6 rounded-3xl border border-stone-800 bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-3">
               <div>
@@ -293,6 +275,7 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
                   viewBox={`0 0 ${graphData.width} ${graphData.height}`}
                   className="w-full h-56 select-none"
                 >
+                  {/* Ligne de courbe */}
                   <path
                     d={graphData.pathD}
                     fill="none"
@@ -302,8 +285,10 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
                     strokeLinejoin="round"
                   />
 
+                  {/* Points et étiquettes */}
                   {graphData.points.map((p) => (
                     <g key={p.year}>
+                      {/* Ligne repère verticale */}
                       <line
                         x1={p.x}
                         y1={p.y}
@@ -313,6 +298,8 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
                         strokeDasharray="3 3"
                         strokeWidth="1"
                       />
+
+                      {/* Point */}
                       <circle
                         cx={p.x}
                         cy={p.y}
@@ -321,6 +308,8 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
                         stroke="#0c0a09"
                         strokeWidth="3"
                       />
+
+                      {/* Bulle Chrono */}
                       <text
                         x={p.x}
                         y={p.y - 12}
@@ -332,6 +321,8 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
                       >
                         {formatSeconds(p.seconds)}
                       </text>
+
+                      {/* Année en bas */}
                       <text
                         x={p.x}
                         y={graphData.height - 12}
@@ -353,7 +344,7 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
             )}
           </div>
 
-          {/* HISTORIQUE DÉTAILLÉ */}
+          {/* HISTORIQUE DÉTAILLÉ ANNÉE PAR ANNÉE */}
           <div className="space-y-3">
             <h3 className="text-sm font-black uppercase text-stone-200 tracking-wider px-1">
               Détail Année par Année
@@ -362,7 +353,7 @@ export const PersonalBestsPageView: React.FC<PersonalBestsPageViewProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {yearlyProgression.map((item, idx) => {
                 const prev = idx > 0 ? yearlyProgression[idx - 1] : null;
-                const diffSec = prev ? prev.seconds - item.seconds : 0;
+                const diffSec = prev ? prev.seconds - item.seconds : 0; // positif = gain de temps
 
                 return (
                   <div
