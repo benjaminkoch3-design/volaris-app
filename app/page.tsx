@@ -72,6 +72,14 @@ import { CoachCalendarView } from "../components/coach/CoachCalendarView";
 import { ChatView } from "../components/chat/ChatView";
 import { ConnectCoachView } from "../components/chat/ConnectCoachView";
 
+const getLocalDateString = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState<boolean>(true);
@@ -93,7 +101,7 @@ export default function Home() {
   const [hasBothAccounts, setHasBothAccounts] = useState<boolean>(false);
 
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
+    getLocalDateString()
   );
   const [allCoachAthletesPlans, setAllCoachAthletesPlans] = useState<Plan[]>([]);
   const [allCoachAthletesWorkouts, setAllCoachAthletesWorkouts] = useState<Workout[]>([]);
@@ -109,6 +117,12 @@ export default function Home() {
   const changeActiveTab = (newTab: ActiveTab) => {
     setActiveTab(newTab);
     setShowCalculatorsView(false);
+    
+    // Force la date à aujourd'hui dès qu'on clique sur l'onglet "today"
+    if (newTab === "today") {
+      setSelectedCalendarDate(getLocalDateString());
+    }
+
     if (typeof window !== "undefined") {
       localStorage.setItem("volaris_active_tab", newTab);
     }
@@ -1437,7 +1451,6 @@ export default function Home() {
       if (!managedAthletes || managedAthletes.length === 0) return sessions;
 
       managedAthletes.forEach((athlete) => {
-        // Recherche d'un plan actif ou, à défaut, du plan le plus récent de l'athlète
         const athletePlans = allCoachAthletesPlans.filter((p: any) => {
           const planUserId = p.userId || p.user_id;
           return planUserId === athlete.id;
@@ -1448,7 +1461,7 @@ export default function Home() {
             const isPlanActive = p.isActive !== undefined ? p.isActive : (p.is_active !== false);
             const isPlanArchived = p.isArchived !== undefined ? p.isArchived : (p.is_archived === true);
             return isPlanActive && !isPlanArchived;
-          }) || athletePlans[0]; // Fallback sur le premier plan si aucun n'est explicitement marqué actif
+          }) || athletePlans[0];
 
         if (!activePlanForAthlete) return;
 
