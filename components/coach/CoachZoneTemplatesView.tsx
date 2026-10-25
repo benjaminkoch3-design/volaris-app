@@ -5,8 +5,8 @@ import React, { useState } from "react";
 export interface ZoneItem {
   id: string;
   name: string;
-  minVmaPercent: number;
-  maxVmaPercent: number;
+  minVmaPercent: number | string;
+  maxVmaPercent: number | string;
   color: string;
 }
 
@@ -14,7 +14,13 @@ export interface ZoneTemplate {
   id: string;
   name: string;
   description?: string;
-  zones: ZoneItem[];
+  zones: {
+    id: string;
+    name: string;
+    minVmaPercent: number;
+    maxVmaPercent: number;
+    color: string;
+  }[];
 }
 
 interface CoachZoneTemplatesViewProps {
@@ -51,13 +57,12 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
     setCurrentId(`ztemp_${Date.now()}`);
     setTemplateName("");
     setTemplateDesc("");
-    // Par défaut, on initialise 5 zones types pour gagner du temps
     setZones([
       { id: "z_1", name: "Z1 - Récupération", minVmaPercent: 50, maxVmaPercent: 70, color: "#10B981" },
       { id: "z_2", name: "Z2 - Endurance Fondamentale", minVmaPercent: 70, maxVmaPercent: 80, color: "#3B82F6" },
       { id: "z_3", name: "Z3 - Seuil / Tempo", minVmaPercent: 80, maxVmaPercent: 90, color: "#F59E0B" },
       { id: "z_4", name: "Z4 - VMA Courte / Seuil Anaérobie", minVmaPercent: 90, maxVmaPercent: 100, color: "#F97316" },
-      { id: "z_5", name: "Z5 - Surchage / Max", minVmaPercent: 100, maxVmaPercent: 120, color: "#EF4444" },
+      { id: "z_5", name: "Z5 - Surcharge / Max", minVmaPercent: 100, maxVmaPercent: 120, color: "#EF4444" },
     ]);
     setIsEditing(true);
   };
@@ -67,15 +72,22 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
     setCurrentId(template.id);
     setTemplateName(template.name);
     setTemplateDesc(template.description || "");
-    setZones([...template.zones]);
+    setZones(
+      template.zones.map((z) => ({
+        ...z,
+        minVmaPercent: z.minVmaPercent,
+        maxVmaPercent: z.maxVmaPercent,
+      }))
+    );
     setIsEditing(true);
   };
 
   // Ajouter une zone dynamiquement
   const handleAddZone = () => {
     const nextIndex = zones.length + 1;
-    const lastMax = zones.length > 0 ? zones[zones.length - 1].maxVmaPercent : 100;
-    const newColor = DEFAULT_ZONE_COLORS[(zones.length) % DEFAULT_ZONE_COLORS.length];
+    const lastZone = zones[zones.length - 1];
+    const lastMax = lastZone ? parseFloat(String(lastZone.maxVmaPercent)) || 100 : 100;
+    const newColor = DEFAULT_ZONE_COLORS[zones.length % DEFAULT_ZONE_COLORS.length];
 
     const newZone: ZoneItem = {
       id: `z_${Date.now()}`,
@@ -87,19 +99,19 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
     setZones([...zones, newZone]);
   };
 
-  // Mettre à jour une zone spécifique
+  // Saisie fluide : on conserve la valeur texte brute pour autoriser la suppression totale
   const handleUpdateZone = (id: string, field: keyof ZoneItem, value: any) => {
     setZones((prev) =>
       prev.map((z) => (z.id === id ? { ...z, [field]: value } : z))
     );
   };
 
-  // Supprimer une zone de la liste
+  // Supprimer une zone
   const handleDeleteZone = (id: string) => {
     setZones((prev) => prev.filter((z) => z.id !== id));
   };
 
-  // Sauvegarder le modèle complet
+  // Enregistrement avec conversion propre en nombre
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!templateName.trim()) {
@@ -111,11 +123,19 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
       return;
     }
 
+    const cleanedZones = zones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      minVmaPercent: parseFloat(String(z.minVmaPercent)) || 0,
+      maxVmaPercent: parseFloat(String(z.maxVmaPercent)) || 0,
+      color: z.color,
+    }));
+
     const payload: ZoneTemplate = {
       id: currentId || `ztemp_${Date.now()}`,
       name: templateName.trim(),
       description: templateDesc.trim(),
-      zones,
+      zones: cleanedZones,
     };
 
     onSaveTemplate(payload);
@@ -169,7 +189,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="text-stone-400 hover:text-stone-200 text-xs font-bold uppercase"
+              className="text-stone-400 hover:text-stone-200 text-xs font-bold uppercase cursor-pointer"
             >
               Annuler
             </button>
@@ -222,14 +242,12 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
               {zones.map((zone, idx) => (
                 <div key={zone.id} className="bg-stone-950 border border-stone-800/80 p-3.5 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-3 shadow-inner">
                   <div className="flex items-center gap-2 w-full md:w-auto">
-                    {/* Couleur de la zone */}
                     <input
                       type="color"
                       value={zone.color}
                       onChange={(e) => handleUpdateZone(zone.id, "color", e.target.value)}
                       className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer shrink-0"
                     />
-                    {/* Nom de la zone */}
                     <input
                       type="text"
                       required
@@ -244,11 +262,10 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] text-stone-400 font-bold">Min :</span>
                       <input
-                        type="number"
-                        step="0.5"
-                        required
+                        type="text"
+                        inputMode="decimal"
                         value={zone.minVmaPercent}
-                        onChange={(e) => handleUpdateZone(zone.id, "minVmaPercent", parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleUpdateZone(zone.id, "minVmaPercent", e.target.value)}
                         className="w-20 bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
                       />
                       <span className="text-xs text-stone-500">% VMA</span>
@@ -257,11 +274,10 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] text-stone-400 font-bold">Max :</span>
                       <input
-                        type="number"
-                        step="0.5"
-                        required
+                        type="text"
+                        inputMode="decimal"
                         value={zone.maxVmaPercent}
-                        onChange={(e) => handleUpdateZone(zone.id, "maxVmaPercent", parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleUpdateZone(zone.id, "maxVmaPercent", e.target.value)}
                         className="w-20 bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
                       />
                       <span className="text-xs text-stone-500">% VMA</span>
@@ -299,7 +315,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
           </div>
         </form>
       ) : (
-        /* LISTE DES MODÈLES EXISTANTS */
+        /* LISTE DES MODÈLES EXISTANTS AVEC APERÇU NORMÉ & CLAIR */
         <div className="space-y-4">
           {templates.length === 0 ? (
             <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
@@ -321,7 +337,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {templates.map((tmpl) => (
-                <div key={tmpl.id} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-4 hover:border-stone-700 transition">
+                <div key={tmpl.id} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-5 hover:border-stone-700 transition">
                   <div className="space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div>
@@ -360,22 +376,52 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     )}
                   </div>
 
-                  {/* VISUALISATION DES ZONES SOUS FORME DE BARRE / LISTE */}
-                  <div className="space-y-1.5 pt-2 border-t border-stone-800/80">
-                    <div className="flex flex-wrap gap-1.5">
-                      {tmpl.zones.map((z) => (
-                        <div
-                          key={z.id}
-                          className="flex items-center gap-1.5 bg-stone-950 border border-stone-800 px-2.5 py-1 rounded-xl text-[10px]"
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: z.color }}
+                  {/* VISUALISATION DES ZONES AVEC BARRE CONTINU ET DÉTAILS NETS */}
+                  <div className="space-y-3 pt-3 border-t border-stone-800/80">
+                    <div className="w-full h-3 rounded-full bg-stone-950 p-0.5 flex gap-1 overflow-hidden border border-stone-800 shadow-inner">
+                      {tmpl.zones.map((z, i) => {
+                        const min = parseFloat(String(z.minVmaPercent)) || 0;
+                        const max = parseFloat(String(z.maxVmaPercent)) || 0;
+                        const flexVal = Math.max(1, max - min);
+                        return (
+                          <div
+                            key={z.id || i}
+                            className="h-full rounded-xs transition-all hover:brightness-125"
+                            style={{
+                              flex: flexVal,
+                              backgroundColor: z.color,
+                            }}
+                            title={`${z.name}: ${min}% - ${max}% VMA`}
                           />
-                          <span className="font-bold text-stone-200">{z.name}</span>
-                          <span className="text-stone-400 font-mono">({z.minVmaPercent}% - {z.maxVmaPercent}%)</span>
-                        </div>
-                      ))}
+                        );
+                      })}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                      {tmpl.zones.map((z) => {
+                        const min = parseFloat(String(z.minVmaPercent)) || 0;
+                        const max = parseFloat(String(z.maxVmaPercent)) || 0;
+                        return (
+                          <div
+                            key={z.id}
+                            className="bg-stone-950 border border-stone-800/70 px-3 py-2 rounded-2xl flex items-center justify-between text-xs shadow-sm"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                                style={{ backgroundColor: z.color }}
+                              />
+                              <span className="font-bold text-stone-200 truncate">{z.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 font-mono text-[11px] bg-stone-900 border border-stone-800 px-2 py-0.5 rounded-xl">
+                              <span className="text-[#CF9A61] font-bold">{min}%</span>
+                              <span className="text-stone-500">➔</span>
+                              <span className="text-[#CF9A61] font-bold">{max}%</span>
+                              <span className="text-[10px] text-stone-400 ml-0.5">VMA</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
