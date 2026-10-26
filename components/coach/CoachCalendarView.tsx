@@ -203,8 +203,9 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
+          {/* Sélecteur d'athlète corrigé pour le mode clair et sombre */}
           <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl">
-            <span className="text-[10px] font-bold text-stone-500 uppercase">Athlète :</span>
+            <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400 uppercase">Athlète :</span>
             <select
               value={selectedAthleteId}
               onChange={(e) => setSelectedAthleteId(e.target.value)}
@@ -361,31 +362,31 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
 
       {selectedDateModal && (
         <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto font-sans">
-          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-2xl w-full space-y-5 shadow-2xl my-auto animate-fadeIn">
-            <div className="flex justify-between items-center border-b border-stone-800 pb-3">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-5 max-w-2xl w-full space-y-5 shadow-2xl my-auto animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-stone-200 dark:border-stone-800 pb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase text-[#CDCF61] tracking-wider block">
                   Détail de la journée
                 </span>
-                <h3 className="text-base font-black uppercase text-stone-100">
+                <h3 className="text-base font-black uppercase text-stone-900 dark:text-stone-100">
                   {selectedDateModal.split("-").reverse().join("/")}
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedDateModal(null)}
-                className="text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800"
+                className="text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200 text-xs font-bold cursor-pointer bg-stone-100 dark:bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-800"
               >
                 ✕ Fermer
               </button>
             </div>
 
             {selectedAthleteId !== "all" && (
-              <div className="bg-stone-950 border border-stone-800 rounded-2xl p-4 space-y-3">
+              <div className="bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-stone-200 flex items-center gap-1.5">
+                  <span className="text-xs font-black uppercase text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
                     <span>📝</span> Note du Coach pour ce jour
                   </span>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-400">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-stone-600 dark:text-stone-400">
                     <input
                       type="checkbox"
                       checked={currentNoteVisible}
@@ -400,7 +401,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   value={currentNoteText}
                   onChange={(e) => setCurrentNoteText(e.target.value)}
                   placeholder="Écrire une consigne ou une remarque sur cette journée..."
-                  className="w-full bg-stone-900 border border-stone-800 rounded-xl p-2.5 text-xs text-stone-100 focus:outline-none focus:border-[#CDCF61] resize-none h-20"
+                  className="w-full bg-white dark:bg-stone-900 border border-stone-300 dark:border-stone-800 rounded-xl p-2.5 text-xs text-stone-900 dark:text-stone-100 focus:outline-none focus:border-[#CDCF61] resize-none h-20"
                 />
 
                 <div className="flex justify-end">
@@ -416,7 +417,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
             )}
 
             <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1 custom-scrollbar">
-              <h4 className="text-xs font-black uppercase tracking-wider text-stone-400">
+              <h4 className="text-xs font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
                 Séances au programme ({modalSessions.length})
               </h4>
 
@@ -434,14 +435,14 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   return (
                     <div
                       key={idx}
-                      className="p-3.5 bg-stone-950 border border-stone-800 rounded-2xl space-y-2 hover:border-stone-700 transition"
+                      className="p-3.5 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-2xl space-y-2 hover:border-stone-300 dark:hover:border-stone-700 transition"
                     >
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-full bg-[#CDCF61]/20 text-[#CDCF61] text-xs font-black flex items-center justify-center border border-[#CDCF61]/40">
                             {s.athlete.name.charAt(0).toUpperCase()}
                           </span>
-                          <span className="text-xs font-black text-stone-100">
+                          <span className="text-xs font-black text-stone-900 dark:text-stone-100">
                             {s.athlete.name}
                           </span>
                         </div>
@@ -451,8 +452,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center pt-1 border-t border-stone-900">
-                        <h5 className="text-xs font-bold text-stone-200">
+                      <div className="flex justify-between items-center pt-1 border-t border-stone-200 dark:border-stone-900">
+                        <h5 className="text-xs font-bold text-stone-800 dark:text-stone-200">
                           {w.title || "Séance"}
                         </h5>
 
@@ -460,8 +461,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           <label
                             className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-xl border cursor-pointer transition ${
                               isCoachChecked
-                                ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                                : "bg-stone-900 text-stone-400 border-stone-800 hover:border-stone-700"
+                                ? "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30"
+                                : "bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-400 border-stone-300 dark:border-stone-800 hover:border-stone-400 dark:hover:border-stone-700"
                             }`}
                           >
                             <input
@@ -474,11 +475,11 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           </label>
 
                           {isDone ? (
-                            <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                            <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
                               Débriefée ✓
                             </span>
                           ) : (
-                            <span className="text-[9px] font-black text-stone-500 bg-stone-900 px-2 py-0.5 rounded border border-stone-800">
+                            <span className="text-[9px] font-black text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-900 px-2 py-0.5 rounded border border-stone-300 dark:border-stone-800">
                               Non débriefée
                             </span>
                           )}
@@ -499,7 +500,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                       </div>
 
                       {w.description && (
-                        <p className="text-[10.5px] text-stone-400 line-clamp-2">
+                        <p className="text-[10.5px] text-stone-600 dark:text-stone-400 line-clamp-2">
                           {w.description}
                         </p>
                       )}
