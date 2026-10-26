@@ -240,61 +240,58 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
 
             <div className="space-y-2.5 w-full">
               {zones.map((zone, idx) => (
-                <div key={zone.id} className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-inner w-full">
+                <div key={zone.id} className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl flex flex-col md:flex-row items-center gap-3 shadow-inner w-full">
                   
-                  {/* Partie gauche : Couleur + Nom de la zone (Largeur extensible) */}
-                  <div className="flex items-center gap-3 flex-1 w-full">
-                    <input
-                      type="color"
-                      value={zone.color}
-                      onChange={(e) => handleUpdateZone(zone.id, "color", e.target.value)}
-                      className="w-9 h-9 rounded-xl bg-transparent border-0 cursor-pointer shrink-0"
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder={`Zone ${idx + 1}`}
-                      value={zone.name}
-                      onChange={(e) => handleUpdateZone(zone.id, "name", e.target.value)}
-                      className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61]"
-                    />
-                  </div>
+                  {/* Sélecteur de couleur */}
+                  <input
+                    type="color"
+                    value={zone.color}
+                    onChange={(e) => handleUpdateZone(zone.id, "color", e.target.value)}
+                    className="w-9 h-9 rounded-xl bg-transparent border-0 cursor-pointer shrink-0"
+                    title="Choisir la couleur de la zone"
+                  />
 
-                  {/* Partie droite : Min, Max et Bouton Suppression */}
-                  <div className="flex items-center gap-3 justify-end shrink-0 w-full lg:w-auto">
-                    <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
-                      <span className="text-[10px] text-stone-400 font-bold">Min :</span>
+                  {/* Nom de la zone */}
+                  <input
+                    type="text"
+                    required
+                    placeholder={`Zone ${idx + 1}`}
+                    value={zone.name}
+                    onChange={(e) => handleUpdateZone(zone.id, "name", e.target.value)}
+                    className="flex-1 w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61]"
+                  />
+
+                  {/* Bloc de saisie des pourcentages harmonisé avec la FC */}
+                  <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto">
+                    <div className="flex items-center gap-1 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
                       <input
                         type="text"
                         inputMode="decimal"
                         value={zone.minVmaPercent}
                         onChange={(e) => handleUpdateZone(zone.id, "minVmaPercent", e.target.value)}
-                        className="w-16 bg-stone-950 border border-stone-800 rounded-lg px-2 py-1 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
+                        className="w-12 bg-transparent text-center text-xs font-bold text-stone-100 focus:outline-none"
                       />
-                      <span className="text-xs text-stone-500">% VMA</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
-                      <span className="text-[10px] text-stone-400 font-bold">Max :</span>
+                      <span className="text-xs text-stone-400">% -</span>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={zone.maxVmaPercent}
                         onChange={(e) => handleUpdateZone(zone.id, "maxVmaPercent", e.target.value)}
-                        className="w-16 bg-stone-950 border border-stone-800 rounded-lg px-2 py-1 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
+                        className="w-12 bg-transparent text-center text-xs font-bold text-stone-100 focus:outline-none"
                       />
-                      <span className="text-xs text-stone-500">% VMA</span>
+                      <span className="text-xs text-stone-400">% VMA</span>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={zones.length <= 1}
-                      onClick={() => handleDeleteZone(zone.id)}
-                      className="text-stone-500 hover:text-red-400 disabled:opacity-20 p-2.5 bg-stone-900 border border-stone-800 rounded-xl transition cursor-pointer"
-                      title="Supprimer cette zone"
-                    >
-                      ✕
-                    </button>
+                    {zones.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteZone(zone.id)}
+                        className="p-2.5 text-red-400 hover:text-red-300 bg-stone-900 border border-stone-800 rounded-xl text-xs cursor-pointer"
+                        title="Supprimer cette zone"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
 
                 </div>
