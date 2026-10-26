@@ -222,13 +222,13 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-          {/* Menu déroulant personnalisé ultra-visible */}
+          {/* Menu déroulant personnalisé avec texte noir en mode clair */}
           <div className="relative" ref={dropdownRef}>
             <div 
               onClick={() => setIsAthleteDropdownOpen(!isAthleteDropdownOpen)}
               className="flex items-center gap-2 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-3 py-2 rounded-xl cursor-pointer hover:border-stone-400 dark:hover:border-stone-700 transition shadow-sm"
             >
-              <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400 uppercase">Athlète :</span>
+              <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 uppercase">Athlète :</span>
               <span className="text-[11px] font-bold text-stone-900 dark:text-stone-100">{selectedAthleteName}</span>
               <span className="text-xs text-stone-500 ml-1">▼</span>
             </div>
@@ -242,8 +242,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                   }}
                   className={`px-3.5 py-2.5 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
                     selectedAthleteId === "all" 
-                      ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
-                      : "text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
+                      ? "bg-[#CDCF61]/20 text-stone-900 dark:text-[#CDCF61]" 
+                      : "text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
                   }`}
                 >
                   <span>Tous les athlètes ({managedAthletes.length})</span>
@@ -264,8 +264,8 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                         }}
                         className={`px-3.5 py-2 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
                           isSelected 
-                            ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
-                            : "text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
+                            ? "bg-[#CDCF61]/20 text-stone-900 dark:text-[#CDCF61]" 
+                            : "text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
                         }`}
                       >
                         <span className="truncate">{a.name}</span>
