@@ -203,13 +203,13 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-          {/* Sélecteur d'athlète corrigé pour le mode clair et sombre */}
+          {/* Sélecteur d'athlète corrigé avec visibilité garantie en mode clair et sombre */}
           <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl">
-            <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400 uppercase">Athlète :</span>
+            <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 uppercase">Athlète :</span>
             <select
               value={selectedAthleteId}
               onChange={(e) => setSelectedAthleteId(e.target.value)}
-              className="bg-transparent text-[11px] font-bold text-stone-900 dark:text-stone-100 focus:outline-none cursor-pointer"
+              className="bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 text-[11px] font-bold px-2 py-1 rounded-lg border border-stone-300 dark:border-stone-800 focus:outline-none focus:border-[#CDCF61] cursor-pointer shadow-sm"
             >
               <option value="all" className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100">
                 Tous les athlètes ({managedAthletes.length})
