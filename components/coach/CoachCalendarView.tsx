@@ -1,6 +1,6 @@
 // src/components/coach/CoachCalendarView.tsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AthleteProfile, Plan, Workout, WorkoutType } from "../../types";
 import { getWorkoutTypeConfig } from "../../utils/calculations";
 import { supabase } from "../../lib/supabaseClient";
@@ -48,6 +48,21 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
   const [coachNotes, setCoachNotes] = useState<Record<string, { text: string; visibleToAthlete: boolean }>>({});
   const [currentNoteText, setCurrentNoteText] = useState("");
   const [currentNoteVisible, setCurrentNoteVisible] = useState(false);
+
+  // État pour le menu déroulant personnalisé des athlètes
+  const [isAthleteDropdownOpen, setIsAthleteDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fermer le menu déroulant si on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsAthleteDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // État local synchronisé avec les props allWorkouts
   const [coachCheckedWorkouts, setCoachCheckedWorkouts] = useState<Record<string, boolean>>({});
@@ -190,6 +205,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
     return managedAthletes.some((a) => Boolean(coachNotes[`${a.id}_${dateStr}`]?.text));
   };
 
+  const selectedAthleteName = selectedAthleteId === "all" 
+    ? `Tous les athlètes (${managedAthletes.length})` 
+    : managedAthletes.find(a => a.id === selectedAthleteId)?.name || "Sélectionner";
+
   return (
     <div className="space-y-5 animate-fadeIn font-sans w-full relative">
       <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-4 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg transition-colors">
@@ -203,23 +222,60 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-          {/* Sélecteur d'athlète corrigé avec visibilité garantie en mode clair et sombre */}
-          <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-2.5 py-1.5 rounded-xl">
-            <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 uppercase">Athlète :</span>
-            <select
-              value={selectedAthleteId}
-              onChange={(e) => setSelectedAthleteId(e.target.value)}
-              className="bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 text-[11px] font-bold px-2 py-1 rounded-lg border border-stone-300 dark:border-stone-800 focus:outline-none focus:border-[#CDCF61] cursor-pointer shadow-sm"
+          {/* Menu déroulant personnalisé ultra-visible */}
+          <div className="relative" ref={dropdownRef}>
+            <div 
+              onClick={() => setIsAthleteDropdownOpen(!isAthleteDropdownOpen)}
+              className="flex items-center gap-2 bg-stone-100 dark:bg-stone-950 border border-stone-300 dark:border-stone-800 px-3 py-2 rounded-xl cursor-pointer hover:border-stone-400 dark:hover:border-stone-700 transition shadow-sm"
             >
-              <option value="all" className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100">
-                Tous les athlètes ({managedAthletes.length})
-              </option>
-              {managedAthletes.map((a) => (
-                <option key={a.id} value={a.id} className="bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100">
-                  {a.name}
-                </option>
-              ))}
-            </select>
+              <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400 uppercase">Athlète :</span>
+              <span className="text-[11px] font-bold text-stone-900 dark:text-stone-100">{selectedAthleteName}</span>
+              <span className="text-xs text-stone-500 ml-1">▼</span>
+            </div>
+
+            {isAthleteDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-2xl z-50 overflow-hidden py-1">
+                <div 
+                  onClick={() => {
+                    setSelectedAthleteId("all");
+                    setIsAthleteDropdownOpen(false);
+                  }}
+                  className={`px-3.5 py-2.5 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
+                    selectedAthleteId === "all" 
+                      ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
+                      : "text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
+                  }`}
+                >
+                  <span>Tous les athlètes ({managedAthletes.length})</span>
+                  {selectedAthleteId === "all" && <span>✓</span>}
+                </div>
+
+                <div className="border-t border-stone-200 dark:border-stone-800 my-1" />
+
+                <div className="max-h-56 overflow-y-auto custom-scrollbar">
+                  {managedAthletes.map((a) => {
+                    const isSelected = selectedAthleteId === a.id;
+                    return (
+                      <div
+                        key={a.id}
+                        onClick={() => {
+                          setSelectedAthleteId(a.id);
+                          setIsAthleteDropdownOpen(false);
+                        }}
+                        className={`px-3.5 py-2 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
+                          isSelected 
+                            ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
+                            : "text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800"
+                        }`}
+                      >
+                        <span className="truncate">{a.name}</span>
+                        {isSelected && <span>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
