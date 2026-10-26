@@ -32,9 +32,10 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
   races = [],
   onBack,
 }) => {
-  const cleanVal = (val: any) => {
-    if (!val) return "";
-    return String(val).replace(/[^0-9.,]/g, "").replace(",", ".");
+  const cleanVal = (val: any): string => {
+    if (val === null || val === undefined) return "";
+    const str = String(val).replace(/[^0-9.,]/g, "").replace(",", ".");
+    return str;
   };
 
   const athleteName = athlete.name || athlete.full_name || "Athlète";
@@ -42,10 +43,15 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
   const height = cleanVal(athlete.height);
   const weight = cleanVal(athlete.weight);
 
-  // États pour les réglages spécifiques du coach (VMA, FC, Modèles)
-  const [customVma, setCustomVma] = useState(cleanVal(athlete.vma) || "14");
-  const [customFcMin, setCustomFcMin] = useState(cleanVal(athlete.fcRest || athlete.fc_rest) || "50");
-  const [customFcMax, setCustomFcMax] = useState(cleanVal(athlete.fcMax || athlete.fc_max) || "190");
+  // Valeurs initiales nettoyées pour éviter les NaN
+  const initialVma = cleanVal(athlete.vma) || "14";
+  const initialFcMin = cleanVal(athlete.fcRest || athlete.fc_rest) || "50";
+  const initialFcMax = cleanVal(athlete.fcMax || athlete.fc_max) || "190";
+
+  // États pour les réglages spécifiques du coach
+  const [customVma, setCustomVma] = useState<string>(initialVma);
+  const [customFcMin, setCustomFcMin] = useState<string>(initialFcMin);
+  const [customFcMax, setCustomFcMax] = useState<string>(initialFcMax);
   
   const [selectedVmaTemplateId, setSelectedVmaTemplateId] = useState<string>("");
   const [selectedHrTemplateId, setSelectedHrTemplateId] = useState<string>("");
@@ -68,11 +74,21 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
         .maybeSingle();
 
       if (settingsData) {
-        if (settingsData.custom_vma !== null) setCustomVma(String(settingsData.custom_vma));
-        if (settingsData.custom_fc_min !== null) setCustomFcMin(String(settingsData.custom_fc_min));
-        if (settingsData.custom_fc_max !== null) setCustomFcMax(String(settingsData.custom_fc_max));
-        if (settingsData.vma_zone_template_id) setSelectedVmaTemplateId(settingsData.vma_zone_template_id);
-        if (settingsData.hr_zone_template_id) setSelectedHrTemplateId(settingsData.hr_zone_template_id);
+        if (settingsData.custom_vma !== null && settingsData.custom_vma !== undefined) {
+          setCustomVma(String(settingsData.custom_vma));
+        }
+        if (settingsData.custom_fc_min !== null && settingsData.custom_fc_min !== undefined) {
+          setCustomFcMin(String(settingsData.custom_fc_min));
+        }
+        if (settingsData.custom_fc_max !== null && settingsData.custom_fc_max !== undefined) {
+          setCustomFcMax(String(settingsData.custom_fc_max));
+        }
+        if (settingsData.vma_zone_template_id) {
+          setSelectedVmaTemplateId(settingsData.vma_zone_template_id);
+        }
+        if (settingsData.hr_zone_template_id) {
+          setSelectedHrTemplateId(settingsData.hr_zone_template_id);
+        }
       }
 
       // 2. Récupérer les modèles d'allures du coach
@@ -97,12 +113,16 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
     setSaving(true);
     setSaveMessage("");
 
+    const parsedVma = parseFloat(customVma);
+    const parsedFcMin = parseFloat(customFcMin);
+    const parsedFcMax = parseFloat(customFcMax);
+
     const { error } = await supabase.from("coach_athlete_settings").upsert({
       coach_id: coachId,
       athlete_id: athlete.id,
-      custom_vma: parseFloat(customVma) || null,
-      custom_fc_min: parseFloat(customFcMin) || null,
-      custom_fc_max: parseFloat(customFcMax) || null,
+      custom_vma: !isNaN(parsedVma) ? parsedVma : null,
+      custom_fc_min: !isNaN(parsedFcMin) ? parsedFcMin : null,
+      custom_fc_max: !isNaN(parsedFcMax) ? parsedFcMax : null,
       vma_zone_template_id: selectedVmaTemplateId || null,
       hr_zone_template_id: selectedHrTemplateId || null,
     }, { onConflict: "coach_id,athlete_id" });
@@ -134,8 +154,13 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 
   const activeVmaTemplate = vmaTemplates.find((t) => t.id === selectedVmaTemplateId);
   const activeHrTemplate = hrTemplates.find((t) => t.id === selectedHrTemplateId);
-  const numericVma = parseFloat(customVma) || 0;
-  const numericFcMax = parseFloat(customFcMax) || 190;
+
+  // Conversion sécurisée en nombre pour éviter les NaN
+  const numericVma = parseFloat(customVma);
+  const validVma = !isNaN(numericVma) ? numericVma : 0;
+
+  const numericFcMax = parseFloat(customFcMax);
+  const validFcMax = !isNaN(numericFcMax) ? numericFcMax : 0;
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans pb-12">
@@ -158,7 +183,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
         </div>
       )}
 
-      {/* CARTE RÉSUMÉ HAUT DE PAGE (Design identique à ProfileView) */}
+      {/* CARTE RÉSUMÉ HAUT DE PAGE */}
       <div className="bg-stone-900/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-4 w-full">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -299,7 +324,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
         ) : null}
       </div>
 
-      {/* BLOC DE CONFIGURATION DU COACH (Remplacement des 8 onglets) */}
+      {/* BLOC DE CONFIGURATION DU COACH */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-6 space-y-6 shadow-xl">
         <div className="flex items-center justify-between border-b border-stone-800 pb-3">
           <div>
@@ -355,15 +380,15 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
             </div>
           </div>
 
-          {activeVmaTemplate && numericVma > 0 && (
+          {activeVmaTemplate && validVma > 0 && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
                 Seuils calculés ({activeVmaTemplate.name})
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeVmaTemplate.zones.map((zone, idx) => {
-                  const sMin = ((numericVma * zone.percentageMin) / 100).toFixed(1);
-                  const sMax = ((numericVma * zone.percentageMax) / 100).toFixed(1);
+                  const sMin = ((validVma * zone.percentageMin) / 100).toFixed(1);
+                  const sMax = ((validVma * zone.percentageMax) / 100).toFixed(1);
                   return (
                     <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
@@ -427,15 +452,15 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
             </div>
           </div>
 
-          {activeHrTemplate && (
+          {activeHrTemplate && validFcMax > 0 && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
                 Zones FC calculées ({activeHrTemplate.name})
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeHrTemplate.zones.map((zone, idx) => {
-                  const fcMinCalc = Math.round(numericFcMax * (zone.percentageMin / 100));
-                  const fcMaxCalc = Math.round(numericFcMax * (zone.percentageMax / 100));
+                  const fcMinCalc = Math.round(validFcMax * (zone.percentageMin / 100));
+                  const fcMaxCalc = Math.round(validFcMax * (zone.percentageMax / 100));
                   return (
                     <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
