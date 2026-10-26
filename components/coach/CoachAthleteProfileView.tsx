@@ -26,7 +26,7 @@ interface CoachAthleteProfileViewProps {
   onBack: () => void;
 }
 
-// Fonction utilitaire pour convertir une vitesse (km/h) en allure (min:sec /km)
+// Convertit une vitesse en km/h vers une allure min:sec /km
 const speedToPace = (speedKmH: number): string => {
   if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "-";
   const totalSeconds = Math.round(3600 / speedKmH);
@@ -35,10 +35,16 @@ const speedToPace = (speedKmH: number): string => {
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}/km`;
 };
 
-// Fonction universelle pour extraire les pourcentages min/max peu importe le format en base
+// Extraction ultra-robuste des pourcentages min/max peu importe le nom de propriété utilisé
 const extractZonePercentages = (zone: any) => {
-  const pMin = Number(zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentMin ?? 0);
-  const pMax = Number(zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentMax ?? 0);
+  if (!zone) return { pMin: 0, pMax: 0 };
+  
+  const rawMin = zone.min ?? zone.percentageMin ?? zone.minPercent ?? zone.percentMin ?? zone.valMin ?? 0;
+  const rawMax = zone.max ?? zone.percentageMax ?? zone.maxPercent ?? zone.percentMax ?? zone.valMax ?? 0;
+
+  const pMin = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  const pMax = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
   return { pMin, pMax };
 };
 
@@ -50,8 +56,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 }) => {
   const cleanVal = (val: any): string => {
     if (val === null || val === undefined) return "";
-    const str = String(val).replace(/[^0-9.,]/g, "").replace(",", ".");
-    return str;
+    return String(val).replace(/[^0-9.,]/g, "").replace(",", ".");
   };
 
   const athleteName = athlete.name || athlete.full_name || "Athlète";
@@ -78,6 +83,20 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 
   useEffect(() => {
     const fetchCoachData = async () => {
+      // 1. Récupérer d'abord TOUS les modèles du coach pour populer les <select>
+      const { data: vmaTmpls } = await supabase
+        .from("coach_zone_templates")
+        .select("*")
+        .eq("user_id", coachId);
+      if (vmaTmpls) setVmaTemplates(vmaTmpls);
+
+      const { data: hrTmpls } = await supabase
+        .from("coach_hr_zone_templates")
+        .select("*")
+        .eq("user_id", coachId);
+      if (hrTmpls) setHrTemplates(hrTmpls);
+
+      // 2. Ensuite, récupérer les réglages enregistrés pour cet athlète
       const { data: settingsData } = await supabase
         .from("coach_athlete_settings")
         .select("*")
@@ -96,24 +115,12 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
           setCustomFcMax(String(settingsData.custom_fc_max));
         }
         if (settingsData.vma_zone_template_id) {
-          setSelectedVmaTemplateId(settingsData.vma_zone_template_id);
+          setSelectedVmaTemplateId(String(settingsData.vma_zone_template_id));
         }
         if (settingsData.hr_zone_template_id) {
-          setSelectedHrTemplateId(settingsData.hr_zone_template_id);
+          setSelectedHrTemplateId(String(settingsData.hr_zone_template_id));
         }
       }
-
-      const { data: vmaTmpls } = await supabase
-        .from("coach_zone_templates")
-        .select("*")
-        .eq("user_id", coachId);
-      if (vmaTmpls) setVmaTemplates(vmaTmpls);
-
-      const { data: hrTmpls } = await supabase
-        .from("coach_hr_zone_templates")
-        .select("*")
-        .eq("user_id", coachId);
-      if (hrTmpls) setHrTemplates(hrTmpls);
     };
 
     fetchCoachData();
@@ -127,7 +134,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
     const parsedFcMin = parseFloat(customFcMin);
     const parsedFcMax = parseFloat(customFcMax);
 
-    const { error } = await supabase.from("coach_athlete_settings").upsert({
+    const payload = {
       coach_id: coachId,
       athlete_id: athlete.id,
       custom_vma: !isNaN(parsedVma) ? parsedVma : null,
@@ -135,11 +142,16 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
       custom_fc_max: !isNaN(parsedFcMax) ? parsedFcMax : null,
       vma_zone_template_id: selectedVmaTemplateId || null,
       hr_zone_template_id: selectedHrTemplateId || null,
-    }, { onConflict: "coach_id,athlete_id" });
+    };
+
+    const { error } = await supabase
+      .from("coach_athlete_settings")
+      .upsert(payload, { onConflict: "coach_id,athlete_id" });
 
     setSaving(false);
     if (error) {
-      setSaveMessage("Erreur lors de l'enregistrement.");
+      console.error("Erreur sauvegarde coach_athlete_settings :", error);
+      setSaveMessage(`Erreur : ${error.message}`);
     } else {
       setSaveMessage("Paramètres enregistrés avec succès !");
       setTimeout(() => setSaveMessage(""), 3000);
@@ -162,8 +174,8 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
     return max;
   }, 0);
 
-  const activeVmaTemplate = vmaTemplates.find((t) => t.id === selectedVmaTemplateId);
-  const activeHrTemplate = hrTemplates.find((t) => t.id === selectedHrTemplateId);
+  const activeVmaTemplate = vmaTemplates.find((t) => String(t.id) === String(selectedVmaTemplateId));
+  const activeHrTemplate = hrTemplates.find((t) => String(t.id) === String(selectedHrTemplateId));
 
   const numericVma = parseFloat(customVma);
   const validVma = !isNaN(numericVma) ? numericVma : 0;
@@ -190,7 +202,11 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
       </div>
 
       {saveMessage && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold p-3 rounded-2xl text-center">
+        <div className={`border text-xs font-bold p-3 rounded-2xl text-center ${
+          saveMessage.startsWith("Erreur") 
+            ? "bg-red-500/10 border-red-500/30 text-red-400" 
+            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+        }`}>
           {saveMessage}
         </div>
       )}
@@ -392,27 +408,25 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
             </div>
           </div>
 
-          {activeVmaTemplate && validVma > 0 && (
+          {activeVmaTemplate && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
                 Seuils calculés ({activeVmaTemplate.name})
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {activeVmaTemplate.zones.map((zone, idx) => {
+                {activeVmaTemplate.zones?.map((zone, idx) => {
                   const { pMin, pMax } = extractZonePercentages(zone);
 
-                  // Calcul des vitesses min et max basées sur les pourcentages de la VMA
                   const sMinKmH = (validVma * pMin) / 100;
                   const sMaxKmH = (validVma * pMax) / 100;
 
-                  // Conversion en allure (min/km) : la vitesse max (sMaxKmH) donne l'allure la plus rapide
                   const paceMaxStr = speedToPace(sMaxKmH);
                   const paceMinStr = speedToPace(sMinKmH);
 
                   return (
-                    <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-1">
+                    <div key={idx} style={{ borderColor: zone.color || "#CF9A61" }} className="p-2.5 rounded-xl border bg-stone-900 space-y-1">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
-                        <span>{zone.name}</span>
+                        <span>{zone.name || zone.label || `Zone ${idx + 1}`}</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
@@ -429,7 +443,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
           )}
         </div>
 
-        {/* SECTION FRÉQUENCE CARDIAQUE & MODÈLE FC (Formule de Karvonen / Réserve) */}
+        {/* SECTION FRÉQUENCE CARDIAQUE & MODÈLE FC */}
         <div className="space-y-4 bg-stone-950/60 p-4 rounded-2xl border border-stone-800">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -475,24 +489,23 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
             </div>
           </div>
 
-          {activeHrTemplate && validFcMax > 0 && (
+          {activeHrTemplate && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
                 Zones FC calculées ({activeHrTemplate.name}) - Formule Karvonen (FCR)
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {activeHrTemplate.zones.map((zone, idx) => {
+                {activeHrTemplate.zones?.map((zone, idx) => {
                   const { pMin, pMax } = extractZonePercentages(zone);
 
-                  // Formule de Karvonen : FC_cible = FC_repos + (FC_max - FC_repos) * (% / 100)
                   const fcReserve = validFcMax - validFcMin;
                   const fcMinCalc = Math.round(validFcMin + fcReserve * (pMin / 100));
                   const fcMaxCalc = Math.round(validFcMin + fcReserve * (pMax / 100));
 
                   return (
-                    <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
+                    <div key={idx} style={{ borderColor: zone.color || "#CF9A61" }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
-                        <span>{zone.name}</span>
+                        <span>{zone.name || zone.label || `Zone ${idx + 1}`}</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
