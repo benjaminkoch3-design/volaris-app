@@ -10,13 +10,13 @@ import { calculateRunnerProfile } from "../../utils/profile";
 interface ZoneTemplate {
   id: string;
   name: string;
-  zones: { name: string; percentageMin?: number; percentageMax?: number; minPercent?: number; maxPercent?: number; min?: number; max?: number; color: string }[];
+  zones: any[];
 }
 
 interface HrZoneTemplate {
   id: string;
   name: string;
-  zones: { name: string; percentageMin?: number; percentageMax?: number; minPercent?: number; maxPercent?: number; min?: number; max?: number; color: string }[];
+  zones: any[];
 }
 
 interface CoachAthleteProfileViewProps {
@@ -28,11 +28,18 @@ interface CoachAthleteProfileViewProps {
 
 // Fonction utilitaire pour convertir une vitesse (km/h) en allure (min:sec /km)
 const speedToPace = (speedKmH: number): string => {
-  if (!speedKmH || speedKmH <= 0) return "-";
+  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "-";
   const totalSeconds = Math.round(3600 / speedKmH);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}/km`;
+};
+
+// Fonction universelle pour extraire les pourcentages min/max peu importe le format en base
+const extractZonePercentages = (zone: any) => {
+  const pMin = Number(zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentMin ?? 0);
+  const pMax = Number(zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentMax ?? 0);
+  return { pMin, pMax };
 };
 
 export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = ({
@@ -160,6 +167,9 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 
   const numericVma = parseFloat(customVma);
   const validVma = !isNaN(numericVma) ? numericVma : 0;
+
+  const numericFcMin = parseFloat(customFcMin);
+  const validFcMin = !isNaN(numericFcMin) ? numericFcMin : 0;
 
   const numericFcMax = parseFloat(customFcMax);
   const validFcMax = !isNaN(numericFcMax) ? numericFcMax : 0;
@@ -389,13 +399,13 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeVmaTemplate.zones.map((zone, idx) => {
-                  const pMin = zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
-                  const pMax = zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
+                  const { pMin, pMax } = extractZonePercentages(zone);
 
+                  // Calcul des vitesses min et max basées sur les pourcentages de la VMA
                   const sMinKmH = (validVma * pMin) / 100;
                   const sMaxKmH = (validVma * pMax) / 100;
 
-                  // Pour l'allure, la vitesse max donne l'allure la plus rapide (ex: plus bas en min/km)
+                  // Conversion en allure (min/km) : la vitesse max (sMaxKmH) donne l'allure la plus rapide
                   const paceMaxStr = speedToPace(sMaxKmH);
                   const paceMinStr = speedToPace(sMinKmH);
 
@@ -403,11 +413,11 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
                     <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-1">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
                         <span>{zone.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
                       </div>
-                      <div className="text-[11px] font-bold text-stone-300 flex justify-between items-center">
+                      <div className="flex justify-between items-center text-[11px] font-bold text-stone-300">
                         <span>{sMinKmH.toFixed(1)} - {sMaxKmH.toFixed(1)} km/h</span>
                         <span className="text-[#CF9A61] font-mono">{paceMaxStr} - {paceMinStr}</span>
                       </div>
@@ -419,7 +429,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
           )}
         </div>
 
-        {/* SECTION FRÉQUENCE CARDIAQUE & MODÈLE FC */}
+        {/* SECTION FRÉQUENCE CARDIAQUE & MODÈLE FC (Formule de Karvonen / Réserve) */}
         <div className="space-y-4 bg-stone-950/60 p-4 rounded-2xl border border-stone-800">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -468,21 +478,22 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
           {activeHrTemplate && validFcMax > 0 && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
-                Zones FC calculées ({activeHrTemplate.name})
+                Zones FC calculées ({activeHrTemplate.name}) - Formule Karvonen (FCR)
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeHrTemplate.zones.map((zone, idx) => {
-                  const pMin = zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
-                  const pMax = zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
+                  const { pMin, pMax } = extractZonePercentages(zone);
 
-                  const fcMinCalc = Math.round((validFcMax * pMin) / 100);
-                  const fcMaxCalc = Math.round((validFcMax * pMax) / 100);
+                  // Formule de Karvonen : FC_cible = FC_repos + (FC_max - FC_repos) * (% / 100)
+                  const fcReserve = validFcMax - validFcMin;
+                  const fcMinCalc = Math.round(validFcMin + fcReserve * (pMin / 100));
+                  const fcMaxCalc = Math.round(validFcMin + fcReserve * (pMax / 100));
 
                   return (
                     <div key={idx} style={{ borderColor: zone.color }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
                         <span>{zone.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
                       </div>
@@ -494,6 +505,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
             </div>
           )}
         </div>
-      </div>    </div>
+      </div>
+    </div>
   );
 };
