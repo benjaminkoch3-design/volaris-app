@@ -66,9 +66,10 @@ import { AnnualStats } from "../components/stats/AnnualStats";
 import { ManagedAthletes } from "../components/coach/ManagedAthletes";
 import { WorkoutLibraryView } from "../components/coach/WorkoutLibraryView";
 import { CoachZoneTemplatesView, ZoneTemplate } from "../components/coach/CoachZoneTemplatesView";
-import { CoachHrZoneTemplatesView, HrZoneTemplate } from "../components/coach/CoachHrZoneTemplatesView"; // <--- Importé ici
+import { CoachHrZoneTemplatesView, HrZoneTemplate } from "../components/coach/CoachHrZoneTemplatesView";
 import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
 import { CoachCalendarView } from "../components/coach/CoachCalendarView";
+import { CoachAthleteProfileView } from "../components/coach/CoachAthleteProfileView";
 
 // Messagerie
 import { ChatView } from "../components/chat/ChatView";
@@ -209,7 +210,7 @@ export default function Home() {
     setActiveTab(newTab);
     setShowCalculatorsView(false);
     setShowZoneTemplatesView(false);
-    setShowHrZoneTemplatesView(false); // <--- Réinitialisé ici
+    setShowHrZoneTemplatesView(false);
     
     // Force la date à aujourd'hui dès qu'on clique sur l'onglet "today"
     if (newTab === "today") {
@@ -946,7 +947,7 @@ export default function Home() {
     showConnectedDevicesPage,
     showCalculatorsView,
     showZoneTemplatesView,
-    showHrZoneTemplatesView, // <--- Ajouté ici
+    showHrZoneTemplatesView,
     isCreatingPlan,
     editingWorkoutId,
     editingLibraryId,
@@ -1622,7 +1623,6 @@ export default function Home() {
             const matchDate = `${y}-${m}-${d}`;
 
             if (matchDate === dateStr) {
-              // Éviter les doublons si la séance est déjà présente
               if (!sessions.some((s) => s.workout.id === w.id)) {
                 sessions.push({
                   athlete,
@@ -1958,7 +1958,6 @@ export default function Home() {
     setScreen("landing");
   };
 
-  // Archive le plan courant
   const handleArchiveActivePlan = async () => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
@@ -3186,8 +3185,6 @@ export default function Home() {
                 } else {
                   setActivePlan(null);
                 }
-
-                changeActiveTab("plan");
               }}
               onInviteAthlete={() =>
                 alert(`Transmettez votre Code Coach (${coachCode}) à votre athlète pour qu'il le renseigne dans l'onglet Messages !`)
@@ -3240,7 +3237,7 @@ export default function Home() {
             onDeleteTemplate={handleDeleteTemplate}
             onOpenCalculators={() => setShowCalculatorsView(true)}
             onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
-            onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)} // <--- Transmis ici
+            onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
           />
         )}
 
@@ -3261,26 +3258,20 @@ export default function Home() {
           />
         )}
 
-        {isCoachInspecting && (
-          <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/40 p-3 rounded-2xl flex items-center justify-between text-xs shadow-lg">
-            <div className="flex items-center gap-2">
-              <span className="text-[#CDCF61] font-black">👁️ Consultation :</span>
-              <span className="font-extrabold text-stone-100">{selectedAthlete?.name}</span>
-            </div>
-            <button
-              onClick={() => {
-                setInspectingAthleteId(null);
-                setActivePlan(null);
-                changeActiveTab("athletes");
-              }}
-              className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800 transition cursor-pointer"
-            >
-              ← Retour liste
-            </button>
-          </div>
+        {/* NOUVELLE VUE PERSONNALISÉE DU PROFIL ATHLÈTE VUE PAR LE COACH */}
+        {isCoachInspecting && selectedAthlete && (
+          <CoachAthleteProfileView
+            athlete={selectedAthlete}
+            coachId={session?.user?.id || ""}
+            onBack={() => {
+              setInspectingAthleteId(null);
+              setActivePlan(null);
+              changeActiveTab("athletes");
+            }}
+          />
         )}
 
-        {(userRole === "athlete" || isCoachInspecting || activeTab === "messages") && (
+        {(userRole === "athlete" || (isCoachInspecting && activeTab !== "athletes") || activeTab === "messages") && !isCoachInspecting && (
           <>
             {/* 1. ACCUEIL */}
             {userRole === "athlete" && activeTab === "accueil" && (
@@ -3496,7 +3487,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL */}
+            {/* 5. PROFIL ATHLÈTE */}
             {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && !showZoneTemplatesView && !showHrZoneTemplatesView && (
               showPhysiologyPage ? (
                 <PhysiologyPageView
@@ -3649,7 +3640,7 @@ export default function Home() {
           setShowConnectedDevicesPage(false);
           setShowCalculatorsView(false);
           setShowZoneTemplatesView(false);
-          setShowHrZoneTemplatesView(false); // <--- Réinitialisé ici aussi
+          setShowHrZoneTemplatesView(false);
         }}
       />
     </main>
