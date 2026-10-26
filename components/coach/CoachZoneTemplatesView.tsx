@@ -179,9 +179,9 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
         )}
       </div>
 
-      {/* FORMULAIRE DE CRÉATION / ÉDITION */}
+      {/* FORMULAIRE DE CRÉATION / ÉDITION (Plein écran étendu) */}
       {isEditing ? (
-        <form onSubmit={handleSubmitForm} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl space-y-6 animate-fadeIn">
+        <form onSubmit={handleSubmitForm} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-8 shadow-xl space-y-6 animate-fadeIn w-full">
           <div className="flex justify-between items-center border-b border-stone-800 pb-4">
             <h3 className="text-base font-black uppercase text-stone-100">
               {currentId ? "Modifier le modèle de zones" : "Nouveau modèle de zones (% VMA)"}
@@ -223,8 +223,8 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
             </div>
           </div>
 
-          {/* LISTE DES ZONES DYNAMIQUES */}
-          <div className="space-y-3 pt-2">
+          {/* LISTE DES ZONES DYNAMIQUES (Occupe toute la largeur) */}
+          <div className="space-y-3 pt-2 w-full">
             <div className="flex justify-between items-center">
               <span className="text-xs font-black uppercase tracking-wider text-[#CF9A61]">
                 Découpage des zones ({zones.length}) :
@@ -238,15 +238,17 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
               </button>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 w-full">
               {zones.map((zone, idx) => (
-                <div key={zone.id} className="bg-stone-950 border border-stone-800/80 p-3.5 rounded-2xl flex flex-col md:flex-row items-start md:items-center gap-3 shadow-inner">
-                  <div className="flex items-center gap-2 w-full md:w-auto">
+                <div key={zone.id} className="bg-stone-950 border border-stone-800/80 p-4 rounded-2xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-inner w-full">
+                  
+                  {/* Partie gauche : Couleur + Nom de la zone (Largeur extensible) */}
+                  <div className="flex items-center gap-3 flex-1 w-full">
                     <input
                       type="color"
                       value={zone.color}
                       onChange={(e) => handleUpdateZone(zone.id, "color", e.target.value)}
-                      className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer shrink-0"
+                      className="w-9 h-9 rounded-xl bg-transparent border-0 cursor-pointer shrink-0"
                     />
                     <input
                       type="text"
@@ -254,31 +256,32 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                       placeholder={`Zone ${idx + 1}`}
                       value={zone.name}
                       onChange={(e) => handleUpdateZone(zone.id, "name", e.target.value)}
-                      className="flex-1 md:w-56 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61]"
+                      className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61]"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
-                    <div className="flex items-center gap-1.5">
+                  {/* Partie droite : Min, Max et Bouton Suppression */}
+                  <div className="flex items-center gap-3 justify-end shrink-0 w-full lg:w-auto">
+                    <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
                       <span className="text-[10px] text-stone-400 font-bold">Min :</span>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={zone.minVmaPercent}
                         onChange={(e) => handleUpdateZone(zone.id, "minVmaPercent", e.target.value)}
-                        className="w-20 bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
+                        className="w-16 bg-stone-950 border border-stone-800 rounded-lg px-2 py-1 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
                       />
                       <span className="text-xs text-stone-500">% VMA</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
                       <span className="text-[10px] text-stone-400 font-bold">Max :</span>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={zone.maxVmaPercent}
                         onChange={(e) => handleUpdateZone(zone.id, "maxVmaPercent", e.target.value)}
-                        className="w-20 bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-2 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
+                        className="w-16 bg-stone-950 border border-stone-800 rounded-lg px-2 py-1 text-xs text-stone-100 font-mono text-center focus:outline-none focus:border-[#CF9A61]"
                       />
                       <span className="text-xs text-stone-500">% VMA</span>
                     </div>
@@ -287,12 +290,13 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                       type="button"
                       disabled={zones.length <= 1}
                       onClick={() => handleDeleteZone(zone.id)}
-                      className="text-stone-500 hover:text-red-400 disabled:opacity-20 p-2 transition cursor-pointer ml-auto md:ml-0"
+                      className="text-stone-500 hover:text-red-400 disabled:opacity-20 p-2.5 bg-stone-900 border border-stone-800 rounded-xl transition cursor-pointer"
                       title="Supprimer cette zone"
                     >
                       ✕
                     </button>
                   </div>
+
                 </div>
               ))}
             </div>
@@ -376,7 +380,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     )}
                   </div>
 
-                  {/* VISUALISATION DES ZONES AVEC BARRE CONTINU ET DÉTAILS NETS */}
+                  {/* VISUALISATION DES ZONES AVEC BARRE CONTINUE ET DÉTAILS NETS */}
                   <div className="space-y-3 pt-3 border-t border-stone-800/80">
                     <div className="w-full h-3 rounded-full bg-stone-950 p-0.5 flex gap-1 overflow-hidden border border-stone-800 shadow-inner">
                       {tmpl.zones.map((z, i) => {

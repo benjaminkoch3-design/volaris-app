@@ -61,6 +61,24 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
     setEditingTemplate({ ...editingTemplate, zones: updatedZones });
   };
 
+  const handleAddZone = () => {
+    if (!editingTemplate) return;
+    const newZone: HrZone = {
+      id: `z_${Date.now()}`,
+      name: `Z${editingTemplate.zones.length + 1} - Nouvelle zone`,
+      minPercent: 0,
+      maxPercent: 100,
+      color: '#CF9A61',
+    };
+    setEditingTemplate({ ...editingTemplate, zones: [...editingTemplate.zones, newZone] });
+  };
+
+  const handleDeleteZone = (index: number) => {
+    if (!editingTemplate) return;
+    const updatedZones = editingTemplate.zones.filter((_, i) => i !== index);
+    setEditingTemplate({ ...editingTemplate, zones: updatedZones });
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTemplate || !editingTemplate.name.trim()) {
@@ -73,7 +91,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* En-tête */}
+      {/* En-tête plein écran */}
       <div className="flex items-center justify-between bg-stone-900 border border-stone-800 p-4 rounded-2xl shadow-md">
         <div className="flex items-center gap-3">
           <button
@@ -147,11 +165,28 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-xs font-black uppercase text-stone-300">Configuration des zones (% FCR)</h4>
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-black uppercase text-stone-300">Configuration des zones (% FCR)</h4>
+              <button
+                type="button"
+                onClick={handleAddZone}
+                className="text-[10px] font-bold uppercase text-[#CF9A61] bg-stone-950 border border-stone-800 px-3 py-1.5 rounded-xl hover:border-stone-700 transition cursor-pointer"
+              >
+                + Ajouter une zone
+              </button>
+            </div>
+
             <div className="space-y-2">
               {editingTemplate.zones.map((zone, idx) => (
                 <div key={zone.id || idx} className="bg-stone-950 border border-stone-800 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center gap-3">
-                  <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
+                  {/* Sélecteur de couleur */}
+                  <input
+                    type="color"
+                    value={zone.color || '#CF9A61'}
+                    onChange={(e) => handleZoneChange(idx, "color", e.target.value)}
+                    className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer shrink-0"
+                    title="Choisir la couleur de la zone"
+                  />
                   <input
                     type="text"
                     value={zone.name}
@@ -179,6 +214,17 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
                       />
                       <span className="text-xs text-stone-400">%</span>
                     </div>
+
+                    {editingTemplate.zones.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteZone(idx)}
+                        className="p-2 text-red-400 hover:text-red-300 bg-stone-900 border border-stone-800 rounded-xl text-xs cursor-pointer"
+                        title="Supprimer cette zone"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -202,7 +248,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
           </div>
         </form>
       ) : (
-        /* Liste des modèles existants */
+        /* Liste des modèles existants alignée avec le design VMA */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.length === 0 ? (
             <div className="col-span-full bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-3">
@@ -220,13 +266,13 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
                 <div className="space-y-1">
                   <div className="flex justify-between items-start">
                     <h3 className="text-sm font-black uppercase text-stone-100">{tpl.name}</h3>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleStartEdit(tpl)}
-                        className="p-1.5 text-stone-400 hover:text-stone-100 bg-stone-950 border border-stone-800 rounded-lg text-xs cursor-pointer"
+                        className="px-3 py-1.5 text-stone-300 hover:text-stone-100 bg-stone-950 border border-stone-800 rounded-xl text-[10px] font-bold uppercase transition cursor-pointer flex items-center gap-1"
                         title="Modifier"
                       >
-                        ✏️
+                        ✏️ Modifier
                       </button>
                       <button
                         onClick={() => {
@@ -234,7 +280,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
                             onDeleteTemplate(tpl.id);
                           }
                         }}
-                        className="p-1.5 text-red-400 hover:text-red-300 bg-stone-950 border border-stone-800 rounded-lg text-xs cursor-pointer"
+                        className="p-1.5 text-red-400 hover:text-red-300 bg-stone-950 border border-stone-800 rounded-xl text-xs cursor-pointer"
                         title="Supprimer"
                       >
                         🗑️
@@ -248,7 +294,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
                   {tpl.zones.map((z) => (
                     <div key={z.id} className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: z.color }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: z.color || '#CF9A61' }} />
                         <span className="text-stone-300 font-medium truncate max-w-[180px]">{z.name}</span>
                       </div>
                       <span className="font-mono font-bold text-stone-100">{z.minPercent}% - {z.maxPercent}%</span>
