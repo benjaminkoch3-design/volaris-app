@@ -66,6 +66,7 @@ import { AnnualStats } from "../components/stats/AnnualStats";
 import { ManagedAthletes } from "../components/coach/ManagedAthletes";
 import { WorkoutLibraryView } from "../components/coach/WorkoutLibraryView";
 import { CoachZoneTemplatesView, ZoneTemplate } from "../components/coach/CoachZoneTemplatesView";
+import { CoachHrZoneTemplatesView, HrZoneTemplate } from "../components/coach/CoachHrZoneTemplatesView"; // <--- Importé ici
 import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
 import { CoachCalendarView } from "../components/coach/CoachCalendarView";
 
@@ -114,6 +115,10 @@ export default function Home() {
   const [showZoneTemplatesView, setShowZoneTemplatesView] = useState<boolean>(false);
   const [coachZoneTemplates, setCoachZoneTemplates] = useState<ZoneTemplate[]>([]);
 
+  // État d'affichage de la vue de gestion des modèles de fréquence cardiaque (% FCR) du coach
+  const [showHrZoneTemplatesView, setShowHrZoneTemplatesView] = useState<boolean>(false);
+  const [coachHrZoneTemplates, setCoachHrZoneTemplates] = useState<HrZoneTemplate[]>([]);
+
   const handleSaveCoachZoneTemplate = async (template: ZoneTemplate) => {
     if (!session?.user) return;
 
@@ -154,6 +159,47 @@ export default function Home() {
     }
   };
 
+  // Fonctions de gestion pour les modèles de Fréquence Cardiaque (% FCR)
+  const handleSaveCoachHrZoneTemplate = async (template: HrZoneTemplate) => {
+    if (!session?.user) return;
+
+    setCoachHrZoneTemplates((prev) => {
+      const exists = prev.some((t) => t.id === template.id);
+      if (exists) {
+        return prev.map((t) => (t.id === template.id ? template : t));
+      }
+      return [template, ...prev];
+    });
+
+    const { error } = await supabase.from("coach_hr_zone_templates").upsert({
+      id: template.id,
+      user_id: session.user.id,
+      name: template.name,
+      description: template.description || null,
+      zones: template.zones,
+    });
+
+    if (error) {
+      console.error("Erreur sauvegarde modèle FC :", error.message);
+      alert(`Erreur de sauvegarde : ${error.message}`);
+    }
+  };
+
+  const handleDeleteCoachHrZoneTemplate = async (templateId: string) => {
+    if (!session?.user) return;
+
+    setCoachHrZoneTemplates((prev) => prev.filter((t) => t.id !== templateId));
+
+    const { error } = await supabase
+      .from("coach_hr_zone_templates")
+      .delete()
+      .eq("id", templateId);
+
+    if (error) {
+      console.error("Erreur suppression modèle FC :", error.message);
+    }
+  };
+
   const navigateToPlanStats = () => {
     setStatsSubTab("plan");
     changeActiveTab("stats");
@@ -163,6 +209,7 @@ export default function Home() {
     setActiveTab(newTab);
     setShowCalculatorsView(false);
     setShowZoneTemplatesView(false);
+    setShowHrZoneTemplatesView(false); // <--- Réinitialisé ici
     
     // Force la date à aujourd'hui dès qu'on clique sur l'onglet "today"
     if (newTab === "today") {
@@ -899,6 +946,7 @@ export default function Home() {
     showConnectedDevicesPage,
     showCalculatorsView,
     showZoneTemplatesView,
+    showHrZoneTemplatesView, // <--- Ajouté ici
     isCreatingPlan,
     editingWorkoutId,
     editingLibraryId,
@@ -1312,7 +1360,7 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DES MODÈLES DE ZONES DU COACH
+      // CHARGEMENT DES MODÈLES DE ZONES DU COACH (VMA et FCR)
       if (userRole === "coach") {
         const { data: zoneTemplatesData } = await supabase
           .from("coach_zone_templates")
@@ -1323,6 +1371,23 @@ export default function Home() {
         if (zoneTemplatesData) {
           setCoachZoneTemplates(
             zoneTemplatesData.map((z: any) => ({
+              id: z.id,
+              name: z.name,
+              description: z.description || "",
+              zones: z.zones || [],
+            }))
+          );
+        }
+
+        const { data: hrTemplatesData } = await supabase
+          .from("coach_hr_zone_templates")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+
+        if (hrTemplatesData) {
+          setCoachHrZoneTemplates(
+            hrTemplatesData.map((z: any) => ({
               id: z.id,
               name: z.name,
               description: z.description || "",
@@ -3140,7 +3205,7 @@ export default function Home() {
           />
         )}
 
-        {/* VUE DE GESTION DES MODÈLES DE ZONES DU COACH */}
+        {/* VUE DE GESTION DES MODÈLES DE ZONES VMA DU COACH */}
         {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
             templates={coachZoneTemplates}
@@ -3150,7 +3215,17 @@ export default function Home() {
           />
         )}
 
-        {userRole === "coach" && !inspectingAthleteId && !showZoneTemplatesView && !showCalculatorsView && activeTab === "library" && (
+        {/* VUE DE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR) DU COACH */}
+        {userRole === "coach" && !inspectingAthleteId && showHrZoneTemplatesView && (
+          <CoachHrZoneTemplatesView
+            templates={coachHrZoneTemplates}
+            onSaveTemplate={handleSaveCoachHrZoneTemplate}
+            onDeleteTemplate={handleDeleteCoachHrZoneTemplate}
+            onBack={() => setShowHrZoneTemplatesView(false)}
+          />
+        )}
+
+        {userRole === "coach" && !inspectingAthleteId && !showZoneTemplatesView && !showHrZoneTemplatesView && !showCalculatorsView && activeTab === "library" && (
           <WorkoutLibraryView
             libraryWorkouts={libraryWorkouts}
             categories={customCategories}
@@ -3165,6 +3240,7 @@ export default function Home() {
             onDeleteTemplate={handleDeleteTemplate}
             onOpenCalculators={() => setShowCalculatorsView(true)}
             onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
+            onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)} // <--- Transmis ici
           />
         )}
 
@@ -3421,7 +3497,7 @@ export default function Home() {
             )}
 
             {/* 5. PROFIL */}
-            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && !showZoneTemplatesView && (
+            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && !showZoneTemplatesView && !showHrZoneTemplatesView && (
               showPhysiologyPage ? (
                 <PhysiologyPageView
                   vma={vma}
@@ -3573,6 +3649,7 @@ export default function Home() {
           setShowConnectedDevicesPage(false);
           setShowCalculatorsView(false);
           setShowZoneTemplatesView(false);
+          setShowHrZoneTemplatesView(false); // <--- Réinitialisé ici aussi
         }}
       />
     </main>

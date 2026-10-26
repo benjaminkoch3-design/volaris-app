@@ -18,6 +18,7 @@ interface WorkoutLibraryViewProps {
   onDeleteTemplate: (id: string) => void;
   onOpenCalculators?: () => void;
   onOpenZoneTemplates?: () => void;
+  onOpenHrZoneTemplates?: () => void; // <--- Ajouté ici
 }
 
 // Grande palette étendue de 24 teintes
@@ -73,6 +74,7 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
   onDeleteTemplate,
   onOpenCalculators,
   onOpenZoneTemplates,
+  onOpenHrZoneTemplates, // <--- Récupéré ici
 }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
@@ -191,6 +193,33 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
         )}
       </div>
 
+      {/* BANNIÈRE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR - Karvonen) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-lg shrink-0 text-red-400">
+            ❤️
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
+              Modèles de Fréquence Cardiaque (% FCR)
+            </h3>
+            <p className="text-[11px] text-stone-400">
+              Configurez vos plages d'intensité basées sur la Fréquence Cardiaque de Réserve (Karvonen).
+            </p>
+          </div>
+        </div>
+
+        {onOpenHrZoneTemplates && (
+          <button
+            type="button"
+            onClick={onOpenHrZoneTemplates}
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+          >
+            Gérer les zones FCR ➔
+          </button>
+        )}
+      </div>
+
       {/* BANNIÈRE OUTIL DE CALCUL (AVANT LES CATÉGORIES) */}
       <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
         <div className="flex items-center gap-3">
@@ -304,8 +333,6 @@ export const WorkoutLibraryView: React.FC<WorkoutLibraryViewProps> = ({
 
               const rawColor = cat.color || "#CDCF61";
 
-              // Sélectionné = 100% couleur opaque + texte contrasté noir/blanc
-              // Non sélectionné = Fond teinté 22% + bordure nette 55% + texte coloré lumineux
               const bgStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.22);
               const borderStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.55);
               const textStyle = isSelected ? getContrastTextColor(rawColor) : rawColor;
