@@ -69,7 +69,7 @@ import { CoachZoneTemplatesView, ZoneTemplate } from "../components/coach/CoachZ
 import { CoachHrZoneTemplatesView, HrZoneTemplate } from "../components/coach/CoachHrZoneTemplatesView";
 import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
 import { CoachCalendarView } from "../components/coach/CoachCalendarView";
-import { CoachAthleteProfileView } from "../components/coach/CoachAthleteProfileView";
+import { CoachAthleteProfileView } from "../components/coach/CoachAthleteProfileView"; // <--- Importé ici
 
 // Messagerie
 import { ChatView } from "../components/chat/ChatView";
@@ -212,7 +212,6 @@ export default function Home() {
     setShowZoneTemplatesView(false);
     setShowHrZoneTemplatesView(false);
     
-    // Force la date à aujourd'hui dès qu'on clique sur l'onglet "today"
     if (newTab === "today") {
       setSelectedCalendarDate(getLocalDateString());
     }
@@ -871,7 +870,6 @@ export default function Home() {
   const [selectedPlanWeek, setSelectedPlanWeek] = useState<number>(1);
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({});
 
-  // Bascule instantanée entre deux plans
   const handleSwitchActivePlan = async (targetPlan: Plan) => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
@@ -912,7 +910,6 @@ export default function Home() {
     changeActiveTab("plan");
   };
 
-  // Suppression définitive d'un plan
   const handleDeleteSpecificPlan = async (planId: string) => {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
@@ -932,7 +929,6 @@ export default function Home() {
     }
   };
 
-  // Remonter en haut de la page à chaque changement de vue, d'onglet, de sous-page ou d'éditeur
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [
@@ -1181,7 +1177,6 @@ export default function Home() {
     };
   }, [session, userRole]);
 
-  // CHARGEMENT PROFIL ATHLÈTE OU ATHLÈTE INSPECTÉ
   useEffect(() => {
     if (!session?.user) return;
 
@@ -1238,7 +1233,6 @@ export default function Home() {
         }
       }
 
-      // CHARGEMENT DES SORTIES
       const { data: runs } = await supabase
         .from("completed_runs")
         .select("*")
@@ -1258,7 +1252,6 @@ export default function Home() {
         setCompletedRuns([]);
       }
 
-      // CHARGEMENT DES MESSAGES FILTRÉS PAR LE BINÔME ACTIF
       if (userRole === "athlete") {
         if (!profile?.coach_id) {
           setMessages([]);
@@ -1286,7 +1279,6 @@ export default function Home() {
         }
       }
 
-      // CHARGEMENT DES COURSES
       const { data: racesData } = await supabase
         .from("races")
         .select("*")
@@ -1324,7 +1316,6 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DES CATÉGORIES (AVEC COULEUR PERSISTÉE)
       const { data: catsData } = await supabase
         .from("library_categories")
         .select("*")
@@ -1361,7 +1352,6 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DES MODÈLES DE ZONES DU COACH (VMA et FCR)
       if (userRole === "coach") {
         const { data: zoneTemplatesData } = await supabase
           .from("coach_zone_templates")
@@ -1398,7 +1388,6 @@ export default function Home() {
         }
       }
 
-      // CHARGEMENT DES PLANS ET SÉANCES
       const { data: plansData } = await supabase
         .from("plans")
         .select("*")
@@ -1525,7 +1514,6 @@ export default function Home() {
     fetchUserData();
   }, [session, inspectingAthleteId, isCoachInspecting, userRole]);
 
-  // Synchronisation en temps réel des séances actives
   useEffect(() => {
     if (!session?.user || !activePlan) return;
 
@@ -1584,7 +1572,6 @@ export default function Home() {
       if (!managedAthletes || managedAthletes.length === 0) return sessions;
 
       managedAthletes.forEach((athlete) => {
-        // 1. Récupérer TOUS les plans de cet athlète
         const athletePlans = allCoachAthletesPlans.filter((p: any) => {
           const planUserId = p.userId || p.user_id;
           return planUserId === athlete.id;
@@ -1592,13 +1579,11 @@ export default function Home() {
 
         if (athletePlans.length === 0) return;
 
-        // 2. Récupérer TOUTES les séances de cet athlète
         const athleteWorkouts = allCoachAthletesWorkouts.filter((w: any) => {
           const wUserId = w.userId || w.user_id;
           return wUserId === athlete.id;
         });
 
-        // 3. Vérifier chaque séance par rapport à la date recherchée
         athleteWorkouts.forEach((w: any) => {
           try {
             const wPlanId = w.planId || w.plan_id;
@@ -3185,6 +3170,8 @@ export default function Home() {
                 } else {
                   setActivePlan(null);
                 }
+
+                changeActiveTab("plan");
               }}
               onInviteAthlete={() =>
                 alert(`Transmettez votre Code Coach (${coachCode}) à votre athlète pour qu'il le renseigne dans l'onglet Messages !`)
@@ -3193,7 +3180,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* AFFICHAGE DU CALCULATEUR D'ALLURES & VDOT */}
         {showCalculatorsView && (
           <PaceCalculatorsView
             userRole={userRole}
@@ -3202,7 +3188,6 @@ export default function Home() {
           />
         )}
 
-        {/* VUE DE GESTION DES MODÈLES DE ZONES VMA DU COACH */}
         {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
             templates={coachZoneTemplates}
@@ -3212,7 +3197,6 @@ export default function Home() {
           />
         )}
 
-        {/* VUE DE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR) DU COACH */}
         {userRole === "coach" && !inspectingAthleteId && showHrZoneTemplatesView && (
           <CoachHrZoneTemplatesView
             templates={coachHrZoneTemplates}
@@ -3258,22 +3242,27 @@ export default function Home() {
           />
         )}
 
-        {/* NOUVELLE VUE PERSONNALISÉE DU PROFIL ATHLÈTE VUE PAR LE COACH */}
-        {isCoachInspecting && selectedAthlete && (
-          <CoachAthleteProfileView
-            athlete={selectedAthlete}
-            coachId={session?.user?.id || ""}
-            onBack={() => {
-              setInspectingAthleteId(null);
-              setActivePlan(null);
-              changeActiveTab("athletes");
-            }}
-          />
+        {isCoachInspecting && (
+          <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/40 p-3 rounded-2xl flex items-center justify-between text-xs shadow-lg">
+            <div className="flex items-center gap-2">
+              <span className="text-[#CDCF61] font-black">👁️ Consultation :</span>
+              <span className="font-extrabold text-stone-100">{selectedAthlete?.name}</span>
+            </div>
+            <button
+              onClick={() => {
+                setInspectingAthleteId(null);
+                setActivePlan(null);
+                changeActiveTab("athletes");
+              }}
+              className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800 transition cursor-pointer"
+            >
+              ← Retour liste
+            </button>
+          </div>
         )}
 
-        {(userRole === "athlete" || (isCoachInspecting && activeTab !== "athletes") || activeTab === "messages") && !isCoachInspecting && (
+        {(userRole === "athlete" || isCoachInspecting || activeTab === "messages") && (
           <>
-            {/* 1. ACCUEIL */}
             {userRole === "athlete" && activeTab === "accueil" && (
               <AthleteDashboard
                 activePlan={activePlan}
@@ -3291,7 +3280,6 @@ export default function Home() {
               />
             )}
 
-            {/* 2. PLAN */}
             {activeTab === "plan" && (
               <div className="space-y-6 animate-fadeIn">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-stone-900/60 p-3.5 rounded-2xl border border-stone-800">
@@ -3446,7 +3434,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* 3. MESSAGERIE */}
             {activeTab === "messages" && (
               userRole === "athlete" && !assignedCoachId ? (
                 <ConnectCoachView
@@ -3469,7 +3456,6 @@ export default function Home() {
               )
             )}
 
-            {/* 4. STATISTIQUES */}
             {activeTab === "stats" && (
               <AnnualStats
                 completedRuns={completedRuns}
@@ -3487,136 +3473,164 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL ATHLÈTE */}
-            {activeTab === "profil" && !showAthleteLibrary && !showCalculatorsView && !showZoneTemplatesView && !showHrZoneTemplatesView && (
-              showPhysiologyPage ? (
-                <PhysiologyPageView
-                  vma={vma}
-                  unknownVma={unknownVma}
-                  fcRest={fcRest}
-                  fcMax={fcMax}
-                  records={records}
-                  onBack={() => setShowPhysiologyPage(false)}
-                />
-              ) : showPersonalBestsPage ? (
-                <PersonalBestsPageView
+            {/* 5. PROFIL : Séparation stricte entre le Coach (vue personnalisée) et l'Athlète (profil complet) */}
+            {activeTab === "profil" && (
+              isCoachInspecting && selectedAthlete ? (
+                <CoachAthleteProfileView
+                  athlete={selectedAthlete}
+                  coachId={session?.user?.id || ""}
                   races={races}
-                  onBack={() => setShowPersonalBestsPage(false)}
-                  onOpenRaceList={() => {
-                    setShowPersonalBestsPage(false);
-                    setShowRecordsPage(true);
+                  onBack={() => {
+                    setInspectingAthleteId(null);
+                    setActivePlan(null);
+                    changeActiveTab("athletes");
                   }}
-                />
-              ) : showRecordsPage ? (
-                <RecordsPageView
-                  races={races}
-                  onBack={() => setShowRecordsPage(false)}
-                  onAddRace={handleAddRace}
-                  onUpdateRace={handleUpdateRace}
-                  onDeleteRace={handleDeleteRace}
-                  isReadOnly={isCoachInspecting}
-                />
-              ) : showShoesPage ? (
-                <ShoesPageView
-                  shoes={shoes}
-                  onBack={() => setShowShoesPage(false)}
-                  onAddShoe={handleAddShoe}
-                  onDeleteShoe={handleDeleteShoe}
-                  onToggleActiveShoe={handleToggleActiveShoe}
-                  isReadOnly={isCoachInspecting}
-                />
-              ) : showArchivedPlansPage ? (
-                <ArchivedPlansPageView
-                  archivedPlans={archivedPlans}
-                  onBack={() => setShowArchivedPlansPage(false)}
-                  onActivatePlan={handleSwitchActivePlan}
-                  onDeletePlan={handleDeleteSpecificPlan}
-                  onSelectWorkoutDetail={setSelectedWorkoutDetail}
-                />
-              ) : showConnectedDevicesPage ? (
-                <ConnectedDevicesPageView
-                  connectedDevices={connectedDevices}
-                  toggleDeviceConnection={toggleDeviceConnection}
-                  onBack={() => setShowConnectedDevicesPage(false)}
-                  isReadOnly={isCoachInspecting}
                 />
               ) : (
-                <ProfileView
-                  athleteName={selectedAthlete ? selectedAthlete.name : (session?.user?.user_metadata?.full_name || athleteName)}
-                  setAthleteName={async (newName) => {
-                    setAthleteName(newName);
-                    await saveProfileToSupabase({ fullName: newName });
-                  }}
-                  avatarUrl={isCoachInspecting ? (selectedAthlete?.avatarUrl || (selectedAthlete as any)?.avatar_url) : avatarUrl}
-                  onUpdateAvatar={handleUpdateAvatar}
-                  height={height}
-                  setHeight={async (newHeight) => {
-                    setHeight(newHeight);
-                    await saveProfileToSupabase({ heightVal: newHeight });
-                  }}
-                  weight={weight}
-                  setWeight={async (newWeight) => {
-                    setWeight(newWeight);
-                    await saveProfileToSupabase({ weightVal: newWeight });
-                  }}
-                  vma={vma}
-                  setVma={async (newVma) => {
-                    setVma(newVma);
-                    await saveProfileToSupabase({ vmaVal: newVma });
-                  }}
-                  unknownVma={unknownVma}
-                  setUnknownVma={setUnknownVma}
-                  fcRest={fcRest}
-                  setFcRest={async (newFcRest) => {
-                    setFcRest(newFcRest);
-                    await saveProfileToSupabase({ fcRestVal: newFcRest });
-                  }}
-                  fcMax={fcMax}
-                  setFcMax={async (newFcMax) => {
-                    setFcMax(newFcMax);
-                    await saveProfileToSupabase({ fcMaxVal: newFcMax });
-                  }}
-                  records={records}
-                  setRecords={async (actionOrValue) => {
-                    const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
-                    setRecords(nextRecords);
-                    await saveProfileToSupabase({ recordsMap: nextRecords });
-                  }}
-                  onSaveFullProfile={async (data) => {
-                    setAthleteName(data.name);
-                    setHeight(data.height);
-                    setWeight(data.weight);
-                    setVma(data.vma);
-                    setUnknownVma(data.unknownVma);
-                    setFcRest(data.fcRest);
-                    setFcMax(data.fcMax);
-                    if (data.records) setRecords(data.records);
+                showAthleteLibrary ? (
+                  <AthleteWorkoutLibraryView
+                    libraryWorkouts={libraryWorkouts}
+                    categories={customCategories}
+                    onAddCategory={handleAddCategory}
+                    onDeleteCategory={handleDeleteCategory}
+                    onRenameCategory={handleRenameCategory}
+                    onUpdateCategoryColor={handleUpdateCategoryColor}
+                    onMoveCategory={handleMoveCategory}
+                    onMoveWorkout={handleMoveWorkout}
+                    onCreateNewTemplate={handleCreateNewTemplate}
+                    onEditTemplate={(id) => setEditingLibraryId(id)}
+                    onDeleteTemplate={handleDeleteTemplate}
+                    onBackToProfile={() => setShowAthleteLibrary(false)}
+                  />
+                ) : showPhysiologyPage ? (
+                  <PhysiologyPageView
+                    vma={vma}
+                    unknownVma={unknownVma}
+                    fcRest={fcRest}
+                    fcMax={fcMax}
+                    records={records}
+                    onBack={() => setShowPhysiologyPage(false)}
+                  />
+                ) : showPersonalBestsPage ? (
+                  <PersonalBestsPageView
+                    races={races}
+                    onBack={() => setShowPersonalBestsPage(false)}
+                    onOpenRaceList={() => {
+                      setShowPersonalBestsPage(false);
+                      setShowRecordsPage(true);
+                    }}
+                  />
+                ) : showRecordsPage ? (
+                  <RecordsPageView
+                    races={races}
+                    onBack={() => setShowRecordsPage(false)}
+                    onAddRace={handleAddRace}
+                    onUpdateRace={handleUpdateRace}
+                    onDeleteRace={handleDeleteRace}
+                    isReadOnly={false}
+                  />
+                ) : showShoesPage ? (
+                  <ShoesPageView
+                    shoes={shoes}
+                    onBack={() => setShowShoesPage(false)}
+                    onAddShoe={handleAddShoe}
+                    onDeleteShoe={handleDeleteShoe}
+                    onToggleActiveShoe={handleToggleActiveShoe}
+                    isReadOnly={false}
+                  />
+                ) : showArchivedPlansPage ? (
+                  <ArchivedPlansPageView
+                    archivedPlans={archivedPlans}
+                    onBack={() => setShowArchivedPlansPage(false)}
+                    onActivatePlan={handleSwitchActivePlan}
+                    onDeletePlan={handleDeleteSpecificPlan}
+                    onSelectWorkoutDetail={setSelectedWorkoutDetail}
+                  />
+                ) : showConnectedDevicesPage ? (
+                  <ConnectedDevicesPageView
+                    connectedDevices={connectedDevices}
+                    toggleDeviceConnection={toggleDeviceConnection}
+                    onBack={() => setShowConnectedDevicesPage(false)}
+                    isReadOnly={false}
+                  />
+                ) : (
+                  <ProfileView
+                    athleteName={session?.user?.user_metadata?.full_name || athleteName}
+                    setAthleteName={async (newName) => {
+                      setAthleteName(newName);
+                      await saveProfileToSupabase({ fullName: newName });
+                    }}
+                    avatarUrl={avatarUrl}
+                    onUpdateAvatar={handleUpdateAvatar}
+                    height={height}
+                    setHeight={async (newHeight) => {
+                      setHeight(newHeight);
+                      await saveProfileToSupabase({ heightVal: newHeight });
+                    }}
+                    weight={weight}
+                    setWeight={async (newWeight) => {
+                      setWeight(newWeight);
+                      await saveProfileToSupabase({ weightVal: newWeight });
+                    }}
+                    vma={vma}
+                    setVma={async (newVma) => {
+                      setVma(newVma);
+                      await saveProfileToSupabase({ vmaVal: newVma });
+                    }}
+                    unknownVma={unknownVma}
+                    setUnknownVma={setUnknownVma}
+                    fcRest={fcRest}
+                    setFcRest={async (newFcRest) => {
+                      setFcRest(newFcRest);
+                      await saveProfileToSupabase({ fcRestVal: newFcRest });
+                    }}
+                    fcMax={fcMax}
+                    setFcMax={async (newFcMax) => {
+                      setFcMax(newFcMax);
+                      await saveProfileToSupabase({ fcMaxVal: newFcMax });
+                    }}
+                    records={records}
+                    setRecords={async (actionOrValue) => {
+                      const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
+                      setRecords(nextRecords);
+                      await saveProfileToSupabase({ recordsMap: nextRecords });
+                    }}
+                    onSaveFullProfile={async (data) => {
+                      setAthleteName(data.name);
+                      setHeight(data.height);
+                      setWeight(data.weight);
+                      setVma(data.vma);
+                      setUnknownVma(data.unknownVma);
+                      setFcRest(data.fcRest);
+                      setFcMax(data.fcMax);
+                      if (data.records) setRecords(data.records);
 
-                    await saveProfileToSupabase({
-                      fullName: data.name,
-                      heightVal: data.height,
-                      weightVal: data.weight,
-                      vmaVal: data.unknownVma ? "" : data.vma,
-                      fcRestVal: data.fcRest,
-                      fcMaxVal: data.fcMax,
-                      recordsMap: data.records || records,
-                    });
-                  }}
-                  races={races}
-                  connectedDevices={connectedDevices}
-                  toggleDeviceConnection={toggleDeviceConnection}
-                  archivedPlans={archivedPlans}
-                  shoes={shoes}
-                  onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
-                  onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
-                  onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
-                  onOpenRecordsPage={() => setShowRecordsPage(true)}
-                  onOpenShoesPage={() => setShowShoesPage(true)}
-                  onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
-                  onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
-                  onOpenCalculators={() => setShowCalculatorsView(true)}
-                  isReadOnly={isCoachInspecting}
-                />
+                      await saveProfileToSupabase({
+                        fullName: data.name,
+                        heightVal: data.height,
+                        weightVal: data.weight,
+                        vmaVal: data.unknownVma ? "" : data.vma,
+                        fcRestVal: data.fcRest,
+                        fcMaxVal: data.fcMax,
+                        recordsMap: data.records || records,
+                      });
+                    }}
+                    races={races}
+                    connectedDevices={connectedDevices}
+                    toggleDeviceConnection={toggleDeviceConnection}
+                    archivedPlans={archivedPlans}
+                    shoes={shoes}
+                    onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
+                    onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
+                    onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
+                    onOpenRecordsPage={() => setShowRecordsPage(true)}
+                    onOpenShoesPage={() => setShowShoesPage(true)}
+                    onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
+                    onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
+                    onOpenCalculators={() => setShowCalculatorsView(true)}
+                    isReadOnly={false}
+                  />
+                )
               )
             )}
           </>
