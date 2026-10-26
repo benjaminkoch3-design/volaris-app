@@ -35,12 +35,25 @@ const speedToPace = (speedKmH: number): string => {
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}/km`;
 };
 
-// Extraction ultra-robuste des pourcentages min/max peu importe le nom de propriété utilisé
-const extractZonePercentages = (zone: any) => {
+// Extraction exacte basée sur minVmaPercent et maxVmaPercent de la bibliothèque
+const extractZoneVmaPercentages = (zone: any) => {
   if (!zone) return { pMin: 0, pMax: 0 };
   
-  const rawMin = zone.min ?? zone.percentageMin ?? zone.minPercent ?? zone.percentMin ?? zone.valMin ?? 0;
-  const rawMax = zone.max ?? zone.percentageMax ?? zone.maxPercent ?? zone.percentMax ?? zone.valMax ?? 0;
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
+
+  const pMin = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  const pMax = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
+  return { pMin, pMax };
+};
+
+// Extraction pour la Fréquence Cardiaque
+const extractZoneHrPercentages = (zone: any) => {
+  if (!zone) return { pMin: 0, pMax: 0 };
+  
+  const rawMin = zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
+  const rawMax = zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
 
   const pMin = parseFloat(String(rawMin).replace(",", ".")) || 0;
   const pMax = parseFloat(String(rawMax).replace(",", ".")) || 0;
@@ -83,7 +96,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 
   useEffect(() => {
     const fetchCoachData = async () => {
-      // 1. Récupérer d'abord TOUS les modèles du coach pour populer les <select>
+      // 1. Charger en premier les listes de modèles pour que les <select> connaissent les IDs
       const { data: vmaTmpls } = await supabase
         .from("coach_zone_templates")
         .select("*")
@@ -96,7 +109,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
         .eq("user_id", coachId);
       if (hrTmpls) setHrTemplates(hrTmpls);
 
-      // 2. Ensuite, récupérer les réglages enregistrés pour cet athlète
+      // 2. Charger les réglages spécifiques enregistrés pour cet athlète
       const { data: settingsData } = await supabase
         .from("coach_athlete_settings")
         .select("*")
@@ -415,11 +428,12 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeVmaTemplate.zones?.map((zone, idx) => {
-                  const { pMin, pMax } = extractZonePercentages(zone);
+                  const { pMin, pMax } = extractZoneVmaPercentages(zone);
 
                   const sMinKmH = (validVma * pMin) / 100;
                   const sMaxKmH = (validVma * pMax) / 100;
 
+                  // L'allure la plus rapide correspond à la vitesse maximale de la zone
                   const paceMaxStr = speedToPace(sMaxKmH);
                   const paceMinStr = speedToPace(sMinKmH);
 
@@ -496,7 +510,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeHrTemplate.zones?.map((zone, idx) => {
-                  const { pMin, pMax } = extractZonePercentages(zone);
+                  const { pMin, pMax } = extractZoneHrPercentages(zone);
 
                   const fcReserve = validFcMax - validFcMin;
                   const fcMinCalc = Math.round(validFcMin + fcReserve * (pMin / 100));
