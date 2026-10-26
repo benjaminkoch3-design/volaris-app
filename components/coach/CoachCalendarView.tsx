@@ -222,7 +222,7 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-          {/* Menu déroulant personnalisé avec texte noir en mode clair */}
+          {/* Menu déroulant personnalisé avec texte noir forcé en mode clair */}
           <div className="relative" ref={dropdownRef}>
             <div 
               onClick={() => setIsAthleteDropdownOpen(!isAthleteDropdownOpen)}
@@ -240,10 +240,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                     setSelectedAthleteId("all");
                     setIsAthleteDropdownOpen(false);
                   }}
-                  className={`px-3.5 py-2.5 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
+                  className={`px-3.5 py-2.5 text-xs font-black cursor-pointer transition flex items-center justify-between ${
                     selectedAthleteId === "all" 
-                      ? "bg-[#CDCF61]/20 text-stone-900 dark:text-[#CDCF61]" 
-                      : "text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
+                      ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
+                      : "text-stone-950 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
                   }`}
                 >
                   <span>Tous les athlètes ({managedAthletes.length})</span>
@@ -262,10 +262,10 @@ export const CoachCalendarView: React.FC<CoachCalendarViewProps> = ({
                           setSelectedAthleteId(a.id);
                           setIsAthleteDropdownOpen(false);
                         }}
-                        className={`px-3.5 py-2 text-xs font-bold cursor-pointer transition flex items-center justify-between ${
+                        className={`px-3.5 py-2.5 text-xs font-black cursor-pointer transition flex items-center justify-between ${
                           isSelected 
-                            ? "bg-[#CDCF61]/20 text-stone-900 dark:text-[#CDCF61]" 
-                            : "text-stone-900 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
+                            ? "bg-[#CDCF61]/20 text-stone-950 dark:text-[#CDCF61]" 
+                            : "text-stone-950 dark:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800"
                         }`}
                       >
                         <span className="truncate">{a.name}</span>
