@@ -15,6 +15,7 @@ export interface HrZoneTemplate {
   id: string;
   name: string;
   description?: string;
+  isDefault?: boolean; // ⭐ Modèle défini comme favori par le coach
   zones: HrZone[];
 }
 
@@ -22,6 +23,7 @@ interface CoachHrZoneTemplatesViewProps {
   templates: HrZoneTemplate[];
   onSaveTemplate: (template: HrZoneTemplate) => void;
   onDeleteTemplate: (templateId: string) => void;
+  onToggleDefaultTemplate?: (templateId: string) => void;
   onBack: () => void;
 }
 
@@ -37,6 +39,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
   templates,
   onSaveTemplate,
   onDeleteTemplate,
+  onToggleDefaultTemplate,
   onBack,
 }) => {
   const [editingTemplate, setEditingTemplate] = useState<HrZoneTemplate | null>(null);
@@ -46,6 +49,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
       id: `hr_tpl_${Date.now()}`,
       name: '',
       description: '',
+      isDefault: templates.length === 0, // Par défaut le premier est favori si aucun n'existe
       zones: JSON.parse(JSON.stringify(DEFAULT_HR_ZONES)),
     });
   };
@@ -85,16 +89,25 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
       alert("Veuillez donner un nom à votre modèle.");
       return;
     }
-    onSaveTemplate(editingTemplate);
+
+    // Conserver l'état isDefault existant si on modifie un modèle
+    const existingTemplate = templates.find((t) => t.id === editingTemplate.id);
+    const payload: HrZoneTemplate = {
+      ...editingTemplate,
+      isDefault: existingTemplate ? Boolean(existingTemplate.isDefault) : templates.length === 0,
+    };
+
+    onSaveTemplate(payload);
     setEditingTemplate(null);
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn font-sans w-full">
       {/* En-tête plein écran */}
       <div className="flex items-center justify-between bg-stone-900 border border-stone-800 p-4 rounded-2xl shadow-md">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={onBack}
             className="text-xs font-bold text-stone-400 hover:text-stone-100 bg-stone-950 px-3 py-2 rounded-xl border border-stone-800 transition cursor-pointer"
           >
@@ -112,6 +125,7 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
 
         {!editingTemplate && (
           <button
+            type="button"
             onClick={handleStartCreate}
             className="text-xs font-black uppercase text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2.5 rounded-xl transition cursor-pointer shadow-md flex items-center gap-2"
           >
@@ -248,12 +262,13 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
           </div>
         </form>
       ) : (
-        /* Liste des modèles existants alignée avec le design VMA */
+        /* Liste des modèles existants avec bouton Favori (⭐) */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.length === 0 ? (
             <div className="col-span-full bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-3">
               <p className="text-xs text-stone-400">Aucun modèle de fréquence cardiaque créé pour le moment.</p>
               <button
+                type="button"
                 onClick={handleStartCreate}
                 className="text-xs font-black uppercase text-stone-950 bg-[#CF9A61] px-4 py-2 rounded-xl transition cursor-pointer"
               >
@@ -262,19 +277,56 @@ export const CoachHrZoneTemplatesView: React.FC<CoachHrZoneTemplatesViewProps> =
             </div>
           ) : (
             templates.map((tpl) => (
-              <div key={tpl.id} className="bg-stone-900 border border-stone-800 rounded-3xl p-5 space-y-4 shadow-md flex flex-col justify-between">
+              <div
+                key={tpl.id}
+                className={`bg-stone-900 border rounded-3xl p-5 space-y-4 shadow-md flex flex-col justify-between transition ${
+                  tpl.isDefault ? "border-[#CF9A61] shadow-[#CF9A61]/10" : "border-stone-800 hover:border-stone-700"
+                }`}
+              >
                 <div className="space-y-1">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-sm font-black uppercase text-stone-100">{tpl.name}</h3>
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9.5px] font-black text-[#CF9A61] uppercase tracking-widest">
+                          Modèle FC ({tpl.zones.length} zones)
+                        </span>
+                        {tpl.isDefault && (
+                          <span className="text-[9px] font-extrabold bg-[#CF9A61]/20 text-[#CF9A61] px-2 py-0.5 rounded-full border border-[#CF9A61]/40">
+                            ⭐ Par défaut
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-black uppercase text-stone-100 mt-0.5">{tpl.name}</h3>
+                    </div>
+
+                    {/* ACTIONS : FAVORI ⭐, MODIFIER, SUPPRIMER */}
                     <div className="flex items-center gap-1.5">
+                      {onToggleDefaultTemplate && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleDefaultTemplate(tpl.id)}
+                          className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold uppercase transition cursor-pointer border flex items-center gap-1 ${
+                            tpl.isDefault
+                              ? "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm"
+                              : "bg-stone-950 text-stone-400 border-stone-800 hover:text-stone-200"
+                          }`}
+                          title={tpl.isDefault ? "Modèle par défaut actif" : "Définir comme modèle par défaut"}
+                        >
+                          <span>{tpl.isDefault ? "⭐ Favori" : "☆ Favori"}</span>
+                        </button>
+                      )}
+
                       <button
+                        type="button"
                         onClick={() => handleStartEdit(tpl)}
                         className="px-3 py-1.5 text-stone-300 hover:text-stone-100 bg-stone-950 border border-stone-800 rounded-xl text-[10px] font-bold uppercase transition cursor-pointer flex items-center gap-1"
                         title="Modifier"
                       >
                         ✏️ Modifier
                       </button>
+
                       <button
+                        type="button"
                         onClick={() => {
                           if (confirm(`Supprimer le modèle "${tpl.name}" ?`)) {
                             onDeleteTemplate(tpl.id);

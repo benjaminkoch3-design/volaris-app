@@ -14,6 +14,7 @@ export interface ZoneTemplate {
   id: string;
   name: string;
   description?: string;
+  isDefault?: boolean; // ⭐ Modèle défini comme favori par le coach
   zones: {
     id: string;
     name: string;
@@ -27,6 +28,7 @@ interface CoachZoneTemplatesViewProps {
   templates: ZoneTemplate[];
   onSaveTemplate: (template: ZoneTemplate) => void;
   onDeleteTemplate: (templateId: string) => void;
+  onToggleDefaultTemplate?: (templateId: string) => void;
   onBack: () => void;
 }
 
@@ -44,6 +46,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
   templates,
   onSaveTemplate,
   onDeleteTemplate,
+  onToggleDefaultTemplate,
   onBack,
 }) => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -131,10 +134,14 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
       color: z.color,
     }));
 
+    // Conserver l'état isDefault existant si on modifie un modèle
+    const existingTemplate = templates.find((t) => t.id === currentId);
+
     const payload: ZoneTemplate = {
       id: currentId || `ztemp_${Date.now()}`,
       name: templateName.trim(),
       description: templateDesc.trim(),
+      isDefault: existingTemplate ? Boolean(existingTemplate.isDefault) : templates.length === 0, // Par défaut le 1er est favori
       zones: cleanedZones,
     };
 
@@ -150,7 +157,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="text-stone-300 hover:text-white text-xs font-bold bg-stone-950 hover:bg-stone-850 px-3.5 py-2 rounded-xl border border-stone-800 transition cursor-pointer shadow-sm flex items-center gap-1.5 shrink-0"
+            className="text-stone-300 hover:text-white text-xs font-bold bg-stone-950 px-3.5 py-2 rounded-xl border border-stone-800 transition cursor-pointer shadow-sm flex items-center gap-1.5 shrink-0"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -179,7 +186,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
         )}
       </div>
 
-      {/* FORMULAIRE DE CRÉATION / ÉDITION (Plein écran étendu) */}
+      {/* FORMULAIRE DE CRÉATION / ÉDITION */}
       {isEditing ? (
         <form onSubmit={handleSubmitForm} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-8 shadow-xl space-y-6 animate-fadeIn w-full">
           <div className="flex justify-between items-center border-b border-stone-800 pb-4">
@@ -223,7 +230,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
             </div>
           </div>
 
-          {/* LISTE DES ZONES DYNAMIQUES (Occupe toute la largeur) */}
+          {/* LISTE DES ZONES DYNAMIQUES */}
           <div className="space-y-3 pt-2 w-full">
             <div className="flex justify-between items-center">
               <span className="text-xs font-black uppercase tracking-wider text-[#CF9A61]">
@@ -261,7 +268,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     className="flex-1 w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-100 font-bold focus:outline-none focus:border-[#CF9A61]"
                   />
 
-                  {/* Bloc de saisie des pourcentages harmonisé avec la FC */}
+                  {/* Bloc de saisie des pourcentages */}
                   <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto">
                     <div className="flex items-center gap-1 bg-stone-900 border border-stone-800 px-3 py-2 rounded-xl">
                       <input
@@ -316,7 +323,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
           </div>
         </form>
       ) : (
-        /* LISTE DES MODÈLES EXISTANTS AVEC APERÇU NORMÉ & CLAIR */
+        /* LISTE DES MODÈLES EXISTANTS AVEC BOUTON FAVORI (⭐) */
         <div className="space-y-4">
           {templates.length === 0 ? (
             <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
@@ -338,18 +345,47 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {templates.map((tmpl) => (
-                <div key={tmpl.id} className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-5 hover:border-stone-700 transition">
+                <div
+                  key={tmpl.id}
+                  className={`bg-stone-900/90 border rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-5 transition ${
+                    tmpl.isDefault ? "border-[#CF9A61] shadow-[#CF9A61]/10" : "border-stone-800 hover:border-stone-700"
+                  }`}
+                >
                   <div className="space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div>
-                        <span className="text-[9.5px] font-black text-[#CF9A61] uppercase tracking-widest">
-                          Modèle personnalisé ({tmpl.zones.length} zones)
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9.5px] font-black text-[#CF9A61] uppercase tracking-widest">
+                            Modèle personnalisé ({tmpl.zones.length} zones)
+                          </span>
+                          {tmpl.isDefault && (
+                            <span className="text-[9px] font-extrabold bg-[#CF9A61]/20 text-[#CF9A61] px-2 py-0.5 rounded-full border border-[#CF9A61]/40">
+                              ⭐ Par défaut
+                            </span>
+                          )}
+                        </div>
                         <h3 className="text-base font-black uppercase text-stone-100 tracking-tight mt-0.5">
                           {tmpl.name}
                         </h3>
                       </div>
+
+                      {/* ACTIONS : FAVORI ⭐, MODIFIER, SUPPRIMER */}
                       <div className="flex items-center gap-1.5">
+                        {onToggleDefaultTemplate && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleDefaultTemplate(tmpl.id)}
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold uppercase transition cursor-pointer border flex items-center gap-1 ${
+                              tmpl.isDefault
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm"
+                                : "bg-stone-950 text-stone-400 border-stone-800 hover:text-stone-200"
+                            }`}
+                            title={tmpl.isDefault ? "Modèle par défaut actif" : "Définir comme modèle par défaut"}
+                          >
+                            <span>{tmpl.isDefault ? "⭐ Favori" : "☆ Favori"}</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleStartEdit(tmpl)}
@@ -357,6 +393,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                         >
                           Modifier
                         </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -377,7 +414,7 @@ export const CoachZoneTemplatesView: React.FC<CoachZoneTemplatesViewProps> = ({
                     )}
                   </div>
 
-                  {/* VISUALISATION DES ZONES AVEC BARRE CONTINUE ET DÉTAILS NETS */}
+                  {/* VISUALISATION DES ZONES */}
                   <div className="space-y-3 pt-3 border-t border-stone-800/80">
                     <div className="w-full h-3 rounded-full bg-stone-950 p-0.5 flex gap-1 overflow-hidden border border-stone-800 shadow-inner">
                       {tmpl.zones.map((z, i) => {
