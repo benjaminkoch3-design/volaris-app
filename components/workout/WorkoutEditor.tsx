@@ -1,7 +1,7 @@
 // src/components/workout/WorkoutEditor.tsx
 
 import React, { useState } from "react";
-import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
+import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole, ZoneTemplate } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import { calculateStepMetrics, getWorkoutTypeConfig, formatPaceFromSpeed } from "../../utils/calculations";
 import { PaceProfileChart } from "./PaceProfileChart";
@@ -32,8 +32,10 @@ interface WorkoutEditorProps {
   categories?: LibraryCategory[];
   userRole?: UserRole;
   vma?: number | string;
-  athleteVmaTemplates?: any[];
-  athleteHrTemplates?: any[];
+  athleteVmaTemplates?: ZoneTemplate[];
+  athleteHrTemplates?: ZoneTemplate[];
+  coachVmaTemplates?: ZoneTemplate[];
+  coachHrTemplates?: ZoneTemplate[];
 }
 
 const getRpeColor = (rpe: number) => {
@@ -63,6 +65,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   vma,
   athleteVmaTemplates = [],
   athleteHrTemplates = [],
+  coachVmaTemplates = [],
+  coachHrTemplates = [],
 }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -74,6 +78,16 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const isCoach = userRole === "coach";
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
+
+  // Récupération des modèles VMA et FC à utiliser (Modèle favori / isDefault en priorité)
+  const availableVmaTemplates = isCoach ? coachVmaTemplates : athleteVmaTemplates;
+  const availableHrTemplates = isCoach ? coachHrTemplates : athleteHrTemplates;
+
+  const defaultVmaTemplate =
+    availableVmaTemplates.find((t) => t.isDefault) || availableVmaTemplates[0];
+
+  const defaultHrTemplate =
+    availableHrTemplates.find((t) => t.isDefault) || availableHrTemplates[0];
 
   const filteredLibraryWorkouts = libraryWorkouts.filter(
     (w) => !selectedCatId || w.categoryId === selectedCatId
@@ -474,24 +488,30 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 {/* 2. ZONE VMA */}
                 {goalType === "vma_zone" && (
                   <div className="pt-1">
-                    {athleteVmaTemplates.length === 0 ? (
+                    {!defaultVmaTemplate ? (
                       <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
-                        <p className="font-bold">⚠️ Aucun modèle de zones VMA défini</p>
+                        <p className="font-bold">⚠️ Aucun modèle de zones VMA disponible</p>
                         <p className="text-stone-400">
-                          Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures et de VMA.
+                          {isCoach
+                            ? "Veuillez définir un modèle VMA par défaut dans votre bibliothèque."
+                            : "Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures et de VMA."}
                         </p>
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-[8px] uppercase font-bold text-stone-400 mb-1">
-                          Sélectionner la zone VMA
-                        </label>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-[8px] uppercase font-bold text-stone-400">
+                            Sélectionner la zone VMA
+                          </label>
+                          <span className="text-[8px] text-[#CF9A61] font-bold">
+                            Modèle : {defaultVmaTemplate.name} {defaultVmaTemplate.isDefault ? "⭐" : ""}
+                          </span>
+                        </div>
                         <select
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const template = athleteVmaTemplates[0]; // Modèle principal
-                            const zone = template?.zones?.find((z: any) => z.id === zoneId);
+                            const zone = defaultVmaTemplate.zones?.find((z: any) => z.id === zoneId);
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
@@ -502,9 +522,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone --</option>
-                          {athleteVmaTemplates[0]?.zones?.map((zone: any) => (
+                          {defaultVmaTemplate.zones?.map((zone: any) => (
                             <option key={zone.id} value={zone.id}>
-                              {zone.name} ({zone.paceMin} - {zone.paceMax} /km)
+                              {zone.name} {zone.paceMin && zone.paceMax ? `(${zone.paceMin} - ${zone.paceMax} /km)` : zone.minPercent ? `(${zone.minPercent}% - ${zone.maxPercent}%)` : ""}
                             </option>
                           ))}
                         </select>
@@ -516,36 +536,44 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 {/* 3. ZONE FC */}
                 {goalType === "hr_zone" && (
                   <div className="pt-1">
-                    {athleteHrTemplates.length === 0 ? (
+                    {!defaultHrTemplate ? (
                       <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
-                        <p className="font-bold">⚠️ Aucun modèle de zones FC défini</p>
+                        <p className="font-bold">⚠️ Aucun modèle de zones FC disponible</p>
                         <p className="text-stone-400">
-                          Rendez-vous dans votre Profil pour créer vos modèles de Fréquence Cardiaque.
+                          {isCoach
+                            ? "Veuillez définir un modèle FC par défaut dans votre bibliothèque."
+                            : "Rendez-vous dans votre Profil pour créer vos modèles de Fréquence Cardiaque."}
                         </p>
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-[8px] uppercase font-bold text-stone-400 mb-1">
-                          Sélectionner la zone de FC
-                        </label>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-[8px] uppercase font-bold text-stone-400">
+                            Sélectionner la zone de FC
+                          </label>
+                          <span className="text-[8px] text-[#CF9A61] font-bold">
+                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐" : ""}
+                          </span>
+                        </div>
                         <select
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const template = athleteHrTemplates[0];
-                            const zone = template?.zones?.find((z: any) => z.id === zoneId);
+                            const zone = defaultHrTemplate.zones?.find((z: any) => z.id === zoneId);
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
-                              onUpdateStep(workout.id, currentPath, "targetPace", `${zone.minBpm} - ${zone.maxBpm} bpm`);
+                              if (zone.minBpm && zone.maxBpm) {
+                                onUpdateStep(workout.id, currentPath, "targetPace", `${zone.minBpm} - ${zone.maxBpm} bpm`);
+                              }
                             }
                           }}
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone FC --</option>
-                          {athleteHrTemplates[0]?.zones?.map((zone: any) => (
+                          {defaultHrTemplate.zones?.map((zone: any) => (
                             <option key={zone.id} value={zone.id}>
-                              {zone.name} ({zone.minBpm} - {zone.maxBpm} bpm)
+                              {zone.name} {zone.minBpm && zone.maxBpm ? `(${zone.minBpm} - ${zone.maxBpm} bpm)` : zone.minPercent ? `(${zone.minPercent}% - ${zone.maxPercent}%)` : ""}
                             </option>
                           ))}
                         </select>

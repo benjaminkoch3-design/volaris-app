@@ -165,6 +165,24 @@ export interface AthleteProfile {
   records?: Record<string, string>;
 }
 
+export interface ZoneTemplate {
+  id: string;
+  name: string;
+  type: "vma" | "hr";
+  isDefault?: boolean; // ⭐ Modèle défini comme favori par le coach dans sa bibliothèque
+  zones: {
+    id: string;
+    name: string;
+    minPercent?: number;
+    maxPercent?: number;
+    paceMin?: string;
+    paceMax?: string;
+    minBpm?: number;
+    maxBpm?: number;
+    color?: string;
+  }[];
+}
+
 export interface Race {
   id: string;
   name: string;
