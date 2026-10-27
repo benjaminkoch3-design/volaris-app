@@ -50,14 +50,12 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // Lecture élargie de toutes les variantes possibles en base (VMA et FC)
   const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
   const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
 
   let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
   let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
 
-  // Extraction de secours depuis le libellé si les pourcentages valent 0
   const textSource = zone.name || zone.label || "";
   if ((min === 0 || max === 0) && textSource) {
     const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
@@ -89,12 +87,11 @@ const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPerce
 };
 
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
-  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 190;
-  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 50;
+  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 0;
+  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 0;
   
-  if (minPercent === undefined || maxPercent === undefined) return null;
+  if (minPercent === undefined || maxPercent === undefined || maxToUse <= 0) return null;
   
-  // Application de la formule de Karvonen (Fréquence Cardiaque de Réserve)
   if (maxToUse > restToUse) {
     const reserve = maxToUse - restToUse;
     const minBpm = Math.round(restToUse + reserve * (minPercent / 100));
@@ -149,7 +146,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
     : athleteHrTemplates;
 
-  // Sélectionne en priorité celui qui a isDefault à true (le favori)
   const defaultVmaTemplate =
     availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
@@ -248,7 +244,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
       const goalType = step.goalType || "allure";
 
-      // Recherche robuste par ID, nom ou index
       const selectedVmaZone = defaultVmaTemplate?.zones?.find(
         (z: any, zIdx: number) => 
           (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -268,20 +263,22 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
       const hrMinMax = selectedHrZone ? getZoneMinMax(selectedHrZone) : { min: 0, max: 0 };
 
+      // Si le coach édite sans VMA de référence, on affiche simplement le pourcentage pur du modèle
       const computedVmaPaceRange = selectedVmaZone
         ? numericVma > 0
           ? (selectedVmaZone.paceMin && selectedVmaZone.paceMax
               ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
               : calculatePaceRangeFromVma(numericVma, vmaMinMax.min, vmaMinMax.max))
-          : `${vmaMinMax.min}% - ${vmaMinMax.max}% VMA` // Affichage pur du pourcentage
+          : `${vmaMinMax.min}% - ${vmaMinMax.max}% VMA`
         : null;
 
+      // Si le coach édite sans FC max de référence, on affiche uniquement le pourcentage pur de la zone FC
       const computedHrBpmRange = selectedHrZone
         ? numericFcMax > 0
           ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
               ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
               : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max))
-          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR/FCM` // Affichage pur du pourcentage
+          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR/FCM`
         : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
 
       return (
@@ -610,11 +607,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible Allure :</span>
                             <span className="text-xs font-black text-[#CDCF61] font-mono">{computedVmaPaceRange}</span>
                           </div>
-                        )}
-                        {!computedVmaPaceRange && numericVma <= 0 && (
-                          <p className="text-[9px] text-amber-400 mt-1 italic">
-                            ⚠️ Renseignez votre VMA dans votre profil pour calculer les allures correspondantes.
-                          </p>
                         )}
                       </div>
                     )}
