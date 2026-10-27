@@ -32,10 +32,10 @@ interface WorkoutEditorProps {
   categories?: LibraryCategory[];
   userRole?: UserRole;
   vma?: number | string;
-  athleteVmaTemplates?: ZoneTemplate[];
-  athleteHrTemplates?: ZoneTemplate[];
-  coachVmaTemplates?: ZoneTemplate[];
-  coachHrTemplates?: ZoneTemplate[];
+  athleteVmaTemplates?: any[];
+  athleteHrTemplates?: any[];
+  coachVmaTemplates?: any[];
+  coachHrTemplates?: any[];
 }
 
 const getRpeColor = (rpe: number) => {
@@ -79,15 +79,20 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
 
-  // Récupération des modèles VMA et FC à utiliser (Modèle favori / isDefault en priorité)
-  const availableVmaTemplates = isCoach ? coachVmaTemplates : athleteVmaTemplates;
-  const availableHrTemplates = isCoach ? coachHrTemplates : athleteHrTemplates;
+  // Récupération des modèles VMA et FC à utiliser (Priorité au modèle favori isDefault)
+  const availableVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+    : athleteVmaTemplates;
+
+  const availableHrTemplates = isCoach
+    ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
+    : athleteHrTemplates;
 
   const defaultVmaTemplate =
-    availableVmaTemplates.find((t) => t.isDefault) || availableVmaTemplates[0];
+    availableVmaTemplates.find((t: any) => t.isDefault) || availableVmaTemplates[0];
 
   const defaultHrTemplate =
-    availableHrTemplates.find((t) => t.isDefault) || availableHrTemplates[0];
+    availableHrTemplates.find((t: any) => t.isDefault) || availableHrTemplates[0];
 
   const filteredLibraryWorkouts = libraryWorkouts.filter(
     (w) => !selectedCatId || w.categoryId === selectedCatId
@@ -485,7 +490,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   </div>
                 )}
 
-                {/* 2. ZONE VMA */}
+                {/* 2. ZONE VMA (Modèle favori utilisé en priorité) */}
                 {goalType === "vma_zone" && (
                   <div className="pt-1">
                     {!defaultVmaTemplate ? (
@@ -493,8 +498,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         <p className="font-bold">⚠️ Aucun modèle de zones VMA disponible</p>
                         <p className="text-stone-400">
                           {isCoach
-                            ? "Veuillez définir un modèle VMA par défaut dans votre bibliothèque."
-                            : "Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures et de VMA."}
+                            ? "Veuillez définir un modèle VMA dans votre configuration coach."
+                            : "Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures."}
                         </p>
                       </div>
                     ) : (
@@ -504,7 +509,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             Sélectionner la zone VMA
                           </label>
                           <span className="text-[8px] text-[#CF9A61] font-bold">
-                            Modèle : {defaultVmaTemplate.name} {defaultVmaTemplate.isDefault ? "⭐" : ""}
+                            Modèle : {defaultVmaTemplate.name} {defaultVmaTemplate.isDefault ? "⭐ (Favori)" : ""}
                           </span>
                         </div>
                         <select
@@ -533,7 +538,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   </div>
                 )}
 
-                {/* 3. ZONE FC */}
+                {/* 3. ZONE FC (Modèle favori utilisé en priorité) */}
                 {goalType === "hr_zone" && (
                   <div className="pt-1">
                     {!defaultHrTemplate ? (
@@ -541,7 +546,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         <p className="font-bold">⚠️ Aucun modèle de zones FC disponible</p>
                         <p className="text-stone-400">
                           {isCoach
-                            ? "Veuillez définir un modèle FC par défaut dans votre bibliothèque."
+                            ? "Veuillez définir un modèle FC dans votre configuration coach."
                             : "Rendez-vous dans votre Profil pour créer vos modèles de Fréquence Cardiaque."}
                         </p>
                       </div>
@@ -552,7 +557,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             Sélectionner la zone de FC
                           </label>
                           <span className="text-[8px] text-[#CF9A61] font-bold">
-                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐" : ""}
+                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐ (Favori)" : ""}
                           </span>
                         </div>
                         <select
