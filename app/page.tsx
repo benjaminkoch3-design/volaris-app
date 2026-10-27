@@ -136,12 +136,32 @@ export default function Home() {
       user_id: session.user.id,
       name: template.name,
       description: template.description || null,
+      is_default: template.isDefault || false,
       zones: template.zones,
     });
 
     if (error) {
       console.error("Erreur sauvegarde modèle de zones :", error.message);
       alert(`Erreur de sauvegarde : ${error.message}`);
+    }
+  };
+
+  const handleToggleCoachZoneDefault = async (templateId: string) => {
+    if (!session?.user) return;
+
+    const updatedTemplates = coachZoneTemplates.map((t) => ({
+      ...t,
+      isDefault: t.id === templateId,
+    }));
+
+    setCoachZoneTemplates(updatedTemplates);
+
+    // Mise à jour en base de données (is_default à false pour tous, puis true pour le sélectionné)
+    for (const t of updatedTemplates) {
+      await supabase
+        .from("coach_zone_templates")
+        .update({ is_default: t.isDefault })
+        .eq("id", t.id);
     }
   };
 
@@ -176,12 +196,31 @@ export default function Home() {
       user_id: session.user.id,
       name: template.name,
       description: template.description || null,
+      is_default: template.isDefault || false,
       zones: template.zones,
     });
 
     if (error) {
       console.error("Erreur sauvegarde modèle FC :", error.message);
       alert(`Erreur de sauvegarde : ${error.message}`);
+    }
+  };
+
+  const handleToggleCoachHrZoneDefault = async (templateId: string) => {
+    if (!session?.user) return;
+
+    const updatedTemplates = coachHrZoneTemplates.map((t) => ({
+      ...t,
+      isDefault: t.id === templateId,
+    }));
+
+    setCoachHrZoneTemplates(updatedTemplates);
+
+    for (const t of updatedTemplates) {
+      await supabase
+        .from("coach_hr_zone_templates")
+        .update({ is_default: t.isDefault })
+        .eq("id", t.id);
     }
   };
 
@@ -212,6 +251,7 @@ export default function Home() {
       user_id: targetUserId,
       type: template.type,
       name: template.name,
+      is_default: true,
       zones: template.zones,
     };
 
@@ -1408,6 +1448,7 @@ export default function Home() {
               id: z.id,
               name: z.name,
               description: z.description || "",
+              isDefault: Boolean(z.is_default),
               zones: z.zones || [],
             }))
           );
@@ -1425,6 +1466,7 @@ export default function Home() {
               id: z.id,
               name: z.name,
               description: z.description || "",
+              isDefault: Boolean(z.is_default),
               zones: z.zones || [],
             }))
           );
@@ -3237,12 +3279,13 @@ export default function Home() {
           />
         )}
 
-        {/* Gestion des modèles de zones du Coach (si connecté en mode coach) */}
+        {/* Gestion des modèles de zones du Coach avec transmission du toggle favori */}
         {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
             templates={coachZoneTemplates}
             onSaveTemplate={handleSaveCoachZoneTemplate}
             onDeleteTemplate={handleDeleteCoachZoneTemplate}
+            onToggleDefaultTemplate={handleToggleCoachZoneDefault}
             onBack={() => setShowZoneTemplatesView(false)}
           />
         )}
@@ -3252,6 +3295,7 @@ export default function Home() {
             templates={coachHrZoneTemplates}
             onSaveTemplate={handleSaveCoachHrZoneTemplate}
             onDeleteTemplate={handleDeleteCoachHrZoneTemplate}
+            onToggleDefaultTemplate={handleToggleCoachHrZoneDefault}
             onBack={() => setShowHrZoneTemplatesView(false)}
           />
         )}
