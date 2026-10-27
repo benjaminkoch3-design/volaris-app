@@ -602,14 +602,14 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             Sélectionner la zone de FC
                           </label>
                           <span className="text-[8px] text-[#CF9A61] font-bold">
-                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐" : ""}
+                            Modèle : {defaultHrTemplate.name}
                           </span>
                         </div>
                         <select
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const zone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === zoneId);
+                            const zone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === zoneId || z.name === e.target.options[e.target.selectedIndex].text);
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
@@ -618,27 +618,31 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone FC --</option>
-                          {defaultHrTemplate.zones?.map((zone: any) => {
+                          {defaultHrTemplate.zones?.map((zone: any, zIdx: number) => {
                             const { min, max } = getZoneMinMax(zone);
                             return (
-                              <option key={zone.id} value={zone.id}>
-                                {zone.name} ({min}% - {max}%)
+                              <option key={zone.id || zIdx} value={zone.id || zone.name}>
+                                {zone.name || `Zone ${zIdx + 1}`} ({min}% - {max}%)
                               </option>
                             );
                           })}
                         </select>
 
-                        {computedHrBpmRange && (
-                          <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
-                            <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
-                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedHrBpmRange}</span>
-                          </div>
-                        )}
-                        {!computedHrBpmRange && numericFcMax <= 0 && (
-                          <p className="text-[9px] text-amber-400 mt-1 italic">
-                            ⚠️ Renseignez la FC Max de l'athlète pour calculer les bpm correspondants.
-                          </p>
-                        )}
+                        {/* AFFICHAGE DE TEST FORCÉ (Pour voir si le calcul fonctionne) */}
+                        {(() => {
+                          const activeZone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName) || defaultHrTemplate.zones?.[0];
+                          const { min, max } = getZoneMinMax(activeZone);
+                          const res = calculateHrRangeFromKarvonenOrMax(numericFcRest || 50, numericFcMax || 190, min, max);
+                          
+                          return (
+                            <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
+                              <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC (Calculée) :</span>
+                              <span className="text-xs font-black text-[#CDCF61] font-mono">
+                                {res || `${Math.round(190 * (min/100))} - ${Math.round(190 * (max/100))} bpm`}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
