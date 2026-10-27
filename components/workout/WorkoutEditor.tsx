@@ -48,34 +48,16 @@ const getRpeColor = (rpe: number) => {
 };
 
 const getZoneMinMax = (zone: any) => {
-  // Si les pourcentages sont dans un tableau (ex: zone.percent = [60, 70])
-  if (Array.isArray(zone.percent) && zone.percent.length >= 2) {
-    return { min: Number(zone.percent[0]), max: Number(zone.percent[1]) };
-  }
-  if (Array.isArray(zone.range) && zone.range.length >= 2) {
-    return { min: Number(zone.range[0]), max: Number(zone.range[1]) };
-  }
+  if (!zone) return { min: 0, max: 0 };
+  
+  // Lecture exacte alignée sur les propriétés du profil coach
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
 
-  // Recherche sur toutes les variantes possibles de noms de propriétés
-  const min = 
-    zone.minPercent ?? 
-    zone.min_percent ?? 
-    zone.min ?? 
-    zone.percentMin ?? 
-    zone.percent_min ?? 
-    (zone.speedRange ? zone.speedRange[0] : 0) ?? 
-    0;
+  const min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  const max = parseFloat(String(rawMax).replace(",", ".")) || 0;
 
-  const max = 
-    zone.maxPercent ?? 
-    zone.max_percent ?? 
-    zone.max ?? 
-    zone.percentMax ?? 
-    zone.percent_max ?? 
-    (zone.speedRange ? zone.speedRange[1] : 0) ?? 
-    0;
-
-  return { min: Number(min) || 0, max: Number(max) || 0 };
+  return { min, max };
 };
 
 const formatPaceFromSpeedKmH = (speedKmH: number): string => {
