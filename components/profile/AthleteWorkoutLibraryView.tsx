@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { LibraryWorkout, LibraryCategory } from "../../types";
 import { getWorkoutTypeConfig } from "../../utils/calculations";
-import { supabase } from "../../lib/supabaseClient";
 
 interface AthleteWorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
@@ -25,14 +24,13 @@ interface AthleteWorkoutLibraryViewProps {
   onCreateNewTemplate: (categoryId: string) => void;
   onEditTemplate: (id: string) => void;
   onDeleteTemplate: (id: string) => void;
-  onOpenCalculators?: () => void;
   onOpenZoneTemplates?: () => void;
   onOpenHrZoneTemplates?: () => void;
   onBackToProfile: () => void;
 }
 
 const EXTENDED_COLOR_PALETTE = [
-  "#CDCF61", "#CF9A61", "#F59E0B", "#D97706",
+  "#CF9A61", "#CDCF61", "#F59E0B", "#D97706",
   "#EF4444", "#DC2626", "#F43F5E", "#BE123C",
   "#EC4899", "#A855F7", "#7C3AED", "#6366F1",
   "#3B82F6", "#0284C7", "#06B6D4", "#0D9488",
@@ -70,14 +68,9 @@ const getRpeColor = (rpeVal: number) => {
 export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps> = ({
   libraryWorkouts,
   categories,
-  athleteId,
   athleteVma = 14,
   athleteFcRest = 50,
   athleteFcMax = 190,
-  athleteVmaTemplates = [],
-  athleteHrTemplates = [],
-  onSaveAthleteZoneTemplate,
-  onDeleteAthleteZoneTemplate,
   onAddCategory,
   onDeleteCategory,
   onRenameCategory,
@@ -87,7 +80,6 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   onCreateNewTemplate,
   onEditTemplate,
   onDeleteTemplate,
-  onOpenCalculators,
   onOpenZoneTemplates,
   onOpenHrZoneTemplates,
   onBackToProfile,
@@ -156,7 +148,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
 
   return (
     <div className="space-y-6 animate-fadeIn pb-10 font-sans w-full">
-      {/* HEADER EXACTEMENT IDENTIQUE AU COACH */}
+      {/* HEADER DE LA PAGE MODÈLES */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -170,7 +162,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             <span>Profil</span>
           </button>
           <div>
-            <span className="text-[10px] font-bold text-[#CDCF61] uppercase tracking-widest block">
+            <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-widest block">
               Espace Personnel • Athlète
             </span>
             <h2 className="text-xl md:text-2xl font-black uppercase text-stone-100 tracking-tight mt-0.5">
@@ -183,17 +175,17 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           type="button"
           disabled={categories.length === 0}
           onClick={() => onCreateNewTemplate(selectedCategoryId)}
-          className="text-xs font-black text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] disabled:opacity-40 px-4 py-2.5 rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md flex items-center justify-center gap-1.5 shrink-0"
+          className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] disabled:opacity-40 px-4 py-2.5 rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md flex items-center justify-center gap-1.5 shrink-0"
         >
           <span>Créer une séance</span>
           <span className="text-sm">＋</span>
         </button>
       </div>
 
-      {/* BANNIÈRE GESTION DES MODÈLES DE ZONES (% VMA) PERSONNEL */}
-      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+      {/* BANNIÈRE GESTION DES MODÈLES DE ZONES (% VMA) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CF9A61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center text-lg shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-lg shrink-0">
             ⚡
           </div>
           <div>
@@ -210,15 +202,15 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           <button
             type="button"
             onClick={onOpenZoneTemplates}
-            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
           >
             Gérer mon modèle VMA ➔
           </button>
         )}
       </div>
 
-      {/* BANNIÈRE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR - Karvonen) PERSONNEL */}
-      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+      {/* BANNIÈRE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CF9A61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-lg shrink-0 text-red-400">
             ❤️
@@ -237,36 +229,9 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           <button
             type="button"
             onClick={onOpenHrZoneTemplates}
-            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
           >
             Gérer mon modèle FCR ➔
-          </button>
-        )}
-      </div>
-
-      {/* BANNIÈRE OUTIL DE CALCUL */}
-      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CDCF61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#CDCF61]/10 border border-[#CDCF61]/30 flex items-center justify-center text-lg shrink-0">
-            🧮
-          </div>
-          <div>
-            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
-              Aide aux calculs & Allures
-            </h3>
-            <p className="text-[11px] text-stone-400">
-              VMA, grille de pourcentages, VDOT Daniels et convertisseur km/h ⇄ min/km.
-            </p>
-          </div>
-        </div>
-
-        {onOpenCalculators && (
-          <button
-            type="button"
-            onClick={onOpenCalculators}
-            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
-          >
-            Ouvrir les calculateurs ➔
           </button>
         )}
       </div>
@@ -281,7 +246,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             <button
               type="button"
               onClick={() => setShowAddCategoryInput(true)}
-              className="text-[10px] font-bold text-[#CDCF61] bg-[#CDCF61]/10 hover:bg-[#CDCF61]/20 px-3 py-1.5 rounded-xl border border-[#CDCF61]/30 uppercase transition cursor-pointer flex items-center gap-1"
+              className="text-[10px] font-bold text-[#CF9A61] bg-[#CF9A61]/10 hover:bg-[#CF9A61]/20 px-3 py-1.5 rounded-xl border border-[#CF9A61]/30 uppercase transition cursor-pointer flex items-center gap-1"
             >
               <span>Nouvelle catégorie</span>
               <span className="text-xs">＋</span>
@@ -302,11 +267,11 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                 placeholder="Nom de la catégorie..."
                 value={newCategoryLabel}
                 onChange={(e) => setNewCategoryLabel(e.target.value)}
-                className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CDCF61]"
+                className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
               />
               <button
                 type="submit"
-                className="py-2 px-3.5 bg-[#CDCF61] hover:bg-[#b8bb52] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+                className="py-2 px-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
               >
                 Ajouter
               </button>
@@ -353,7 +318,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
               const isPickingColor = colorPickerCatId === cat.id;
               const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
 
-              const rawColor = cat.color || "#CDCF61";
+              const rawColor = cat.color || "#CF9A61";
               const bgStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.22);
               const borderStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.55);
               const textStyle = isSelected ? getContrastTextColor(rawColor) : rawColor;
@@ -484,7 +449,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
       <div className="space-y-3 pt-1">
         {categories.length === 0 ? null : filteredWorkouts.length === 0 ? (
           <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
-            <div className="w-12 h-12 bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CDCF61] text-xl">
+            <div className="w-12 h-12 bg-[#CF9A61]/10 border border-[#CF9A61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CF9A61] text-xl">
               📚
             </div>
             <p className="text-xs text-stone-400">
@@ -493,7 +458,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
             <button
               type="button"
               onClick={() => onCreateNewTemplate(selectedCategoryId)}
-              className="text-xs font-black text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-4 py-2 rounded-xl uppercase transition cursor-pointer shadow-md inline-block mt-1"
+              className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl uppercase transition cursor-pointer shadow-md inline-block mt-1"
             >
               ＋ Créer le premier modèle
             </button>
@@ -506,7 +471,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
               const workoutType = (workout as any).type || "footing";
               const typeConfig = getWorkoutTypeConfig(workoutType);
 
-              const catColor = currentCategory?.color || "#CDCF61";
+              const catColor = currentCategory?.color || "#CF9A61";
               const catTextColor = getContrastTextColor(catColor);
 
               return (
@@ -516,8 +481,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                       <div className="flex items-start gap-2.5">
                         {onMoveWorkout && (
                           <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0 mt-0.5 shadow-inner">
-                            <button type="button" disabled={workoutIdx === 0} onClick={() => onMoveWorkout(workout.id, "up")} className="p-1 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 cursor-pointer">▲</button>
-                            <button type="button" disabled={workoutIdx === filteredWorkouts.length - 1} onClick={() => onMoveWorkout(workout.id, "down")} className="p-1 text-stone-400 hover:text-[#CDCF61] disabled:opacity-20 cursor-pointer">▼</button>
+                            <button type="button" disabled={workoutIdx === 0} onClick={() => onMoveWorkout(workout.id, "up")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▲</button>
+                            <button type="button" disabled={workoutIdx === filteredWorkouts.length - 1} onClick={() => onMoveWorkout(workout.id, "down")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▼</button>
                           </div>
                         )}
                         <div>
@@ -547,7 +512,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => onEditTemplate(workout.id)} className="text-[10px] font-extrabold text-[#CDCF61] bg-[#CDCF61]/10 hover:bg-[#CDCF61]/20 border border-[#CDCF61]/30 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer">Éditer</button>
+                      <button type="button" onClick={() => onEditTemplate(workout.id)} className="text-[10px] font-extrabold text-[#CF9A61] bg-[#CF9A61]/10 hover:bg-[#CF9A61]/20 border border-[#CF9A61]/30 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer">Éditer</button>
                       <button type="button" onClick={() => onDeleteTemplate(workout.id)} className="text-stone-500 hover:text-red-400 text-xs px-2 py-1 transition cursor-pointer">✕</button>
                     </div>
                   </div>

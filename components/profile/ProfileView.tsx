@@ -618,7 +618,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-black uppercase text-stone-100 group-hover:text-[#CF9A61] transition">
-                      Bibliothèque de Séances
+                      Modèles d'entraînement
                     </h4>
                     <p className="text-[10.5px] text-stone-400 mt-0.5">
                       Gérer mes modèles de séances d'entraînement

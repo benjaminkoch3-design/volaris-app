@@ -472,7 +472,7 @@ export default function Home() {
   const handleAddCategory = async (label: string, color?: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
-    const newCat: LibraryCategory = { id: catId, label, color: color || "#CDCF61" };
+    const newCat: LibraryCategory = { id: catId, label, color: color || "#CF9A61" };
     setCustomCategories((prev) => [...prev, newCat]);
     const { error } = await supabase.from("library_categories").insert([
       { id: catId, user_id: session.user.id, label, color: newCat.color }
@@ -1367,7 +1367,7 @@ export default function Home() {
           catsData.map((c: any) => ({
             id: c.id,
             label: c.label,
-            color: c.color || "#CDCF61",
+            color: c.color || "#CF9A61",
           }))
         );
       }
@@ -3303,7 +3303,6 @@ export default function Home() {
             onCreateNewTemplate={handleCreateNewTemplate}
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
-            onOpenCalculators={() => setShowCalculatorsView(true)}
             onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
             onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
             onBackToProfile={() => setShowAthleteLibrary(false)}
@@ -3576,7 +3575,6 @@ export default function Home() {
                     onCreateNewTemplate={handleCreateNewTemplate}
                     onEditTemplate={(id) => setEditingLibraryId(id)}
                     onDeleteTemplate={handleDeleteTemplate}
-                    onOpenCalculators={() => setShowCalculatorsView(true)}
                     onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
                     onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
                     onBackToProfile={() => setShowAthleteLibrary(false)}
