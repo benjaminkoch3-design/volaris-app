@@ -50,7 +50,6 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // Lecture universelle et robuste (supportant camelCase et snake_case)
   const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? 0;
   const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? 0;
 
@@ -79,8 +78,8 @@ const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPerce
 };
 
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
-  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 190; // Valeur de secours par défaut
-  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 50;   // Valeur de secours par défaut
+  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 190;
+  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 50;
   
   if (minPercent === undefined || maxPercent === undefined) return null;
   
@@ -256,7 +255,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         ? selectedHrZone.minBpm && selectedHrZone.maxBpm
           ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
           : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max)
-        : null;
+        : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max);
 
       return (
         <div
@@ -628,21 +627,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           })}
                         </select>
 
-                        {/* AFFICHAGE DE TEST FORCÉ (Pour voir si le calcul fonctionne) */}
-                        {(() => {
-                          const activeZone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName) || defaultHrTemplate.zones?.[0];
-                          const { min, max } = getZoneMinMax(activeZone);
-                          const res = calculateHrRangeFromKarvonenOrMax(numericFcRest || 50, numericFcMax || 190, min, max);
-                          
-                          return (
-                            <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
-                              <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC (Calculée) :</span>
-                              <span className="text-xs font-black text-[#CDCF61] font-mono">
-                                {res || `${Math.round(190 * (min/100))} - ${Math.round(190 * (max/100))} bpm`}
-                              </span>
-                            </div>
-                          );
-                        })()}
+                        {computedHrBpmRange && (
+                          <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
+                            <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
+                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedHrBpmRange}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
