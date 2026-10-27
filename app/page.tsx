@@ -156,7 +156,6 @@ export default function Home() {
 
     setCoachZoneTemplates(updatedTemplates);
 
-    // Mise à jour en base de données (is_default à false pour tous, puis true pour le sélectionné)
     for (const t of updatedTemplates) {
       await supabase
         .from("coach_zone_templates")
@@ -1425,10 +1424,12 @@ export default function Home() {
         })));
       }
 
+      // Si un coach inspecte un athlète, on récupère les modèles de l'athlète inspecté
+      const templatesTargetId = isCoachInspecting ? inspectingAthleteId : session.user.id;
       const { data: athTemplatesData } = await supabase
         .from("athlete_zone_templates")
         .select("*")
-        .eq("user_id", session.user.id);
+        .eq("user_id", templatesTargetId);
 
       if (athTemplatesData) {
         setAthleteVmaTemplates(athTemplatesData.filter((t: any) => t.type === 'vma'));
@@ -3023,8 +3024,10 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
-        athleteVmaTemplates={coachZoneTemplates}
-        athleteHrTemplates={coachHrZoneTemplates}
+        fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
+        fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
+        athleteVmaTemplates={isCoachInspecting ? (selectedAthlete as any)?.vmaTemplates || coachZoneTemplates : athleteVmaTemplates}
+        athleteHrTemplates={isCoachInspecting ? (selectedAthlete as any)?.hrTemplates || coachHrZoneTemplates : athleteHrTemplates}
       />
     );
   }
@@ -3053,8 +3056,10 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
-        athleteVmaTemplates={athleteVmaTemplates}
-        athleteHrTemplates={athleteHrTemplates}
+        fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
+        fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
+        athleteVmaTemplates={isCoachInspecting ? (selectedAthlete as any)?.vmaTemplates || coachZoneTemplates : athleteVmaTemplates}
+        athleteHrTemplates={isCoachInspecting ? (selectedAthlete as any)?.hrTemplates || coachHrZoneTemplates : athleteHrTemplates}
       />
     );
   }
@@ -3279,7 +3284,6 @@ export default function Home() {
           />
         )}
 
-        {/* Gestion des modèles de zones du Coach avec transmission du toggle favori */}
         {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
             templates={coachZoneTemplates}
