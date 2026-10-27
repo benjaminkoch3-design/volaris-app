@@ -149,11 +149,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
     : athleteHrTemplates;
 
+  // Sélectionne en priorité celui qui a isDefault à true (le favori)
   const defaultVmaTemplate =
-    availableVmaTemplates.find((t: any) => t.isDefault) || availableVmaTemplates[0];
+    availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
   const defaultHrTemplate =
-    availableHrTemplates.find((t: any) => t.isDefault) || availableHrTemplates[0];
+    availableHrTemplates.find((t: any) => t.isDefault || t.is_default) || availableHrTemplates[0];
 
   const filteredLibraryWorkouts = libraryWorkouts.filter(
     (w) => !selectedCatId || w.categoryId === selectedCatId

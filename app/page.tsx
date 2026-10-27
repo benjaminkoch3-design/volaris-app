@@ -2282,7 +2282,7 @@ export default function Home() {
       }).eq("id", workoutId);
     }
   };
-  
+
   const handleUpdateDraftWorkout = (id: string, field: keyof Workout, value: any) => {
     setDraftWorkouts((prev) =>
       prev.map((w) => {
@@ -3146,6 +3146,8 @@ export default function Home() {
         fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
+        coachVmaTemplates={coachZoneTemplates}
+        coachHrTemplates={coachHrZoneTemplates}
       />
     );
   }
