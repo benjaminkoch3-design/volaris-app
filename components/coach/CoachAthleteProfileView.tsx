@@ -433,22 +433,18 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
                   const sMinKmH = (validVma * pMin) / 100;
                   const sMaxKmH = (validVma * pMax) / 100;
 
-                  // L'allure la plus rapide correspond à la vitesse maximale de la zone
                   const paceMaxStr = speedToPace(sMaxKmH);
                   const paceMinStr = speedToPace(sMinKmH);
 
                   return (
-                    <div key={idx} style={{ borderColor: zone.color || "#CF9A61" }} className="p-2.5 rounded-xl border bg-stone-900 space-y-1">
+                    <div key={idx} style={{ borderColor: zone.color || "#CF9A61" }} className="p-2.5 rounded-xl border bg-stone-900 space-y-0.5">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
                         <span>{zone.name || zone.label || `Zone ${idx + 1}`}</span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-xs font-black text-[#CF9A61] font-mono pt-0.5">
-                        <span>Allure :</span>
-                        <span>{paceMaxStr} à {paceMinStr}</span>
-                      </div>
+                      <p className="text-xs font-bold text-stone-300">{paceMaxStr} à {paceMinStr}</p>
                     </div>
                   );
                 })}
