@@ -3,10 +3,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { LibraryWorkout, LibraryCategory } from "../../types";
 import { getWorkoutTypeConfig } from "../../utils/calculations";
+import { supabase } from "../../lib/supabaseClient";
 
 interface AthleteWorkoutLibraryViewProps {
   libraryWorkouts: LibraryWorkout[];
   categories: LibraryCategory[];
+  athleteId: string;
+  athleteVma?: number | string;
+  athleteFcRest?: number | string;
+  athleteFcMax?: number | string;
   onAddCategory: (label: string, color?: string) => void;
   onDeleteCategory: (id: string) => void;
   onRenameCategory?: (id: string, newLabel: string) => void;
@@ -17,10 +22,15 @@ interface AthleteWorkoutLibraryViewProps {
   onEditTemplate: (id: string) => void;
   onDeleteTemplate: (id: string) => void;
   onBackToProfile: () => void;
-  onOpenCalculators?: () => void;
 }
 
-// Grande palette étendue de 24 teintes
+interface ZoneTemplate {
+  id: string;
+  name: string;
+  type: 'vma' | 'hr';
+  zones: any[];
+}
+
 const EXTENDED_COLOR_PALETTE = [
   "#CF9A61", "#CDCF61", "#F59E0B", "#D97706",
   "#EF4444", "#DC2626", "#F43F5E", "#BE123C",
@@ -30,7 +40,6 @@ const EXTENDED_COLOR_PALETTE = [
   "#E2E8F0", "#94A3B8", "#475569", "#1E293B",
 ];
 
-// Calcul de luminance pour texte noir ou blanc automatique sur fond plein
 const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
   if (!hexColor) return "#0a0a0a";
   const hex = hexColor.replace("#", "");
@@ -42,7 +51,6 @@ const getContrastTextColor = (hexColor?: string): "#ffffff" | "#0a0a0a" => {
   return luminance > 0.55 ? "#0a0a0a" : "#ffffff";
 };
 
-// Conversion hex vers rgba pour fond translucide
 const hexToRgba = (hexColor: string, opacity: number): string => {
   const hex = hexColor.replace("#", "");
   const fullHex = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
@@ -59,9 +67,21 @@ const getRpeColor = (rpeVal: number) => {
   return "#ef4444";
 };
 
+const speedToPace = (speedKmH: number): string => {
+  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "-";
+  const totalSeconds = Math.round(3600 / speedKmH);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}/km`;
+};
+
 export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps> = ({
   libraryWorkouts,
   categories,
+  athleteId,
+  athleteVma = 14,
+  athleteFcRest = 50,
+  athleteFcMax = 190,
   onAddCategory,
   onDeleteCategory,
   onRenameCategory,
@@ -73,6 +93,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   onDeleteTemplate,
   onBackToProfile,
 }) => {
+  const [activeTab, setActiveTab] = useState<"workouts" | "zones">("workouts");
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
     categories[0]?.id || ""
   );
@@ -81,11 +103,28 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   const [newCategoryColor, setNewCategoryColor] = useState<string>(EXTENDED_COLOR_PALETTE[0]);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
-  // Édition en ligne directe au clic et popover couleur
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editedCategoryLabel, setEditedCategoryLabel] = useState("");
   const [colorPickerCatId, setColorPickerCatId] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Gestion des modèles perso d'allure et FC de l'athlète
+  const [athleteTemplates, setAthleteTemplates] = useState<ZoneTemplate[]>([]);
+  const [selectedVmaTmplId, setSelectedVmaTmplId] = useState<string>("");
+  const [selectedHrTmplId, setSelectedHrTmplId] = useState<string>("");
+  const [savingZones, setSavingZones] = useState(false);
+  const [zoneSaveMsg, setZoneSaveMsg] = useState("");
+
+  // Formulaire création nouveau modèle perso
+  const [showNewZoneForm, setShowNewZoneForm] = useState<"vma" | "hr" | null>(null);
+  const [newTmplName, setNewTmplName] = useState("");
+  const [newTmplZones, setNewTmplZones] = useState<any[]>([
+    { name: "Endurance (Z1)", min: 50, max: 65, color: "#3B82F6" },
+    { name: "Endurance active (Z2)", min: 65, max: 75, color: "#10B981" },
+    { name: "Tempo (Z3)", min: 75, max: 85, color: "#F59E0B" },
+    { name: "Seuil (Z4)", min: 85, max: 95, color: "#F97316" },
+    { name: "VMA (Z5)", min: 95, max: 105, color: "#EF4444" },
+  ]);
 
   useEffect(() => {
     if (!categories.some((c) => c.id === selectedCategoryId) && categories.length > 0) {
@@ -99,6 +138,23 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
       renameInputRef.current.select();
     }
   }, [editingCategoryId]);
+
+  // Charger les modèles et la sélection de l'athlète depuis Supabase
+  useEffect(() => {
+    const fetchAthleteZones = async () => {
+      const [tmplRes, profileRes] = await Promise.all([
+        supabase.from("athlete_zone_templates").select("*").eq("user_id", athleteId),
+        supabase.from("profiles").select("athlete_vma_template_id, athlete_hr_template_id").eq("id", athleteId).maybeSingle()
+      ]);
+
+      if (tmplRes.data) setAthleteTemplates(tmplRes.data);
+      if (profileRes.data) {
+        if (profileRes.data.athlete_vma_template_id) setSelectedVmaTmplId(profileRes.data.athlete_vma_template_id);
+        if (profileRes.data.athlete_hr_template_id) setSelectedHrTmplId(profileRes.data.athlete_hr_template_id);
+      }
+    };
+    if (athleteId) fetchAthleteZones();
+  }, [athleteId]);
 
   const handleCreateCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,17 +174,45 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
     }
   };
 
-  const handleStartRename = (cat: LibraryCategory) => {
-    setEditingCategoryId(cat.id);
-    setEditedCategoryLabel(cat.label);
-    setColorPickerCatId(null);
+  const handleSaveSelections = async () => {
+    setSavingZones(true);
+    setZoneSaveMsg("");
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        athlete_vma_template_id: selectedVmaTmplId || null,
+        athlete_hr_template_id: selectedHrTmplId || null,
+      })
+      .eq("id", athleteId);
+
+    setSavingZones(false);
+    if (error) {
+      setZoneSaveMsg(`Erreur : ${error.message}`);
+    } else {
+      setZoneSaveMsg("Vos modèles personnels ont été enregistrés avec succès !");
+      setTimeout(() => setZoneSaveMsg(""), 3000);
+    }
   };
 
-  const handleSaveRename = (catId: string) => {
-    if (editedCategoryLabel.trim() && onRenameCategory) {
-      onRenameCategory(catId, editedCategoryLabel.trim());
+  const handleCreateTemplateSubmit = async (type: 'vma' | 'hr') => {
+    if (!newTmplName.trim()) return;
+    const newId = crypto.randomUUID();
+    const newTmpl = {
+      id: newId,
+      user_id: athleteId,
+      type,
+      name: newTmplName.trim(),
+      zones: newTmplZones,
+    };
+
+    const { error } = await supabase.from("athlete_zone_templates").insert(newTmpl);
+    if (!error) {
+      setAthleteTemplates([...athleteTemplates, newTmpl]);
+      if (type === 'vma') setSelectedVmaTmplId(newId);
+      if (type === 'hr') setSelectedHrTmplId(newId);
+      setShowNewZoneForm(null);
+      setNewTmplName("");
     }
-    setEditingCategoryId(null);
   };
 
   const currentCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -136,9 +220,17 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
     (w) => w.categoryId === selectedCategoryId
   );
 
+  const activeVmaTmpl = athleteTemplates.find((t) => String(t.id) === String(selectedVmaTmplId) && t.type === 'vma');
+  const activeHrTmpl = athleteTemplates.find((t) => String(t.id) === String(selectedHrTmplId) && t.type === 'hr');
+
+  const numVma = parseFloat(String(athleteVma)) || 14;
+  const numFcRest = parseFloat(String(athleteFcRest)) || 50;
+  const numFcMax = parseFloat(String(athleteFcMax)) || 190;
+  const fcReserve = numFcMax - numFcRest;
+
   return (
     <div className="space-y-6 animate-fadeIn pb-10 font-sans w-full">
-      {/* HEADER DE LA BIBLIOTHÈQUE ATHLÈTE */}
+      {/* HEADER DE LA PAGE MODÈLES */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -153,470 +245,498 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           </button>
           <div>
             <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-widest block">
-              Mes Modèles Perso
+              Espace Personnel
             </span>
             <h2 className="text-xl md:text-2xl font-black uppercase text-stone-100 tracking-tight mt-0.5">
-              Mes Séances ({libraryWorkouts.length})
+              Mes Modèles
             </h2>
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={categories.length === 0}
-          onClick={() => onCreateNewTemplate(selectedCategoryId)}
-          className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] disabled:opacity-40 px-4 py-2.5 rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md flex items-center justify-center gap-1.5 shrink-0"
-        >
-          <span>Créer une séance</span>
-          <span className="text-sm">＋</span>
-        </button>
+        {/* ONGLETS DE NAVIGATION INTERNE */}
+        <div className="flex items-center bg-stone-950 p-1 rounded-2xl border border-stone-800">
+          <button
+            type="button"
+            onClick={() => setActiveTab("workouts")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition cursor-pointer ${
+              activeTab === "workouts" ? "bg-[#CF9A61] text-stone-950 font-black shadow-md" : "text-stone-400 hover:text-stone-200"
+            }`}
+          >
+            Séances ({libraryWorkouts.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("zones")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition cursor-pointer ${
+              activeTab === "zones" ? "bg-[#CF9A61] text-stone-950 font-black shadow-md" : "text-stone-400 hover:text-stone-200"
+            }`}
+          >
+            Allures & Fréquence Cardiaque
+          </button>
+        </div>
       </div>
 
-      {/* SÉLECTEUR & GESTION DES CATÉGORIES */}
-      <div className="space-y-3 bg-stone-900/70 border border-stone-800 rounded-3xl p-3.5 md:p-4 shadow-lg">
-        <div className="flex justify-between items-center px-1">
-          <span className="text-[10px] font-black uppercase tracking-wider text-stone-400">
-            Mes Catégories ({categories.length})
-          </span>
-          {!showAddCategoryInput && (
+      {/* CONTENU ONGLET 1 : SÉANCES (BIBLIOTHÈQUE) */}
+      {activeTab === "workouts" && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => setShowAddCategoryInput(true)}
-              className="text-[10px] font-bold text-[#CF9A61] bg-[#CF9A61]/10 hover:bg-[#CF9A61]/20 px-3 py-1.5 rounded-xl border border-[#CF9A61]/30 uppercase transition cursor-pointer flex items-center gap-1"
+              disabled={categories.length === 0}
+              onClick={() => onCreateNewTemplate(selectedCategoryId)}
+              className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] disabled:opacity-40 px-4 py-2.5 rounded-xl uppercase tracking-wider transition cursor-pointer shadow-md flex items-center justify-center gap-1.5"
             >
-              <span>Nouvelle catégorie</span>
-              <span className="text-xs">＋</span>
+              <span>Créer une séance</span>
+              <span className="text-sm">＋</span>
             </button>
-          )}
-        </div>
+          </div>
 
-        {/* FORMULAIRE NOUVELLE CATÉGORIE AVEC GRANDE PALETTE */}
-        {showAddCategoryInput && (
-          <form
-            onSubmit={handleCreateCategorySubmit}
-            className="space-y-3 bg-stone-950 p-3.5 rounded-2xl border border-stone-800 animate-fadeIn"
-          >
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                required
-                autoFocus
-                placeholder="Ex : Fractionné, Sortie Longue, Côte..."
-                value={newCategoryLabel}
-                onChange={(e) => setNewCategoryLabel(e.target.value)}
-                className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
-              />
-              <button
-                type="submit"
-                className="py-2 px-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
-              >
-                Ajouter
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddCategoryInput(false)}
-                className="py-2 px-2.5 text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-1.5 pt-1.5 border-t border-stone-900">
-              <span className="text-[9.5px] uppercase font-bold text-stone-400 block">
-                Couleur de fond :
+          {/* SÉLECTEUR & GESTION DES CATÉGORIES */}
+          <div className="space-y-3 bg-stone-900/70 border border-stone-800 rounded-3xl p-3.5 md:p-4 shadow-lg">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-stone-400">
+                Mes Catégories ({categories.length})
               </span>
-              <div className="grid grid-cols-12 gap-1.5 max-w-md">
-                {EXTENDED_COLOR_PALETTE.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setNewCategoryColor(c)}
-                    className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
-                      newCategoryColor === c ? "scale-125 border-white shadow-md ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
-                    }`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* LISTE DES BADGES : COULEUR VISIBLE MÊME EN CAS D'INACTIVITÉ */}
-        <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
-          {categories.length === 0 ? (
-            <p className="text-xs text-stone-500 italic py-2 px-1">
-              Aucune catégorie. Cliquez sur « Nouvelle catégorie ».
-            </p>
-          ) : (
-            categories.map((cat, catIdx) => {
-              const isSelected = selectedCategoryId === cat.id;
-              const isConfirming = categoryToDelete === cat.id;
-              const isEditing = editingCategoryId === cat.id;
-              const isPickingColor = colorPickerCatId === cat.id;
-              const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
-
-              const rawColor = cat.color || "#CF9A61";
-
-              // Sélectionné = 100% couleur opaque + texte contrasté noir/blanc
-              // Non sélectionné = Fond teinté 22% + bordure nette 55% + texte coloré lumineux
-              const bgStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.22);
-              const borderStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.55);
-              const textStyle = isSelected ? getContrastTextColor(rawColor) : rawColor;
-
-              return (
-                <div
-                  key={cat.id}
-                  className={`relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
-                    isPickingColor
-                      ? "z-40 shadow-2xl ring-2 ring-stone-400"
-                      : isSelected
-                      ? "z-20 shadow-lg scale-[1.02]"
-                      : "z-10 hover:z-20 hover:scale-[1.01] hover:brightness-110"
-                  }`}
-                  style={{
-                    backgroundColor: bgStyle,
-                    borderColor: borderStyle,
-                    boxShadow: isSelected ? `0 4px 14px ${hexToRgba(rawColor, 0.4)}` : undefined,
-                  }}
+              {!showAddCategoryInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddCategoryInput(true)}
+                  className="text-[10px] font-bold text-[#CF9A61] bg-[#CF9A61]/10 hover:bg-[#CF9A61]/20 px-3 py-1.5 rounded-xl border border-[#CF9A61]/30 uppercase transition cursor-pointer flex items-center gap-1"
                 >
-                  {/* Flèche gauche */}
-                  {isSelected && onMoveCategory && (
-                    <button
-                      type="button"
-                      disabled={catIdx === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveCategory(cat.id, "left");
-                      }}
-                      title="Déplacer vers la gauche"
-                      className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
-                      style={{ color: textStyle }}
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </button>
-                  )}
+                  <span>Nouvelle catégorie</span>
+                  <span className="text-xs">＋</span>
+                </button>
+              )}
+            </div>
 
-                  {/* Pastille de sélection de couleur */}
-                  {isSelected && onUpdateCategoryColor && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setColorPickerCatId(isPickingColor ? null : cat.id);
-                      }}
-                      title="Changer la couleur de fond"
-                      className="w-4 h-4 rounded-full ml-2 shrink-0 cursor-pointer border shadow-sm hover:scale-125 transition-transform"
-                      style={{
-                        backgroundColor: rawColor,
-                        borderColor: textStyle === "#0a0a0a" ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.6)",
-                      }}
-                    />
-                  )}
+            {showAddCategoryInput && (
+              <form
+                onSubmit={handleCreateCategorySubmit}
+                className="space-y-3 bg-stone-950 p-3.5 rounded-2xl border border-stone-800 animate-fadeIn"
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="Ex : Fractionné, Sortie Longue, Côte..."
+                    value={newCategoryLabel}
+                    onChange={(e) => setNewCategoryLabel(e.target.value)}
+                    className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                  />
+                  <button
+                    type="submit"
+                    className="py-2 px-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+                  >
+                    Ajouter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCategoryInput(false)}
+                    className="py-2 px-2.5 text-stone-400 hover:text-stone-200 text-xs font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-                  {/* Édition du label ou affichage */}
-                  {isEditing ? (
-                    <div className="flex items-center px-1.5 py-1 min-w-0">
-                      <input
-                        ref={renameInputRef}
-                        type="text"
-                        value={editedCategoryLabel}
-                        onChange={(e) => setEditedCategoryLabel(e.target.value)}
-                        onBlur={() => handleSaveRename(cat.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveRename(cat.id);
-                          if (e.key === "Escape") setEditingCategoryId(null);
-                        }}
-                        className="bg-stone-950/90 border rounded-xl px-2.5 py-1 text-xs font-black uppercase focus:outline-none w-32 shadow-inner"
-                        style={{
-                          color: textStyle,
-                          borderColor: textStyle === "#0a0a0a" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)",
-                        }}
+                <div className="space-y-1.5 pt-1.5 border-t border-stone-900">
+                  <span className="text-[9.5px] uppercase font-bold text-stone-400 block">
+                    Couleur de fond :
+                  </span>
+                  <div className="grid grid-cols-12 gap-1.5 max-w-md">
+                    {EXTENDED_COLOR_PALETTE.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setNewCategoryColor(c)}
+                        className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
+                          newCategoryColor === c ? "scale-125 border-white shadow-md ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
+                        }`}
+                        style={{ backgroundColor: c }}
                       />
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          handleStartRename(cat);
-                        } else {
-                          setSelectedCategoryId(cat.id);
-                          setCategoryToDelete(null);
-                          setEditingCategoryId(null);
-                          setColorPickerCatId(null);
-                        }
-                      }}
-                      title={isSelected ? "Cliquez sur le nom pour le renommer" : `Sélectionner ${cat.label}`}
-                      className="px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left whitespace-normal break-words leading-snug flex-1 min-w-0"
-                      style={{ color: textStyle }}
-                    >
-                      <span className="break-words line-clamp-2">{cat.label}</span>
-                      <span
-                        className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-md shrink-0 font-bold"
-                        style={{
-                          backgroundColor: isSelected
-                            ? textStyle === "#0a0a0a" ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.2)"
-                            : hexToRgba(rawColor, 0.25),
-                          color: textStyle,
-                        }}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  )}
+                    ))}
+                  </div>
+                </div>
+              </form>
+            )}
 
-                  {/* Flèche droite */}
-                  {isSelected && onMoveCategory && (
-                    <button
-                      type="button"
-                      disabled={catIdx === categories.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveCategory(cat.id, "right");
-                      }}
-                      title="Déplacer vers la droite"
-                      className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
-                      style={{ color: textStyle }}
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
-                    </button>
-                  )}
+            <div className="flex overflow-x-auto md:overflow-visible md:flex-wrap gap-2 pb-1.5 custom-scrollbar items-center">
+              {categories.length === 0 ? (
+                <p className="text-xs text-stone-500 italic py-2 px-1">
+                  Aucune catégorie. Cliquez sur « Nouvelle catégorie ».
+                </p>
+              ) : (
+                categories.map((cat, catIdx) => {
+                  const isSelected = selectedCategoryId === cat.id;
+                  const isConfirming = categoryToDelete === cat.id;
+                  const isEditing = editingCategoryId === cat.id;
+                  const isPickingColor = colorPickerCatId === cat.id;
+                  const count = libraryWorkouts.filter((w) => w.categoryId === cat.id).length;
+                  const rawColor = cat.color || "#CF9A61";
+                  const bgStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.22);
+                  const borderStyle = isSelected ? rawColor : hexToRgba(rawColor, 0.55);
+                  const textStyle = isSelected ? getContrastTextColor(rawColor) : rawColor;
 
-                  {/* Suppression */}
-                  {isSelected && (
-                    <>
-                      {isConfirming ? (
-                        <div className="flex items-center gap-1 bg-stone-950 border border-[#B34D4D]/50 px-2 py-1 rounded-xl animate-fadeIn mr-1 shrink-0">
-                          <span className="text-[9px] text-[#B34D4D] font-bold">
-                            Supprimer ?
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => confirmDeleteCategory(cat.id)}
-                            className="text-[9px] font-black text-white bg-[#B34D4D] hover:bg-[#993b3b] px-1.5 py-0.5 rounded-md uppercase"
-                          >
-                            Oui
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCategoryToDelete(null)}
-                            className="text-[9px] font-bold text-stone-400 hover:text-stone-200 px-1 py-0.5"
-                          >
-                            Non
-                          </button>
-                        </div>
+                  return (
+                    <div
+                      key={cat.id}
+                      className={`relative flex items-center rounded-2xl border transition-all shrink-0 max-w-[200px] md:max-w-[240px] ${
+                        isPickingColor ? "z-40 shadow-2xl ring-2 ring-stone-400" : isSelected ? "z-20 shadow-lg scale-[1.02]" : "z-10"
+                      }`}
+                      style={{
+                        backgroundColor: bgStyle,
+                        borderColor: borderStyle,
+                      }}
+                    >
+                      {isSelected && onMoveCategory && (
+                        <button
+                          type="button"
+                          disabled={catIdx === 0}
+                          onClick={(e) => { e.stopPropagation(); onMoveCategory(cat.id, "left"); }}
+                          className="p-2 disabled:opacity-25 transition cursor-pointer shrink-0"
+                          style={{ color: textStyle }}
+                        >
+                          ‹
+                        </button>
+                      )}
+
+                      {isSelected && onUpdateCategoryColor && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setColorPickerCatId(isPickingColor ? null : cat.id); }}
+                          className="w-4 h-4 rounded-full ml-2 shrink-0 cursor-pointer border shadow-sm"
+                          style={{ backgroundColor: rawColor }}
+                        />
+                      )}
+
+                      {isEditing ? (
+                        <input
+                          ref={renameInputRef}
+                          type="text"
+                          value={editedCategoryLabel}
+                          onChange={(e) => setEditedCategoryLabel(e.target.value)}
+                          onBlur={() => {
+                            if (editedCategoryLabel.trim() && onRenameCategory) onRenameCategory(cat.id, editedCategoryLabel.trim());
+                            setEditingCategoryId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              if (editedCategoryLabel.trim() && onRenameCategory) onRenameCategory(cat.id, editedCategoryLabel.trim());
+                              setEditingCategoryId(null);
+                            }
+                          }}
+                          className="bg-stone-950 border rounded-xl px-2 py-1 text-xs font-black uppercase w-28 mx-1"
+                          style={{ color: textStyle }}
+                        />
                       ) : (
                         <button
                           type="button"
-                          title="Supprimer la catégorie"
-                          onClick={() => setCategoryToDelete(cat.id)}
-                          className="pr-2.5 pl-1 hover:opacity-100 opacity-60 text-xs transition cursor-pointer shrink-0"
+                          onClick={() => {
+                            if (isSelected) {
+                              setEditingCategoryId(cat.id);
+                              setEditedCategoryLabel(cat.label);
+                            } else {
+                              setSelectedCategoryId(cat.id);
+                              setCategoryToDelete(null);
+                            }
+                          }}
+                          className="px-3 py-2 text-xs font-black uppercase tracking-wider transition cursor-pointer flex items-center justify-between gap-2 text-left flex-1 min-w-0"
                           style={{ color: textStyle }}
                         >
-                          ✕
+                          <span className="truncate">{cat.label}</span>
+                          <span className="text-[9px] font-mono px-1 rounded" style={{ backgroundColor: hexToRgba(rawColor, 0.3) }}>
+                            {count}
+                          </span>
                         </button>
                       )}
-                    </>
-                  )}
 
-                  {/* Popover grande palette au-dessus des autres éléments */}
-                  {isPickingColor && onUpdateCategoryColor && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setColorPickerCatId(null)}
-                      />
-                      <div className="absolute top-full left-0 mt-2 z-50 p-2.5 bg-stone-900 border border-stone-700 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.8)] animate-scaleUp">
-                        <div className="grid grid-cols-8 gap-1.5 w-max">
-                          {EXTENDED_COLOR_PALETTE.map((col) => (
-                            <button
-                              key={col}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onUpdateCategoryColor(cat.id, col);
-                                setColorPickerCatId(null);
-                              }}
-                              className={`w-5 h-5 rounded-md transition-transform cursor-pointer border ${
-                                rawColor === col ? "scale-125 border-white ring-2 ring-stone-950" : "border-stone-800 hover:scale-110"
-                              }`}
-                              style={{ backgroundColor: col }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                      {isSelected && onMoveCategory && (
+                        <button
+                          type="button"
+                          disabled={catIdx === categories.length - 1}
+                          onClick={(e) => { e.stopPropagation(); onMoveCategory(cat.id, "right"); }}
+                          className="p-2 disabled:opacity-25 transition cursor-pointer shrink-0"
+                          style={{ color: textStyle }}
+                        >
+                          ›
+                        </button>
+                      )}
 
-        {currentCategory && (
-          <div className="text-[10.5px] text-stone-500 px-1 flex items-center justify-between">
-            <span>
-              Catégorie active : <strong className="font-bold text-stone-200">{currentCategory.label}</strong> (cliquez sur la pastille pour changer le fond ou sur le nom pour renommer)
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* SÉANCES EN 2 COLONNES SUR ORDINATEUR */}
-      <div className="space-y-3 pt-1">
-        {categories.length === 0 ? null : filteredWorkouts.length === 0 ? (
-          <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
-            <div className="w-12 h-12 bg-[#CF9A61]/10 border border-[#CF9A61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CF9A61] text-xl">
-              📚
-            </div>
-            <p className="text-xs text-stone-400">
-              Aucune séance dans la catégorie{" "}
-              <strong className="text-stone-200">{currentCategory?.label}</strong>.
-            </p>
-            <button
-              type="button"
-              onClick={() => onCreateNewTemplate(selectedCategoryId)}
-              className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl uppercase transition cursor-pointer shadow-md inline-block mt-1"
-            >
-              ＋ Créer le premier modèle
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {filteredWorkouts.map((workout, workoutIdx) => {
-              const rpeVal = parseInt(workout.rpe || "5", 10);
-              const rpeColor = getRpeColor(rpeVal);
-              const typeConfig = getWorkoutTypeConfig((workout as any).type || "footing");
-
-              const catColor = currentCategory?.color || "#CF9A61";
-              const catTextColor = getContrastTextColor(catColor);
-
-              return (
-                <div
-                  key={workout.id}
-                  className={`p-4 rounded-3xl border border-l-8 ${typeConfig.borderClass} border-stone-800 bg-stone-900/90 shadow-xl flex flex-col justify-between space-y-3 transition hover:border-stone-700`}
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex items-start gap-2.5">
-                        {onMoveWorkout && (
-                          <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0 mt-0.5 shadow-inner">
-                            <button
-                              type="button"
-                              disabled={workoutIdx === 0}
-                              onClick={() => onMoveWorkout(workout.id, "up")}
-                              title="Monter la séance"
-                              className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 transition cursor-pointer"
-                            >
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 15l-6-6-6 6" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={workoutIdx === filteredWorkouts.length - 1}
-                              onClick={() => onMoveWorkout(workout.id, "down")}
-                              title="Descendre la séance"
-                              className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 transition cursor-pointer"
-                            >
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M6 9l6 6 6-6" />
-                              </svg>
-                            </button>
+                      {isSelected && (
+                        isConfirming ? (
+                          <div className="flex items-center gap-1 bg-stone-950 px-2 py-1 rounded-xl mr-1">
+                            <span className="text-[9px] text-red-400 font-bold">Sûr ?</span>
+                            <button type="button" onClick={() => confirmDeleteCategory(cat.id)} className="text-[9px] font-black text-white bg-red-600 px-1 rounded">Oui</button>
+                            <button type="button" onClick={() => setCategoryToDelete(null)} className="text-[9px] text-stone-400 px-1">Non</button>
                           </div>
-                        )}
+                        ) : (
+                          <button type="button" onClick={() => setCategoryToDelete(cat.id)} className="pr-2.5 pl-1 opacity-60 hover:opacity-100 text-xs" style={{ color: textStyle }}>✕</button>
+                        )
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${typeConfig.badgeClass}`}>
+          {/* LISTE DES SÉANCES */}
+          <div className="space-y-3">
+            {filteredWorkouts.length === 0 ? (
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-8 text-center space-y-3 shadow-xl">
+                <p className="text-xs text-stone-400">Aucune séance dans cette catégorie.</p>
+                <button
+                  type="button"
+                  onClick={() => onCreateNewTemplate(selectedCategoryId)}
+                  className="text-xs font-black text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl uppercase transition cursor-pointer"
+                >
+                  ＋ Créer un modèle
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {filteredWorkouts.map((workout, workoutIdx) => {
+                  const rpeVal = parseInt(workout.rpe || "5", 10);
+                  const rpeColor = getRpeColor(rpeVal);
+                  const typeConfig = getWorkoutTypeConfig((workout as any).type || "footing");
+                  const catColor = currentCategory?.color || "#CF9A61";
+
+                  return (
+                    <div key={workout.id} className={`p-4 rounded-3xl border border-l-8 ${typeConfig.borderClass} border-stone-800 bg-stone-900 shadow-xl space-y-3`}>
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-start gap-2.5">
+                          {onMoveWorkout && (
+                            <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0">
+                              <button type="button" disabled={workoutIdx === 0} onClick={() => onMoveWorkout(workout.id, "up")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▲</button>
+                              <button type="button" disabled={workoutIdx === filteredWorkouts.length - 1} onClick={() => onMoveWorkout(workout.id, "down")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▼</button>
+                            </div>
+                          )}
+                          <div>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${typeConfig.badgeClass}`}>
                               {typeConfig.label}
                             </span>
-                            <span className="text-stone-600 text-[10px]">•</span>
-                            <span className="text-[9.5px] font-bold text-stone-400 uppercase tracking-wider">
-                              Modèle
-                            </span>
+                            <h3 className="text-sm font-black uppercase text-stone-100 mt-1">{workout.title}</h3>
                           </div>
-                          <h3 className="text-sm md:text-base font-black uppercase tracking-tight text-stone-100 mt-1">
-                            {workout.title || "Séance sans titre"}
-                          </h3>
                         </div>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-lg" style={{ backgroundColor: catColor, color: getContrastTextColor(catColor) }}>
+                          {currentCategory?.label}
+                        </span>
                       </div>
 
-                      {/* Badge catégorie en couleur pleine */}
-                      <span
-                        className="text-[9px] font-black uppercase px-2.5 py-1 rounded-lg shrink-0 font-mono shadow-sm"
-                        style={{
-                          backgroundColor: catColor,
-                          color: catTextColor,
-                        }}
-                      >
-                        {currentCategory?.label}
-                      </span>
-                    </div>
-
-                    {workout.description && (
-                      <p className="text-xs text-stone-300 leading-relaxed bg-stone-950/60 p-2.5 rounded-2xl border border-stone-800/80 line-clamp-3">
-                        {workout.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* MÉTRIQUES : KM, RPE ET BOUTONS ACTIONS */}
-                  <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-stone-800/80">
-                    <div className="flex items-center gap-2">
-                      {workout.km && (
-                        <span className="text-xs font-black bg-stone-950 text-stone-100 px-2.5 py-1 rounded-lg border border-stone-800 font-mono">
-                          {workout.km} km
-                        </span>
+                      {workout.description && (
+                        <p className="text-xs text-stone-300 bg-stone-950/60 p-2.5 rounded-2xl border border-stone-800/80 line-clamp-2">
+                          {workout.description}
+                        </p>
                       )}
-                      {workout.rpe && (
-                        <span
-                          className="text-xs font-black bg-stone-950 px-2.5 py-1 rounded-lg border border-stone-800 font-mono"
-                          style={{ color: rpeColor }}
-                        >
-                          RPE {workout.rpe}/10
-                        </span>
-                      )}
-                      {workout.steps && workout.steps.length > 0 && (
-                        <span className="text-[10px] font-bold text-stone-400 bg-stone-950 px-2 py-1 rounded-lg border border-stone-800">
-                          {workout.steps.length} bloc(s)
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onEditTemplate(workout.id)}
-                        className="text-[10px] font-extrabold text-[#CF9A61] bg-[#CF9A61]/10 hover:bg-[#CF9A61]/20 border border-[#CF9A61]/30 px-3 py-1.5 rounded-xl uppercase transition cursor-pointer"
-                      >
-                        Éditer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`Supprimer le modèle "${workout.title || "cette séance"}" ?`)) {
-                            onDeleteTemplate(workout.id);
-                          }
-                        }}
-                        className="text-stone-500 hover:text-[#B34D4D] text-xs px-2 py-1 transition cursor-pointer"
-                        title="Supprimer la séance"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center justify-between pt-2 border-t border-stone-800">
+                        <div className="flex items-center gap-2">
+                          {workout.km && <span className="text-xs font-mono font-black bg-stone-950 text-stone-100 px-2.5 py-1 rounded-lg border border-stone-800">{workout.km} km</span>}
+                          {workout.rpe && <span className="text-xs font-mono font-black bg-stone-950 px-2.5 py-1 rounded-lg border border-stone-800" style={{ color: rpeColor }}>RPE {workout.rpe}/10</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => onEditTemplate(workout.id)} className="text-[10px] font-bold text-[#CF9A61] bg-[#CF9A61]/10 px-3 py-1.5 rounded-xl uppercase">Éditer</button>
+                          <button type="button" onClick={() => onDeleteTemplate(workout.id)} className="text-stone-500 hover:text-red-400 text-xs px-2">✕</button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* CONTENU ONGLET 2 : MODÈLES D'ALLURES & FRÉQUENCE CARDIAQUE PERSO */}
+      {activeTab === "zones" && (
+        <div className="space-y-6 animate-fadeIn bg-stone-900/90 border border-stone-800 rounded-3xl p-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-stone-800 pb-4">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#CF9A61] block">
+                Paramètres Personnels
+              </span>
+              <h3 className="text-base font-black uppercase text-stone-100">
+                Modèles d'Allure & Fréquence Cardiaque (Athlète)
+              </h3>
+              <p className="text-xs text-stone-400 mt-1">
+                Définissez vos propres modèles de zones. Ils s'appliqueront automatiquement à votre profil (vos modèles peuvent être différents de ceux du coach).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveSelections}
+              disabled={savingZones}
+              className="px-5 py-2.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-md disabled:opacity-50 shrink-0"
+            >
+              {savingZones ? "Enregistrement..." : "Enregistrer mes choix"}
+            </button>
+          </div>
+
+          {zoneSaveMsg && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold p-3 rounded-2xl text-center">
+              {zoneSaveMsg}
+            </div>
+          )}
+
+          {/* RAPPEL PROFIL ATHLÈTE */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800">
+            <div className="text-center sm:text-left">
+              <span className="text-[10px] font-bold text-stone-400 uppercase block">Ma VMA de Référence</span>
+              <span className="text-lg font-black text-[#CF9A61]">{numVma} km/h</span>
+            </div>
+            <div className="text-center sm:text-left">
+              <span className="text-[10px] font-bold text-stone-400 uppercase block">FC Repos / Min</span>
+              <span className="text-lg font-black text-stone-100">{numFcRest} bpm</span>
+            </div>
+            <div className="text-center sm:text-left">
+              <span className="text-[10px] font-bold text-stone-400 uppercase block">FC Max</span>
+              <span className="text-lg font-black text-stone-100">{numFcMax} bpm</span>
+            </div>
+          </div>
+
+          {/* SECTION MODÈLE D'ALLURE PERSONNEL */}
+          <div className="space-y-4 bg-stone-950/60 p-4 rounded-2xl border border-stone-800">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-black uppercase text-stone-100">Mon Modèle d'Allure</h4>
+                <p className="text-[11px] text-stone-400">Basé sur votre VMA ({numVma} km/h)</p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={selectedVmaTmplId}
+                  onChange={(e) => setSelectedVmaTmplId(e.target.value)}
+                  className="flex-1 sm:w-64 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                >
+                  <option value="">-- Aucun modèle d'allure personnel --</option>
+                  {athleteTemplates.filter(t => t.type === 'vma').map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowNewZoneForm(showNewZoneForm === 'vma' ? null : 'vma')}
+                  className="px-3 py-2 bg-stone-900 hover:bg-stone-800 text-[#CF9A61] border border-stone-800 text-xs font-black rounded-xl uppercase shrink-0 cursor-pointer"
+                >
+                  ＋ Créer
+                </button>
+              </div>
+            </div>
+
+            {/* FORMULAIRE CRÉATION MODÈLE VMA */}
+            {showNewZoneForm === 'vma' && (
+              <div className="bg-stone-900 p-4 rounded-2xl border border-stone-700 space-y-3 animate-fadeIn">
+                <h5 className="text-xs font-black uppercase text-[#CF9A61]">Nouveau modèle d'allure personnel</h5>
+                <input
+                  type="text"
+                  placeholder="Nom du modèle (ex : Mes Allures Perso)"
+                  value={newTmplName}
+                  onChange={(e) => setNewTmplName(e.target.value)}
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCreateTemplateSubmit('vma')}
+                  className="px-4 py-2 bg-[#CF9A61] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+                >
+                  Enregistrer ce modèle d'allure
+                </button>
+              </div>
+            )}
+
+            {activeVmaTmpl && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-2">
+                {activeVmaTmpl.zones?.map((zone: any, idx: number) => {
+                  const pMin = parseFloat(zone.min || zone.minVmaPercent || 0);
+                  const pMax = parseFloat(zone.max || zone.maxVmaPercent || 0);
+                  const sMin = (numVma * pMin) / 100;
+                  const sMax = (numVma * pMax) / 100;
+                  return (
+                    <div key={idx} className="p-3 rounded-xl border bg-stone-900 space-y-1" style={{ borderColor: zone.color || "#CF9A61" }}>
+                      <div className="flex justify-between items-center text-xs font-black text-stone-100">
+                        <span>{zone.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: zone.color || "#CF9A61" }}>{pMin}%-{pMax}%</span>
+                      </div>
+                      <p className="text-xs font-bold text-stone-300 font-mono">{speedToPace(sMax)} à {speedToPace(sMin)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION MODÈLE FRÉQUENCE CARDIAQUE PERSONNEL */}
+          <div className="space-y-4 bg-stone-950/60 p-4 rounded-2xl border border-stone-800">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-black uppercase text-stone-100">Mon Modèle de Fréquence Cardiaque</h4>
+                <p className="text-[11px] text-stone-400">Basé sur Karvonen (FCR : {numFcRest} bpm / Max : {numFcMax} bpm)</p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={selectedHrTmplId}
+                  onChange={(e) => setSelectedHrTmplId(e.target.value)}
+                  className="flex-1 sm:w-64 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                >
+                  <option value="">-- Aucun modèle FC personnel --</option>
+                  {athleteTemplates.filter(t => t.type === 'hr').map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowNewZoneForm(showNewZoneForm === 'hr' ? null : 'hr')}
+                  className="px-3 py-2 bg-stone-900 hover:bg-stone-800 text-[#CF9A61] border border-stone-800 text-xs font-black rounded-xl uppercase shrink-0 cursor-pointer"
+                >
+                  ＋ Créer
+                </button>
+              </div>
+            </div>
+
+            {/* FORMULAIRE CRÉATION MODÈLE FC */}
+            {showNewZoneForm === 'hr' && (
+              <div className="bg-stone-900 p-4 rounded-2xl border border-stone-700 space-y-3 animate-fadeIn">
+                <h5 className="text-xs font-black uppercase text-[#CF9A61]">Nouveau modèle FC personnel</h5>
+                <input
+                  type="text"
+                  placeholder="Nom du modèle (ex : Mes Zones FC Perso)"
+                  value={newTmplName}
+                  onChange={(e) => setNewTmplName(e.target.value)}
+                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-[#CF9A61]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCreateTemplateSubmit('hr')}
+                  className="px-4 py-2 bg-[#CF9A61] text-stone-950 font-black text-xs uppercase rounded-xl cursor-pointer"
+                >
+                  Enregistrer ce modèle FC
+                </button>
+              </div>
+            )}
+
+            {activeHrTmpl && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-2">
+                {activeHrTmpl.zones?.map((zone: any, idx: number) => {
+                  const pMin = parseFloat(zone.min || zone.percentageMin || 0);
+                  const pMax = parseFloat(zone.max || zone.percentageMax || 0);
+                  const fcMinCalc = Math.round(numFcRest + fcReserve * (pMin / 100));
+                  const fcMaxCalc = Math.round(numFcRest + fcReserve * (pMax / 100));
+                  return (
+                    <div key={idx} className="p-3 rounded-xl border bg-stone-900 space-y-0.5" style={{ borderColor: zone.color || "#CF9A61" }}>
+                      <div className="flex justify-between items-center text-xs font-black text-stone-100">
+                        <span>{zone.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: zone.color || "#CF9A61" }}>{pMin}%-{pMax}%</span>
+                      </div>
+                      <p className="text-xs font-bold text-stone-300">{fcMinCalc} à {fcMaxCalc} bpm</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
