@@ -342,7 +342,9 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                       className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
                       style={{ color: textStyle }}
                     >
-                      ‹
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
                     </button>
                   )}
 
@@ -400,7 +402,9 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                       className="p-2 disabled:opacity-20 transition cursor-pointer shrink-0"
                       style={{ color: textStyle }}
                     >
-                      ›
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
                     </button>
                   )}
 
@@ -481,8 +485,16 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                       <div className="flex items-start gap-2.5">
                         {onMoveWorkout && (
                           <div className="flex flex-col gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800 shrink-0 mt-0.5 shadow-inner">
-                            <button type="button" disabled={workoutIdx === 0} onClick={() => onMoveWorkout(workout.id, "up")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▲</button>
-                            <button type="button" disabled={workoutIdx === filteredWorkouts.length - 1} onClick={() => onMoveWorkout(workout.id, "down")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">▼</button>
+                            <button type="button" disabled={workoutIdx === 0} onClick={() => onMoveWorkout(workout.id, "up")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 15l-6-6-6 6" />
+                              </svg>
+                            </button>
+                            <button type="button" disabled={workoutIdx === filteredWorkouts.length - 1} onClick={() => onMoveWorkout(workout.id, "down")} className="p-1 text-stone-400 hover:text-[#CF9A61] disabled:opacity-20 cursor-pointer">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
+                            </button>
                           </div>
                         )}
                         <div>

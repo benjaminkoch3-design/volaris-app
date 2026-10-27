@@ -3282,33 +3282,6 @@ export default function Home() {
           />
         )}
 
-        {userRole === "athlete" && activeTab === "profil" && showAthleteLibrary && (
-          <AthleteWorkoutLibraryView
-            libraryWorkouts={libraryWorkouts}
-            categories={customCategories}
-            athleteId={session?.user?.id}
-            athleteVma={parseFloat(vma) || 14}
-            athleteFcRest={parseFloat(fcRest) || 50}
-            athleteFcMax={parseFloat(fcMax) || 190}
-            athleteVmaTemplates={athleteVmaTemplates}
-            athleteHrTemplates={athleteHrTemplates}
-            onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
-            onDeleteAthleteZoneTemplate={handleDeleteAthleteZoneTemplate}
-            onAddCategory={handleAddCategory}
-            onDeleteCategory={handleDeleteCategory}
-            onRenameCategory={handleRenameCategory}
-            onUpdateCategoryColor={handleUpdateCategoryColor}
-            onMoveCategory={handleMoveCategory}
-            onMoveWorkout={handleMoveWorkout}
-            onCreateNewTemplate={handleCreateNewTemplate}
-            onEditTemplate={(id) => setEditingLibraryId(id)}
-            onDeleteTemplate={handleDeleteTemplate}
-            onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
-            onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
-            onBackToProfile={() => setShowAthleteLibrary(false)}
-          />
-        )}
-
         {isCoachInspecting && (
           <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/40 p-3 rounded-2xl flex items-center justify-between text-xs shadow-lg">
             <div className="flex items-center gap-2">
