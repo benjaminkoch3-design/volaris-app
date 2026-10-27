@@ -683,6 +683,15 @@ export default function Home() {
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
 
+  // Récupération dynamique et robuste de la FC de l'athlète (qu'il soit connecté ou inspecté par le coach)
+  const currentAthleteFcRest = isCoachInspecting
+    ? selectedAthlete?.fcRest ? parseFloat(String(selectedAthlete.fcRest).replace(" bpm", "")) : fcRest
+    : fcRest;
+
+  const currentAthleteFcMax = isCoachInspecting
+    ? selectedAthlete?.fcMax ? parseFloat(String(selectedAthlete.fcMax).replace(" bpm", "")) : fcMax
+    : fcMax;
+
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
@@ -1068,6 +1077,13 @@ export default function Home() {
           .select("*")
           .in("user_id", athleteIds);
 
+        // Charger aussi les settings coach_athlete_settings pour récupérer les VMA/FC personnalisées par le coach
+        const { data: coachAthSettings } = await supabase
+          .from("coach_athlete_settings")
+          .select("*")
+          .eq("coach_id", session.user.id)
+          .in("athlete_id", athleteIds);
+
         const { data: coachMsgsData } = await supabase
           .from("messages")
           .select("*")
@@ -1147,6 +1163,7 @@ export default function Home() {
           athletesData.map((a: any) => {
             const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id && p.is_active && !p.is_archived);
             const athleteWorkouts = workoutsData?.filter((w: any) => w.user_id === a.id) || [];
+            const settingsForAth = coachAthSettings?.find((s: any) => s.athlete_id === a.id);
 
             let upcomingRace = "Aucune";
             let targetGoal = "En cours de définition";
@@ -1171,13 +1188,17 @@ export default function Home() {
 
             const displayName = customMap[a.id] || a.full_name || a.email || "Athlète";
 
+            const resolvedVma = settingsForAth?.custom_vma ?? a.vma;
+            const resolvedFcRest = settingsForAth?.custom_fc_min ?? a.fc_rest;
+            const resolvedFcMax = settingsForAth?.custom_fc_max ?? a.fc_max;
+
             return {
               id: a.id,
               name: displayName,
               email: a.email || "",
               avatarUrl: a.avatar_url || undefined,
               avatar_url: a.avatar_url || undefined,
-              vma: a.vma ? `${a.vma} km/h` : "N/A",
+              vma: resolvedVma ? `${resolvedVma} km/h` : "N/A",
               activePlanName: activePlanForAthlete?.name || "Plan en cours",
               weeklyVolume,
               upcomingRace,
@@ -1189,8 +1210,8 @@ export default function Home() {
               joinedDate: a.created_at ? a.created_at.split("T")[0] : "",
               height: a.height ? `${a.height} cm` : "N/A",
               weight: a.weight ? `${a.weight} kg` : "N/A",
-              fcRest: a.fc_rest ? `${a.fc_rest} bpm` : "N/A",
-              fcMax: a.fc_max ? `${a.fc_max} bpm` : "N/A",
+              fcRest: resolvedFcRest ? `${resolvedFcRest} bpm` : "N/A",
+              fcMax: resolvedFcMax ? `${resolvedFcMax} bpm` : "N/A",
               records: a.records || {},
             };
           })
@@ -1268,6 +1289,19 @@ export default function Home() {
         .eq("id", targetUserId)
         .maybeSingle();
 
+      const coachIdForTemplates = isCoachInspecting ? session.user.id : profile?.coach_id;
+
+      let coachSettings = null;
+      if (coachIdForTemplates) {
+        const { data: settingsData } = await supabase
+          .from("coach_athlete_settings")
+          .select("*")
+          .eq("coach_id", coachIdForTemplates)
+          .eq("athlete_id", targetUserId)
+          .maybeSingle();
+        coachSettings = settingsData;
+      }
+
       if (profile) {
         if (!isCoachInspecting) {
           if (profile.full_name) setAthleteName(profile.full_name);
@@ -1298,9 +1332,16 @@ export default function Home() {
         }
         if (profile.height) setHeight(profile.height.toString());
         if (profile.weight) setWeight(profile.weight.toString());
-        if (profile.vma) setVma(profile.vma.toString());
-        if (profile.fc_rest) setFcRest(profile.fc_rest.toString());
-        if (profile.fc_max) setFcMax(profile.fc_max.toString());
+
+        // Priorité aux réglages personnalisés du coach (coach_athlete_settings) s'ils existent
+        const resolvedVma = coachSettings?.custom_vma ?? profile.vma;
+        const resolvedFcRest = coachSettings?.custom_fc_min ?? profile.fc_rest;
+        const resolvedFcMax = coachSettings?.custom_fc_max ?? profile.fc_max;
+
+        if (resolvedVma) setVma(resolvedVma.toString());
+        if (resolvedFcRest) setFcRest(resolvedFcRest.toString());
+        if (resolvedFcMax) setFcMax(resolvedFcMax.toString());
+
         if (profile.records && typeof profile.records === 'object') {
           setRecords(profile.records);
         }
@@ -1425,17 +1466,7 @@ export default function Home() {
         })));
       }
 
-      // CORRECTION : Charger les réglages de l'athlète et récupérer les bons modèles du coach
-      const coachIdForTemplates = isCoachInspecting ? session.user.id : profile?.coach_id;
-
       if (coachIdForTemplates) {
-        const { data: coachSettings } = await supabase
-          .from("coach_athlete_settings")
-          .select("*")
-          .eq("coach_id", coachIdForTemplates)
-          .eq("athlete_id", targetUserId)
-          .maybeSingle();
-
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
 
@@ -3065,8 +3096,8 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
-        fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
-        fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
+        fcRest={currentAthleteFcRest}
+        fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
       />
@@ -3097,8 +3128,8 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
-        fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
-        fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
+        fcRest={currentAthleteFcRest}
+        fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
       />
