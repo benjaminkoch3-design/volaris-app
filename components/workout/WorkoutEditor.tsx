@@ -47,6 +47,13 @@ const getRpeColor = (rpe: number) => {
   return "#ef4444";
 };
 
+// Extrait les pourcentages min/max peu importe le format en base de données (minPercent, min_percent, min, etc.)
+const getZoneMinMax = (zone: any) => {
+  const min = zone.minPercent ?? zone.min_percent ?? zone.min ?? zone.percentMin ?? 0;
+  const max = zone.maxPercent ?? zone.max_percent ?? zone.max ?? zone.percentMax ?? 0;
+  return { min: Number(min), max: Number(max) };
+};
+
 const formatPaceFromSpeedKmH = (speedKmH: number): string => {
   if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "--:--";
   const totalSeconds = 3600 / speedKmH;
@@ -63,22 +70,27 @@ const formatPaceFromSeconds = (totalSec: number) => {
 
 const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
   if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
-  // Plus le % de VMA est haut, plus la vitesse est rapide, donc l'allure (min/km) est plus courte.
-  // Vitesse min = (vma * minPercent) / 100 -> Allure lente (max seconds)
-  // Vitesse max = (vma * maxPercent) / 100 -> Allure rapide (min seconds)
   const speedSlow = (vmaVal * minPercent) / 100;
   const speedFast = (vmaVal * maxPercent) / 100;
+  if (speedSlow <= 0 || speedFast <= 0) return null;
   const paceSlow = formatPaceFromSpeedKmH(speedSlow);
   const paceFast = formatPaceFromSpeedKmH(speedFast);
   return `${paceFast} - ${paceSlow} /km`;
 };
 
-const calculateHrRangeFromKarvonen = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
-  if (!fcRestVal || !fcMaxVal || fcMaxVal <= fcRestVal || minPercent === undefined || maxPercent === undefined) return null;
-  const reserve = fcMaxVal - fcRestVal;
-  const minBpm = Math.round(fcRestVal + (minPercent / 100) * reserve);
-  const maxBpm = Math.round(fcRestVal + (maxPercent / 100) * reserve);
-  return `${minBpm} - ${maxBpm} bpm`;
+const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
+  if (!fcMaxVal || fcMaxVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
+  
+  if (fcRestVal && fcRestVal > 0 && fcMaxVal > fcRestVal) {
+    const reserve = fcMaxVal - fcRestVal;
+    const minBpm = Math.round(fcRestVal + (minPercent / 100) * reserve);
+    const maxBpm = Math.round(fcRestVal + (maxPercent / 100) * reserve);
+    return `${minBpm} - ${maxBpm} bpm`;
+  } else {
+    const minBpm = Math.round((minPercent / 100) * fcMaxVal);
+    const maxBpm = Math.round((maxPercent / 100) * fcMaxVal);
+    return `${minBpm} - ${maxBpm} bpm`;
+  }
 };
 
 export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
@@ -224,26 +236,19 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const selectedVmaZone = defaultVmaTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
       const selectedHrZone = defaultHrTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
 
-      // Calcul sécurisé des allures en s'appuyant sur les propriétés du modèle VMA
+      const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
+      const hrMinMax = selectedHrZone ? getZoneMinMax(selectedHrZone) : { min: 0, max: 0 };
+
       const computedVmaPaceRange = selectedVmaZone
         ? selectedVmaZone.paceMin && selectedVmaZone.paceMax
           ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
-          : calculatePaceRangeFromVma(
-              numericVma, 
-              selectedVmaZone.minPercent ?? selectedVmaZone.min_percent, 
-              selectedVmaZone.maxPercent ?? selectedVmaZone.max_percent
-            )
+          : calculatePaceRangeFromVma(numericVma, vmaMinMax.min, vmaMinMax.max)
         : null;
 
       const computedHrBpmRange = selectedHrZone
         ? selectedHrZone.minBpm && selectedHrZone.maxBpm
           ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
-          : calculateHrRangeFromKarvonen(
-              numericFcRest, 
-              numericFcMax, 
-              selectedHrZone.minPercent ?? selectedHrZone.min_percent, 
-              selectedHrZone.maxPercent ?? selectedHrZone.max_percent
-            )
+          : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max)
         : null;
 
       return (
@@ -551,11 +556,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         >
                           <option value="">-- Choisir une zone --</option>
                           {defaultVmaTemplate.zones?.map((zone: any) => {
-                            const minP = zone.minPercent ?? zone.min_percent ?? 0;
-                            const maxP = zone.maxPercent ?? zone.max_percent ?? 0;
+                            const { min, max } = getZoneMinMax(zone);
                             return (
                               <option key={zone.id} value={zone.id}>
-                                {zone.name} ({minP}% - {maxP}%)
+                                {zone.name} ({min}% - {max}%)
                               </option>
                             );
                           })}
@@ -608,11 +612,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         >
                           <option value="">-- Choisir une zone FC --</option>
                           {defaultHrTemplate.zones?.map((zone: any) => {
-                            const minP = zone.minPercent ?? zone.min_percent ?? 0;
-                            const maxP = zone.maxPercent ?? zone.max_percent ?? 0;
+                            const { min, max } = getZoneMinMax(zone);
                             return (
                               <option key={zone.id} value={zone.id}>
-                                {zone.name} ({minP}% - {maxP}%)
+                                {zone.name} ({min}% - {max}%)
                               </option>
                             );
                           })}
