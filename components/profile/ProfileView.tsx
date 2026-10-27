@@ -101,6 +101,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [editFcRest, setEditFcRest] = useState(fcRest);
   const [editFcMax, setEditFcMax] = useState(fcMax);
 
+  React.useEffect(() => {
+    setEditName(athleteName);
+    setEditHeight(height);
+    setEditWeight(weight);
+    setEditVma(vma);
+    setEditUnknownVma(unknownVma);
+    setEditFcRest(fcRest);
+    setEditFcMax(fcMax);
+  }, [athleteName, height, weight, vma, unknownVma, fcRest, fcMax]);
+
   // Modale de recadrage d'avatar
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
