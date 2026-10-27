@@ -269,16 +269,20 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const hrMinMax = selectedHrZone ? getZoneMinMax(selectedHrZone) : { min: 0, max: 0 };
 
       const computedVmaPaceRange = selectedVmaZone
-        ? selectedVmaZone.paceMin && selectedVmaZone.paceMax
-          ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
-          : calculatePaceRangeFromVma(numericVma, vmaMinMax.min, vmaMinMax.max)
+        ? numericVma > 0
+          ? (selectedVmaZone.paceMin && selectedVmaZone.paceMax
+              ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
+              : calculatePaceRangeFromVma(numericVma, vmaMinMax.min, vmaMinMax.max))
+          : `${vmaMinMax.min}% - ${vmaMinMax.max}% VMA` // Affichage pur du pourcentage
         : null;
 
       const computedHrBpmRange = selectedHrZone
-        ? selectedHrZone.minBpm && selectedHrZone.maxBpm
-          ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
-          : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max)
-        : (hrMinMax.min > 0 || hrMinMax.max > 0 ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max) : null);
+        ? numericFcMax > 0
+          ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
+              ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
+              : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max))
+          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR/FCM` // Affichage pur du pourcentage
+        : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
 
       return (
         <div
