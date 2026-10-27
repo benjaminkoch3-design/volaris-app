@@ -50,16 +50,17 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // 1. Chercher dans toutes les propriétés numériques possibles
-  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? 0;
-  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? 0;
+  // 1. Lecture de toutes les variantes possibles en base de données (camelCase et snake_case)
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
 
   let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
   let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
 
-  // 2. Sécurité : si les pourcentages valent 0, on les extrait directement du nom de la zone (ex: "Endurance (60% - 70%)")
-  if ((min === 0 || max === 0) && zone.name) {
-    const matches = zone.name.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
+  // 2. Sécurité absolue : si les pourcentages valent 0, on les extrait directement du nom de la zone (ex: "Aérobie / Tempo (70% - 80%)")
+  const textSource = zone.name || zone.label || "";
+  if ((min === 0 || max === 0) && textSource) {
+    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
     if (matches && matches[1] && matches[2]) {
       min = parseFloat(matches[1]);
       max = parseFloat(matches[2]);
