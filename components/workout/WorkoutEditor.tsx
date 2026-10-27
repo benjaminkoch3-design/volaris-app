@@ -47,11 +47,35 @@ const getRpeColor = (rpe: number) => {
   return "#ef4444";
 };
 
-// Extrait les pourcentages min/max peu importe le format en base de données (minPercent, min_percent, min, etc.)
 const getZoneMinMax = (zone: any) => {
-  const min = zone.minPercent ?? zone.min_percent ?? zone.min ?? zone.percentMin ?? 0;
-  const max = zone.maxPercent ?? zone.max_percent ?? zone.max ?? zone.percentMax ?? 0;
-  return { min: Number(min), max: Number(max) };
+  // Si les pourcentages sont dans un tableau (ex: zone.percent = [60, 70])
+  if (Array.isArray(zone.percent) && zone.percent.length >= 2) {
+    return { min: Number(zone.percent[0]), max: Number(zone.percent[1]) };
+  }
+  if (Array.isArray(zone.range) && zone.range.length >= 2) {
+    return { min: Number(zone.range[0]), max: Number(zone.range[1]) };
+  }
+
+  // Recherche sur toutes les variantes possibles de noms de propriétés
+  const min = 
+    zone.minPercent ?? 
+    zone.min_percent ?? 
+    zone.min ?? 
+    zone.percentMin ?? 
+    zone.percent_min ?? 
+    (zone.speedRange ? zone.speedRange[0] : 0) ?? 
+    0;
+
+  const max = 
+    zone.maxPercent ?? 
+    zone.max_percent ?? 
+    zone.max ?? 
+    zone.percentMax ?? 
+    zone.percent_max ?? 
+    (zone.speedRange ? zone.speedRange[1] : 0) ?? 
+    0;
+
+  return { min: Number(min) || 0, max: Number(max) || 0 };
 };
 
 const formatPaceFromSpeedKmH = (speedKmH: number): string => {
