@@ -1814,23 +1814,20 @@ export default function Home() {
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
       if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal || null;
+      
+      // Conversion propre identique au poids et à la taille
       if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal !== "" ? parseFloat(updatedFields.heightVal) : null;
       if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal !== "" ? parseFloat(updatedFields.weightVal) : null;
       if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal !== "" ? parseFloat(updatedFields.vmaVal) : null;
       if (updatedFields.fcRestVal !== undefined) payload.fc_rest = updatedFields.fcRestVal !== "" ? parseFloat(updatedFields.fcRestVal) : null;
       if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal !== "" ? parseFloat(updatedFields.fcMaxVal) : null;
+      
       if (updatedFields.recordsMap !== undefined) payload.records = updatedFields.recordsMap;
 
       const { error } = await supabase
         .from("profiles")
         .update(payload)
         .eq("id", targetUserId);
-
-      if (updatedFields.fullName !== undefined && !isCoachInspecting) {
-        await supabase.auth.updateUser({
-          data: { full_name: updatedFields.fullName },
-        });
-      }
 
       if (error) {
         console.error("Erreur sauvegarde profil :", error.message);
@@ -3808,6 +3805,8 @@ export default function Home() {
                     setWeight(newWeight);
                     await saveProfileToSupabase({ weightVal: newWeight });
                   }}
+                  
+                  // ICI : Forcer la mise à jour immédiate en base comme le poids/taille
                   vma={vma}
                   setVma={async (newVma) => {
                     setVma(newVma);
@@ -3815,22 +3814,26 @@ export default function Home() {
                   }}
                   unknownVma={unknownVma}
                   setUnknownVma={setUnknownVma}
+                  
                   fcRest={fcRest}
                   setFcRest={async (newFcRest) => {
                     setFcRest(newFcRest);
                     await saveProfileToSupabase({ fcRestVal: newFcRest });
                   }}
+                  
                   fcMax={fcMax}
                   setFcMax={async (newFcMax) => {
                     setFcMax(newFcMax);
                     await saveProfileToSupabase({ fcMaxVal: newFcMax });
                   }}
+
                   records={records}
                   setRecords={async (actionOrValue) => {
                     const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
                     setRecords(nextRecords);
                     await saveProfileToSupabase({ recordsMap: nextRecords });
                   }}
+                  
                   onSaveFullProfile={async (data) => {
                     setAthleteName(data.name);
                     setHeight(data.height);
