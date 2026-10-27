@@ -50,7 +50,7 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // Lecture exacte alignée sur les propriétés du profil coach
+  // Lecture universelle et robuste (VMA & FC confondues)
   const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
   const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
 
@@ -89,8 +89,8 @@ const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, 
   
   if (fcRestVal && fcRestVal > 0 && fcMaxVal > fcRestVal) {
     const reserve = fcMaxVal - fcRestVal;
-    const minBpm = Math.round(fcRestVal + (minPercent / 100) * reserve);
-    const maxBpm = Math.round(fcRestVal + (maxPercent / 100) * reserve);
+    const minBpm = Math.round(fcRestVal + reserve * (minPercent / 100));
+    const maxBpm = Math.round(fcRestVal + reserve * (maxPercent / 100));
     return `${minBpm} - ${maxBpm} bpm`;
   } else {
     const minBpm = Math.round((minPercent / 100) * fcMaxVal);
@@ -632,6 +632,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
                             <span className="text-xs font-black text-[#CDCF61] font-mono">{computedHrBpmRange}</span>
                           </div>
+                        )}
+                        {!computedHrBpmRange && numericFcMax <= 0 && (
+                          <p className="text-[9px] text-amber-400 mt-1 italic">
+                            ⚠️ Renseignez la FC Max de l'athlète pour calculer les bpm correspondants.
+                          </p>
                         )}
                       </div>
                     )}
