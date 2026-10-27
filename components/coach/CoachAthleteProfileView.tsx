@@ -96,7 +96,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
 
   useEffect(() => {
     const fetchCoachData = async () => {
-      // 1. Charger en premier les listes de modèles pour que les <select> connaissent les IDs
+      // 1. Charger en premier les listes de modèles
       const { data: vmaTmpls } = await supabase
         .from("coach_zone_templates")
         .select("*")
@@ -424,7 +424,7 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
           {activeVmaTemplate && (
             <div className="pt-3 border-t border-stone-800/80 space-y-2">
               <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
-                Seuils calculés ({activeVmaTemplate.name})
+                Seuils d'allures calculés ({activeVmaTemplate.name})
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {activeVmaTemplate.zones?.map((zone, idx) => {
@@ -441,13 +441,13 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
                     <div key={idx} style={{ borderColor: zone.color || "#CF9A61" }} className="p-2.5 rounded-xl border bg-stone-900 space-y-1">
                       <div className="flex justify-between items-center text-xs font-black text-stone-100">
                         <span>{zone.name || zone.label || `Zone ${idx + 1}`}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: zone.color || "#CF9A61" }}>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded text-white font-bold" style={{ backgroundColor: zone.color || "#CF9A61" }}>
                           {pMin}%-{pMax}%
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-[11px] font-bold text-stone-300">
-                        <span>{sMinKmH.toFixed(1)} - {sMaxKmH.toFixed(1)} km/h</span>
-                        <span className="text-[#CF9A61] font-mono">{paceMaxStr} - {paceMinStr}</span>
+                      <div className="flex justify-between items-center text-xs font-black text-[#CF9A61] font-mono pt-0.5">
+                        <span>Allure :</span>
+                        <span>{paceMaxStr} à {paceMinStr}</span>
                       </div>
                     </div>
                   );
