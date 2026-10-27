@@ -683,7 +683,6 @@ export default function Home() {
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
 
-  // Récupération dynamique et robuste de la FC de l'athlète (qu'il soit connecté ou inspecté par le coach)
   const parseFcValue = (val: any): number => {
     if (val === null || val === undefined) return 0;
     const cleaned = String(val).replace(/[^0-9.]/g, "");
@@ -1193,6 +1192,7 @@ export default function Home() {
 
             const displayName = customMap[a.id] || a.full_name || a.email || "Athlète";
 
+            // Le coach voit en priorité ses réglages personnalisés, sinon la base de l'athlète
             const resolvedVma = settingsForAth?.custom_vma ?? a.vma;
             const resolvedFcRest = settingsForAth?.custom_fc_min ?? a.fc_rest;
             const resolvedFcMax = settingsForAth?.custom_fc_max ?? a.fc_max;
@@ -1338,21 +1338,27 @@ export default function Home() {
         if (profile.height !== null && profile.height !== undefined) setHeight(profile.height.toString());
         if (profile.weight !== null && profile.weight !== undefined) setWeight(profile.weight.toString());
 
-        // Récupération sécurisée avec fallback robuste sur les données du profil si coachSettings est vide
-        const resolvedVma = (coachSettings?.custom_vma !== null && coachSettings?.custom_vma !== undefined) ? coachSettings.custom_vma : profile.vma;
-        const resolvedFcRest = (coachSettings?.custom_fc_min !== null && coachSettings?.custom_fc_min !== undefined) ? coachSettings.custom_fc_min : profile.fc_rest;
-        const resolvedFcMax = (coachSettings?.custom_fc_max !== null && coachSettings?.custom_fc_max !== undefined) ? coachSettings.custom_fc_max : profile.fc_max;
+        // SÉPARATION STRICTE : Si le coach inspecte, il charge ses réglages (ou fallback profil). Si c'est l'athlète, il charge ses propres données profiles.
+        if (isCoachInspecting) {
+          const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
+          const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
+          const coachFcMax = coachSettings?.custom_fc_max != null ? coachSettings.custom_fc_max.toString() : "";
 
-        if (resolvedVma !== null && resolvedVma !== undefined && resolvedVma !== "") {
-          setVma(resolvedVma.toString());
-          setUnknownVma(false);
+          const finalVma = coachVma !== "" ? coachVma : (profile.vma ? profile.vma.toString() : "");
+          setVma(finalVma);
+          setUnknownVma(finalVma === "");
+          setFcRest(coachFcRest !== "" ? coachFcRest : (profile.fc_rest ? profile.fc_rest.toString() : ""));
+          setFcMax(coachFcMax !== "" ? coachFcMax : (profile.fc_max ? profile.fc_max.toString() : ""));
         } else {
-          setVma("");
-          setUnknownVma(true);
-        }
+          const athVma = profile.vma != null ? profile.vma.toString() : "";
+          const athFcRest = profile.fc_rest != null ? profile.fc_rest.toString() : "";
+          const athFcMax = profile.fc_max != null ? profile.fc_max.toString() : "";
 
-        if (resolvedFcRest !== null && resolvedFcRest !== undefined) setFcRest(resolvedFcRest.toString());
-        if (resolvedFcMax !== null && resolvedFcMax !== undefined) setFcMax(resolvedFcMax.toString());
+          setVma(athVma);
+          setUnknownVma(athVma === "");
+          setFcRest(athFcRest);
+          setFcMax(athFcMax);
+        }
 
         if (profile.records && typeof profile.records === 'object') {
           setRecords(profile.records);
@@ -1795,6 +1801,7 @@ export default function Home() {
       return sessions;
     };
 
+  // FONCTION DE SAUVEGARDE SÉPARÉE ENTRE L'athlète ET LE coach
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -1806,28 +1813,53 @@ export default function Home() {
     recordsMap?: Record<string, string>;
   }) => {
     if (!session?.user) return;
-    const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
-    if (!targetUserId) return;
 
     try {
+      // 1. Si le coach est en train d'inspecter un athlète, ses modifications vont dans coach_athlete_settings
+      if (isCoachInspecting && inspectingAthleteId) {
+        const payload: any = {
+          coach_id: session.user.id,
+          athlete_id: inspectingAthleteId,
+        };
+
+        if (updatedFields.vmaVal !== undefined) payload.custom_vma = updatedFields.vmaVal !== "" ? parseFloat(updatedFields.vmaVal) : null;
+        if (updatedFields.fcRestVal !== undefined) payload.custom_fc_min = updatedFields.fcRestVal !== "" ? parseFloat(updatedFields.fcRestVal) : null;
+        if (updatedFields.fcMaxVal !== undefined) payload.custom_fc_max = updatedFields.fcMaxVal !== "" ? parseFloat(updatedFields.fcMaxVal) : null;
+
+        const { error } = await supabase
+          .from("coach_athlete_settings")
+          .upsert(payload, { onConflict: "coach_id,athlete_id" });
+
+        if (error) {
+          console.error("Erreur sauvegarde paramètres coach :", error.message);
+          alert(`Erreur de sauvegarde : ${error.message}`);
+        }
+        return;
+      }
+
+      // 2. Sinon, c'est l'athlète (ou le coach modifiant son propre profil) qui modifie sa table "profiles"
+      const targetUserId = session.user.id;
       const payload: any = {};
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
       if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal || null;
-      
-      // Conversion propre identique au poids et à la taille
       if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal !== "" ? parseFloat(updatedFields.heightVal) : null;
       if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal !== "" ? parseFloat(updatedFields.weightVal) : null;
       if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal !== "" ? parseFloat(updatedFields.vmaVal) : null;
       if (updatedFields.fcRestVal !== undefined) payload.fc_rest = updatedFields.fcRestVal !== "" ? parseFloat(updatedFields.fcRestVal) : null;
       if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal !== "" ? parseFloat(updatedFields.fcMaxVal) : null;
-      
       if (updatedFields.recordsMap !== undefined) payload.records = updatedFields.recordsMap;
 
       const { error } = await supabase
         .from("profiles")
         .update(payload)
         .eq("id", targetUserId);
+
+      if (updatedFields.fullName !== undefined) {
+        await supabase.auth.updateUser({
+          data: { full_name: updatedFields.fullName },
+        });
+      }
 
       if (error) {
         console.error("Erreur sauvegarde profil :", error.message);
@@ -3805,8 +3837,6 @@ export default function Home() {
                     setWeight(newWeight);
                     await saveProfileToSupabase({ weightVal: newWeight });
                   }}
-                  
-                  // ICI : Forcer la mise à jour immédiate en base comme le poids/taille
                   vma={vma}
                   setVma={async (newVma) => {
                     setVma(newVma);
@@ -3814,26 +3844,22 @@ export default function Home() {
                   }}
                   unknownVma={unknownVma}
                   setUnknownVma={setUnknownVma}
-                  
                   fcRest={fcRest}
                   setFcRest={async (newFcRest) => {
                     setFcRest(newFcRest);
                     await saveProfileToSupabase({ fcRestVal: newFcRest });
                   }}
-                  
                   fcMax={fcMax}
                   setFcMax={async (newFcMax) => {
                     setFcMax(newFcMax);
                     await saveProfileToSupabase({ fcMaxVal: newFcMax });
                   }}
-
                   records={records}
                   setRecords={async (actionOrValue) => {
                     const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
                     setRecords(nextRecords);
                     await saveProfileToSupabase({ recordsMap: nextRecords });
                   }}
-                  
                   onSaveFullProfile={async (data) => {
                     setAthleteName(data.name);
                     setHeight(data.height);
