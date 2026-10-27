@@ -50,9 +50,9 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // Lecture universelle et robuste (VMA & FC confondues)
-  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? 0;
-  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? 0;
+  // Lecture universelle et robuste (supportant camelCase et snake_case)
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? 0;
 
   const min = parseFloat(String(rawMin).replace(",", ".")) || 0;
   const max = parseFloat(String(rawMax).replace(",", ".")) || 0;
@@ -65,12 +65,6 @@ const formatPaceFromSpeedKmH = (speedKmH: number): string => {
   const totalSeconds = 3600 / speedKmH;
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.round(totalSeconds % 60);
-  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-};
-
-const formatPaceFromSeconds = (totalSec: number) => {
-  const mins = Math.floor(totalSec / 60);
-  const secs = Math.round(totalSec % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 };
 
@@ -239,8 +233,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
       const goalType = step.goalType || "allure";
 
-      const selectedVmaZone = defaultVmaTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
-      const selectedHrZone = defaultHrTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
+      const selectedVmaZone = defaultVmaTemplate?.zones?.find(
+        (z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName
+      );
+      const selectedHrZone = defaultHrTemplate?.zones?.find(
+        (z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName
+      );
 
       const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
       const hrMinMax = selectedHrZone ? getZoneMinMax(selectedHrZone) : { min: 0, max: 0 };
@@ -552,7 +550,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const zone = defaultVmaTemplate.zones?.find((z: any) => z.id === zoneId);
+                            const zone = defaultVmaTemplate.zones?.find((z: any) => String(z.id) === zoneId);
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
@@ -608,7 +606,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const zone = defaultHrTemplate.zones?.find((z: any) => z.id === zoneId);
+                            const zone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === zoneId);
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
