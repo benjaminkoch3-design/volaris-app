@@ -2239,10 +2239,50 @@ export default function Home() {
     setEditingWorkoutId(newId);
   };
 
-  const handleDeleteWorkout = (workoutId: string) => {
-    setDraftWorkouts((prev) => prev.filter((w) => w.id !== workoutId));
-  };
+  const handleDeleteWorkout = async (workoutId: string) => {
+    // 1. Mise à jour de l'état local en transformant la séance en jour de repos
+    setDraftWorkouts((prev) =>
+      prev.map((w) => {
+        if (w.id === workoutId) {
+          return {
+            ...w,
+            isRest: true,
+            type: "repos",
+            title: "Repos",
+            description: "",
+            km: "0",
+            rpe: "1",
+            remark: "",
+            steps: [],
+          };
+        }
+        return w;
+      })
+    );
 
+    // 2. Synchronisation immédiate avec Supabase pour que le changement persiste au rechargement
+    if (session?.user) {
+      await supabase.from("workouts").update({
+        is_rest: true,
+        type: "repos",
+        title: "Repos",
+        description: "",
+        km: "0",
+        rpe: "1",
+        remark: "",
+        steps: [],
+        completed_rpe: null,
+        athlete_comment: null,
+        shoe_id: null,
+        completed_km: null,
+        completed_time_minutes: null,
+        completed_elevation_gain: null,
+        imported_activity_name: null,
+        activity_telemetry: null,
+      }).eq("id", workoutId);
+    }
+  };
+  
   const handleUpdateDraftWorkout = (id: string, field: keyof Workout, value: any) => {
     setDraftWorkouts((prev) =>
       prev.map((w) => {
