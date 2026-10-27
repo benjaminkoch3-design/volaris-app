@@ -1,7 +1,7 @@
 // src/components/workout/WorkoutEditor.tsx
 
 import React, { useState } from "react";
-import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole, ZoneTemplate } from "../../types";
+import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import { calculateStepMetrics, getWorkoutTypeConfig } from "../../utils/calculations";
 import { PaceProfileChart } from "./PaceProfileChart";
@@ -50,14 +50,14 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
-  // 1. Lecture de toutes les variantes possibles en base de données (camelCase et snake_case)
+  // Lecture élargie de toutes les variantes possibles en base (VMA et FC)
   const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
   const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
 
   let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
   let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
 
-  // 2. Sécurité absolue : si les pourcentages valent 0, on les extrait directement du nom de la zone (ex: "Aérobie / Tempo (70% - 80%)")
+  // Extraction de secours depuis le libellé si les pourcentages valent 0
   const textSource = zone.name || zone.label || "";
   if ((min === 0 || max === 0) && textSource) {
     const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
@@ -94,6 +94,7 @@ const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, 
   
   if (minPercent === undefined || maxPercent === undefined) return null;
   
+  // Application de la formule de Karvonen (Fréquence Cardiaque de Réserve)
   if (maxToUse > restToUse) {
     const reserve = maxToUse - restToUse;
     const minBpm = Math.round(restToUse + reserve * (minPercent / 100));
@@ -249,8 +250,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const selectedVmaZone = defaultVmaTemplate?.zones?.find(
         (z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName
       );
+      
       const selectedHrZone = defaultHrTemplate?.zones?.find(
-        (z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName
+        (z: any) => String(z.id) === String(step.targetZoneId) || String(z.name) === String(step.targetZoneName) || String(z.id) === String(step.targetZoneName)
       );
 
       const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
