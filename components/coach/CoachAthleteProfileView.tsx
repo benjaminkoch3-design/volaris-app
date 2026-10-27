@@ -167,6 +167,12 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
       setSaveMessage(`Erreur : ${error.message}`);
     } else {
       setSaveMessage("Paramètres enregistrés avec succès !");
+      
+      // Met à jour l'objet athlète localement pour impacter directement l'affichage de l'éditeur sans recharger
+      athlete.vma = customVma;
+      athlete.fc_rest = customFcMin;
+      athlete.fc_max = customFcMax;
+
       setTimeout(() => setSaveMessage(""), 3000);
     }
   };

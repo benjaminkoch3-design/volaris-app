@@ -1425,19 +1425,56 @@ export default function Home() {
         })));
       }
 
-      // CORRECTION ICI : cibler l'athlète inspecté s'il y en a un, sinon l'utilisateur connecté
-      const templatesTargetId = isCoachInspecting ? inspectingAthleteId : session.user.id;
-      const { data: athTemplatesData } = await supabase
-        .from("athlete_zone_templates")
-        .select("*")
-        .eq("user_id", templatesTargetId);
+      // CORRECTION : Charger les réglages de l'athlète et récupérer les bons modèles du coach
+      const coachIdForTemplates = isCoachInspecting ? session.user.id : profile?.coach_id;
 
-      if (athTemplatesData) {
-        setAthleteVmaTemplates(athTemplatesData.filter((t: any) => t.type === 'vma'));
-        setAthleteHrTemplates(athTemplatesData.filter((t: any) => t.type === 'hr'));
+      if (coachIdForTemplates) {
+        const { data: coachSettings } = await supabase
+          .from("coach_athlete_settings")
+          .select("*")
+          .eq("coach_id", coachIdForTemplates)
+          .eq("athlete_id", targetUserId)
+          .maybeSingle();
+
+        let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
+        let assignedHrTmplId = coachSettings?.hr_zone_template_id;
+
+        const { data: coachVmaTmpls } = await supabase
+          .from("coach_zone_templates")
+          .select("*")
+          .eq("user_id", coachIdForTemplates);
+
+        const { data: coachHrTmpls } = await supabase
+          .from("coach_hr_zone_templates")
+          .select("*")
+          .eq("user_id", coachIdForTemplates);
+
+        if (coachVmaTmpls) {
+          const matched = coachVmaTmpls.filter((t: any) => 
+            assignedVmaTmplId ? String(t.id) === String(assignedVmaTmplId) : t.is_default
+          );
+          setAthleteVmaTemplates(matched.length > 0 ? matched : coachVmaTmpls);
+        }
+
+        if (coachHrTmpls) {
+          const matched = coachHrTmpls.filter((t: any) => 
+            assignedHrTmplId ? String(t.id) === String(assignedHrTmplId) : t.is_default
+          );
+          setAthleteHrTemplates(matched.length > 0 ? matched : coachHrTmpls);
+        }
       } else {
-        setAthleteVmaTemplates([]);
-        setAthleteHrTemplates([]);
+        const { data: athTemplatesData } = await supabase
+          .from("athlete_zone_templates")
+          .select("*")
+          .eq("user_id", targetUserId);
+
+        if (athTemplatesData) {
+          setAthleteVmaTemplates(athTemplatesData.filter((t: any) => t.type === 'vma'));
+          setAthleteHrTemplates(athTemplatesData.filter((t: any) => t.type === 'hr'));
+        } else {
+          setAthleteVmaTemplates([]);
+          setAthleteHrTemplates([]);
+        }
       }
 
       if (userRole === "coach") {
@@ -3339,7 +3376,7 @@ export default function Home() {
                 setActivePlan(null);
                 changeActiveTab("athletes");
               }}
-              className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-800 transition cursor-pointer"
+              className="text-[10px] font-black uppercase text-[#CDCF61] hover:underline bg-stone-950 px-2.5 py-1 rounded-xl border border-stone-850 transition cursor-pointer"
             >
               ← Retour liste
             </button>
