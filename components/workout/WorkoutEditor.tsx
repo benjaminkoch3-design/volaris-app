@@ -50,11 +50,21 @@ const getRpeColor = (rpe: number) => {
 const getZoneMinMax = (zone: any) => {
   if (!zone) return { min: 0, max: 0 };
   
+  // 1. Chercher dans toutes les propriétés numériques possibles
   const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? 0;
   const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? 0;
 
-  const min = parseFloat(String(rawMin).replace(",", ".")) || 0;
-  const max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
+  // 2. Sécurité : si les pourcentages valent 0, on les extrait directement du nom de la zone (ex: "Endurance (60% - 70%)")
+  if ((min === 0 || max === 0) && zone.name) {
+    const matches = zone.name.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
+    if (matches && matches[1] && matches[2]) {
+      min = parseFloat(matches[1]);
+      max = parseFloat(matches[2]);
+    }
+  }
 
   return { min, max };
 };
