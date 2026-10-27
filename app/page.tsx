@@ -120,7 +120,7 @@ export default function Home() {
   const [showHrZoneTemplatesView, setShowHrZoneTemplatesView] = useState<boolean>(false);
   const [coachHrZoneTemplates, setCoachHrZoneTemplates] = useState<HrZoneTemplate[]>([]);
 
-  // États pour les modèles personnels de zones de l'athlète
+  // États pour les modèles personnels uniques de zones de l'athlète
   const [athleteVmaTemplates, setAthleteVmaTemplates] = useState<any[]>([]);
   const [athleteHrTemplates, setAthleteHrTemplates] = useState<any[]>([]);
 
@@ -164,7 +164,7 @@ export default function Home() {
     }
   };
 
-  // Fonctions de gestion pour les modèles de Fréquence Cardiaque (% FCR)
+  // Fonctions de gestion pour les modèles de Fréquence Cardiaque (% FCR) du coach
   const handleSaveCoachHrZoneTemplate = async (template: HrZoneTemplate) => {
     if (!session?.user) return;
 
@@ -205,12 +205,14 @@ export default function Home() {
     }
   };
 
-  // Fonctions de gestion des modèles personnels de l'athlète
+  // Fonctions de gestion pour les modèles personnels uniques de l'athlète (limités à 1 par type)
   const handleSaveAthleteZoneTemplate = async (template: any) => {
     if (!session?.user) return;
     const targetUserId = session.user.id;
 
-    const templateId = template.id || `ath_zone_${Date.now()}`;
+    const existingList = template.type === 'vma' ? athleteVmaTemplates : athleteHrTemplates;
+    const templateId = existingList.length > 0 ? existingList[0].id : `ath_zone_${Date.now()}`;
+
     const templatePayload = {
       id: templateId,
       user_id: targetUserId,
@@ -220,17 +222,9 @@ export default function Home() {
     };
 
     if (template.type === 'vma') {
-      setAthleteVmaTemplates((prev) => {
-        const exists = prev.some((t) => t.id === templateId);
-        if (exists) return prev.map((t) => (t.id === templateId ? templatePayload : t));
-        return [templatePayload, ...prev];
-      });
+      setAthleteVmaTemplates([templatePayload]);
     } else {
-      setAthleteHrTemplates((prev) => {
-        const exists = prev.some((t) => t.id === templateId);
-        if (exists) return prev.map((t) => (t.id === templateId ? templatePayload : t));
-        return [templatePayload, ...prev];
-      });
+      setAthleteHrTemplates([templatePayload]);
     }
 
     const { error } = await supabase.from("athlete_zone_templates").upsert(templatePayload);
@@ -478,7 +472,7 @@ export default function Home() {
   const handleAddCategory = async (label: string, color?: string) => {
     if (!session?.user) return;
     const catId = `cat_${Date.now()}`;
-    const newCat: LibraryCategory = { id: catId, label, color: color || "#CF9A61" };
+    const newCat: LibraryCategory = { id: catId, label, color: color || "#CDCF61" };
     setCustomCategories((prev) => [...prev, newCat]);
     const { error } = await supabase.from("library_categories").insert([
       { id: catId, user_id: session.user.id, label, color: newCat.color }
@@ -1373,7 +1367,7 @@ export default function Home() {
           catsData.map((c: any) => ({
             id: c.id,
             label: c.label,
-            color: c.color || "#CF9A61",
+            color: c.color || "#CDCF61",
           }))
         );
       }
@@ -3106,7 +3100,7 @@ export default function Home() {
               <div className="bg-stone-900 border border-stone-800 rounded-2xl p-3.5 flex items-center justify-between shadow-md">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Votre Code Coach Unique :</p>
-                  <p className="text-sm font-black text-[#CF9A61] font-mono tracking-widest mt-0.5">{coachCode}</p>
+                  <p className="text-sm font-black text-[#CDCF61] font-mono tracking-widest mt-0.5">{coachCode}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -3309,6 +3303,9 @@ export default function Home() {
             onCreateNewTemplate={handleCreateNewTemplate}
             onEditTemplate={(id) => setEditingLibraryId(id)}
             onDeleteTemplate={handleDeleteTemplate}
+            onOpenCalculators={() => setShowCalculatorsView(true)}
+            onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
+            onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
             onBackToProfile={() => setShowAthleteLibrary(false)}
           />
         )}
@@ -3357,7 +3354,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {(activePlan || archivedPlans.length > 0) && (
                       <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
-                        <span className="text-[10px] font-bold uppercase text-[#CF9A61]">Plan actif :</span>
+                        <span className="text-[10px] font-bold uppercase text-[#CDCF61]">Plan actif :</span>
                         <select
                           value={activePlan?.id || ""}
                           onChange={(e) => {
@@ -3366,7 +3363,7 @@ export default function Home() {
                             const target = archivedPlans.find((p) => p.id === selectedId);
                             if (target) handleSwitchActivePlan(target);
                           }}
-                          className="bg-stone-900 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
+                          className="bg-stone-900 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CDCF61] cursor-pointer"
                         >
                           {activePlan && (
                             <option value={activePlan.id}>
@@ -3421,7 +3418,7 @@ export default function Home() {
                           setIsCreatingPlan(true);
                           setPlanCreationStep(1);
                         }}
-                        className="text-[10px] font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-3.5 py-2 rounded-xl transition cursor-pointer shadow-md"
+                        className="text-[10px] font-black uppercase tracking-wider text-stone-950 bg-[#CDCF61] hover:bg-[#b8bb52] px-3.5 py-2 rounded-xl transition cursor-pointer shadow-md"
                       >
                         ➕ Créer en parallèle
                       </button>
@@ -3431,7 +3428,7 @@ export default function Home() {
 
                 {!activePlan && !isCreatingPlan && (
                   <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-xl">
-                    <div className="w-16 h-16 bg-[#CF9A61]/10 border border-[#CF9A61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CF9A61] text-2xl">
+                    <div className="w-16 h-16 bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CDCF61] text-2xl">
                       📋
                     </div>
                     <div>
@@ -3452,7 +3449,7 @@ export default function Home() {
                         setIsCreatingPlan(true);
                         setPlanCreationStep(1);
                       }}
-                      className="w-full py-3.5 bg-[#CF9A61] hover:bg-[#b88652] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
+                      className="w-full py-3.5 bg-[#CDCF61] hover:bg-[#b8bb52] text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer"
                     >
                       ➕ Créer un nouveau plan
                     </button>
@@ -3579,6 +3576,9 @@ export default function Home() {
                     onCreateNewTemplate={handleCreateNewTemplate}
                     onEditTemplate={(id) => setEditingLibraryId(id)}
                     onDeleteTemplate={handleDeleteTemplate}
+                    onOpenCalculators={() => setShowCalculatorsView(true)}
+                    onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
+                    onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
                     onBackToProfile={() => setShowAthleteLibrary(false)}
                   />
                 ) : showPhysiologyPage ? (
