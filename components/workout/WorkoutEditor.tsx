@@ -247,12 +247,21 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
 
       const goalType = step.goalType || "allure";
 
+      // Recherche robuste par ID, nom ou index
       const selectedVmaZone = defaultVmaTemplate?.zones?.find(
-        (z: any) => String(z.id) === String(step.targetZoneId) || z.name === step.targetZoneName
+        (z: any, zIdx: number) => 
+          (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
+          (step.targetZoneId && String(z.name) === String(step.targetZoneId)) ||
+          (step.targetZoneName && String(z.name) === String(step.targetZoneName)) ||
+          (String(zIdx) === String(step.targetZoneId))
       );
       
       const selectedHrZone = defaultHrTemplate?.zones?.find(
-        (z: any) => String(z.id) === String(step.targetZoneId) || String(z.name) === String(step.targetZoneName) || String(z.id) === String(step.targetZoneName)
+        (z: any, zIdx: number) => 
+          (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
+          (step.targetZoneId && String(z.name) === String(step.targetZoneId)) ||
+          (step.targetZoneName && String(z.name) === String(step.targetZoneName)) ||
+          (String(zIdx) === String(step.targetZoneId))
       );
 
       const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
@@ -268,7 +277,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         ? selectedHrZone.minBpm && selectedHrZone.maxBpm
           ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
           : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max)
-        : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max);
+        : (hrMinMax.min > 0 || hrMinMax.max > 0 ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max) : null);
 
       return (
         <div
@@ -565,20 +574,27 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const zone = defaultVmaTemplate.zones?.find((z: any) => String(z.id) === zoneId);
+                            const zone = defaultVmaTemplate.zones?.find((z: any, zIdx: number) => 
+                              String(z.id) === zoneId || 
+                              String(z.name) === zoneId || 
+                              String(zIdx) === zoneId
+                            );
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
-                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name || `Zone`);
+                            } else {
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zoneId);
                             }
                           }}
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone --</option>
-                          {defaultVmaTemplate.zones?.map((zone: any) => {
+                          {defaultVmaTemplate.zones?.map((zone: any, zIdx: number) => {
                             const { min, max } = getZoneMinMax(zone);
+                            const zoneValue = zone.id || zone.name || String(zIdx);
                             return (
-                              <option key={zone.id} value={zone.id}>
-                                {zone.name} ({min}% - {max}%)
+                              <option key={zone.id || zIdx} value={zoneValue}>
+                                {zone.name || `Zone ${zIdx + 1}`} ({min}% - {max}%)
                               </option>
                             );
                           })}
@@ -621,10 +637,16 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           value={step.targetZoneId || ""}
                           onChange={(e) => {
                             const zoneId = e.target.value;
-                            const zone = defaultHrTemplate.zones?.find((z: any) => String(z.id) === zoneId || z.name === e.target.options[e.target.selectedIndex].text);
+                            const zone = defaultHrTemplate.zones?.find((z: any, zIdx: number) => 
+                              String(z.id) === zoneId || 
+                              String(z.name) === zoneId || 
+                              String(zIdx) === zoneId
+                            );
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
-                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name || `Zone`);
+                            } else {
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zoneId);
                             }
                           }}
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
@@ -632,8 +654,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           <option value="">-- Choisir une zone FC --</option>
                           {defaultHrTemplate.zones?.map((zone: any, zIdx: number) => {
                             const { min, max } = getZoneMinMax(zone);
+                            const zoneValue = zone.id || zone.name || String(zIdx);
                             return (
-                              <option key={zone.id || zIdx} value={zone.id || zone.name}>
+                              <option key={zone.id || zIdx} value={zoneValue}>
                                 {zone.name || `Zone ${zIdx + 1}`} ({min}% - {max}%)
                               </option>
                             );
