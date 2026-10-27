@@ -48,7 +48,7 @@ const getRpeColor = (rpe: number) => {
 };
 
 const formatPaceFromSpeedKmH = (speedKmH: number): string => {
-  if (!speedKmH || speedKmH <= 0) return "--:--";
+  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "--:--";
   const totalSeconds = 3600 / speedKmH;
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.round(totalSeconds % 60);
@@ -63,11 +63,14 @@ const formatPaceFromSeconds = (totalSec: number) => {
 
 const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
   if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
-  const minSpeed = (vmaVal * minPercent) / 100;
-  const maxSpeed = (vmaVal * maxPercent) / 100;
-  const paceFast = formatPaceFromSpeedKmH(maxSpeed);
-  const paceSlow = formatPaceFromSpeedKmH(minSpeed);
-  return `${paceSlow} - ${paceFast} /km`;
+  // Plus le % de VMA est haut, plus la vitesse est rapide, donc l'allure (min/km) est plus courte.
+  // Vitesse min = (vma * minPercent) / 100 -> Allure lente (max seconds)
+  // Vitesse max = (vma * maxPercent) / 100 -> Allure rapide (min seconds)
+  const speedSlow = (vmaVal * minPercent) / 100;
+  const speedFast = (vmaVal * maxPercent) / 100;
+  const paceSlow = formatPaceFromSpeedKmH(speedSlow);
+  const paceFast = formatPaceFromSpeedKmH(speedFast);
+  return `${paceFast} - ${paceSlow} /km`;
 };
 
 const calculateHrRangeFromKarvonen = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
@@ -130,7 +133,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     (w) => !selectedCatId || w.categoryId === selectedCatId
   );
 
-  // Mapping intelligent par index lors de l'importation d'un modèle bibliothèque
   const adaptStepsToCurrentAthleteZones = (steps: WorkoutStep[]): WorkoutStep[] => {
     return steps.map((step) => {
       let updatedStep = { ...step };
@@ -140,7 +142,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         return updatedStep;
       }
 
-      // Si le bloc utilise une zone VMA ou FC, on cherche l'index de la zone d'origine pour l'appliquer au modèle de l'athlète
       if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
         const originalZoneIndex = defaultVmaTemplate.zones.findIndex((z: any) => z.id === step.targetZoneId);
         if (originalZoneIndex !== -1 && defaultVmaTemplate.zones[originalZoneIndex]) {
@@ -223,16 +224,26 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const selectedVmaZone = defaultVmaTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
       const selectedHrZone = defaultHrTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
 
+      // Calcul sécurisé des allures en s'appuyant sur les propriétés du modèle VMA
       const computedVmaPaceRange = selectedVmaZone
         ? selectedVmaZone.paceMin && selectedVmaZone.paceMax
           ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
-          : calculatePaceRangeFromVma(numericVma, selectedVmaZone.minPercent, selectedVmaZone.maxPercent)
+          : calculatePaceRangeFromVma(
+              numericVma, 
+              selectedVmaZone.minPercent ?? selectedVmaZone.min_percent, 
+              selectedVmaZone.maxPercent ?? selectedVmaZone.max_percent
+            )
         : null;
 
       const computedHrBpmRange = selectedHrZone
         ? selectedHrZone.minBpm && selectedHrZone.maxBpm
           ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
-          : calculateHrRangeFromKarvonen(numericFcRest, numericFcMax, selectedHrZone.minPercent, selectedHrZone.maxPercent)
+          : calculateHrRangeFromKarvonen(
+              numericFcRest, 
+              numericFcMax, 
+              selectedHrZone.minPercent ?? selectedHrZone.min_percent, 
+              selectedHrZone.maxPercent ?? selectedHrZone.max_percent
+            )
         : null;
 
       return (
@@ -539,11 +550,15 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone --</option>
-                          {defaultVmaTemplate.zones?.map((zone: any) => (
-                            <option key={zone.id} value={zone.id}>
-                              {zone.name} ({zone.minPercent}% - {zone.maxPercent}%)
-                            </option>
-                          ))}
+                          {defaultVmaTemplate.zones?.map((zone: any) => {
+                            const minP = zone.minPercent ?? zone.min_percent ?? 0;
+                            const maxP = zone.maxPercent ?? zone.max_percent ?? 0;
+                            return (
+                              <option key={zone.id} value={zone.id}>
+                                {zone.name} ({minP}% - {maxP}%)
+                              </option>
+                            );
+                          })}
                         </select>
 
                         {computedVmaPaceRange && (
@@ -551,6 +566,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible Allure :</span>
                             <span className="text-xs font-black text-[#CDCF61] font-mono">{computedVmaPaceRange}</span>
                           </div>
+                        )}
+                        {!computedVmaPaceRange && numericVma <= 0 && (
+                          <p className="text-[9px] text-amber-400 mt-1 italic">
+                            ⚠️ Renseignez votre VMA dans votre profil pour calculer les allures correspondantes.
+                          </p>
                         )}
                       </div>
                     )}
@@ -587,11 +607,15 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
                         >
                           <option value="">-- Choisir une zone FC --</option>
-                          {defaultHrTemplate.zones?.map((zone: any) => (
-                            <option key={zone.id} value={zone.id}>
-                              {zone.name} ({zone.minPercent}% - {zone.maxPercent}%)
-                            </option>
-                          ))}
+                          {defaultHrTemplate.zones?.map((zone: any) => {
+                            const minP = zone.minPercent ?? zone.min_percent ?? 0;
+                            const maxP = zone.maxPercent ?? zone.max_percent ?? 0;
+                            return (
+                              <option key={zone.id} value={zone.id}>
+                                {zone.name} ({minP}% - {maxP}%)
+                              </option>
+                            );
+                          })}
                         </select>
 
                         {computedHrBpmRange && (
