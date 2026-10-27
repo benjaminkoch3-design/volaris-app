@@ -36,19 +36,28 @@ export type StepType =
   | string;
 
 export type EndCondition = "temps" | "distance" | string;
-export type GoalType = "allure" | "frequence_cardiaque" | "sensations" | string;
+export type GoalType = "allure" | "vma_zone" | "hr_zone" | "rpe" | "frequence_cardiaque" | "sensations" | string;
 
 export interface WorkoutStep {
   id: string;
   type: StepType;
   durationOrDist?: string;
   endCondition?: EndCondition;
+  
+  // Gestion des cibles (allure brute, zone vma, zone fc, rpe)
   goalType?: GoalType;
   goalValue?: string;
-  // Fourchette d'allure cible pour Garmin, COROS et l'affichage Volaris
+  
+  // Allure brute existante
   paceMin?: string; // Allure rapide (ex: "4:15")
   paceMax?: string; // Allure lente (ex: "4:25")
   targetPace?: string; // Texte libre ou allure simple (ex: "4:15 - 4:25" ou "4:20")
+
+  // Nouveaux champs pour stocker la sélection de zone ou de RPE
+  targetZoneId?: string;       // ID de la zone VMA ou FC sélectionnée
+  targetZoneName?: string;     // Nom de la zone (ex: "Zone 3 - Seuil")
+  targetRpe?: string | number; // Valeur de RPE cible (ex: "7")
+
   reps?: number;
   nestedSteps?: WorkoutStep[];
   description?: string;

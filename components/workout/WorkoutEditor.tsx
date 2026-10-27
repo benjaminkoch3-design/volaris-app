@@ -43,7 +43,6 @@ const getRpeColor = (rpe: number) => {
   return "#ef4444";
 };
 
-// Calcule l'allure formattée "M:SS" à partir de secondes par km
 const formatPaceFromSeconds = (totalSec: number) => {
   const mins = Math.floor(totalSec / 60);
   const secs = Math.round(totalSec % 60);
@@ -62,6 +61,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   categories = [],
   userRole = "athlete",
   vma,
+  athleteVmaTemplates = [],
+  athleteHrTemplates = [],
 }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -78,12 +79,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     (w) => !selectedCatId || w.categoryId === selectedCatId
   );
 
-  // Adapte récursivement les blocs à la VMA de l'athlète lors de l'import
   const applyVmaToImportedSteps = (steps: WorkoutStep[], athleteVma?: number | string): WorkoutStep[] => {
     const parsedVma = typeof athleteVma === "string" ? parseFloat(athleteVma.replace(",", ".")) : Number(athleteVma);
     const hasVma = !isNaN(parsedVma) && parsedVma > 0;
-
-    // Vitesse à 65% de la VMA en km/h puis en secondes par km
     const targetPaceSec65 = hasVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
 
     return steps.map((step) => {
@@ -102,13 +100,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         step.type === "retour_calme";
 
       if (isWalking) {
-        // Allure marche = 10'00/km si non spécifiée
         if (!step.paceMin && !step.paceMax) {
           updatedStep.paceMin = "10:00";
           updatedStep.paceMax = "10:30";
         }
       } else if (isRecoveryOrWarmupOrCalm && targetPaceSec65) {
-        // Appliquer 65% de la VMA si aucune allure n'est imposée par le modèle
         if (!step.paceMin && !step.paceMax && !step.targetPace) {
           updatedStep.paceMin = formatPaceFromSeconds(targetPaceSec65 - 5);
           updatedStep.paceMax = formatPaceFromSeconds(targetPaceSec65 + 5);
@@ -128,7 +124,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     onUpdateWorkout(workout.id, "km", template.km || "");
     onUpdateWorkout(workout.id, "rpe", template.rpe || "5");
 
-    // Adaptation des allures de récupération / échauffement à la VMA de l'athlète
     const adjustedSteps = applyVmaToImportedSteps(template.steps || [], vma);
     onUpdateWorkout(workout.id, "steps", adjustedSteps);
 
@@ -176,6 +171,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const isRecoveryStep = step.type === "recup" || step.type === "recup_marche";
       const isWalkingRecovery =
         step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
+
+      const goalType = step.goalType || "allure";
 
       return (
         <div
@@ -274,7 +271,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   </div>
                 </div>
 
-                {/* OPTION : NE PAS INCLURE LA DERNIÈRE RÉCUPÉRATION */}
                 {Number(step.reps || 0) > 1 && (
                   <div className="pt-2 border-t border-stone-800/60">
                     <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">
@@ -410,47 +406,177 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* ALLURES */}
-              <div className="grid grid-cols-2 gap-2 bg-stone-900/40 p-2 rounded-xl border border-stone-800/60">
-                <div>
-                  <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
-                    Allure Lente (Min)
+              {/* SÉLECTEUR DE TYPE DE CIBLE (Allure, Zone VMA, Zone FC, RPE) */}
+              <div className="space-y-2 bg-stone-900/40 p-2.5 rounded-xl border border-stone-800/60">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[8px] uppercase font-bold text-stone-400">
+                    Type de cible du bloc
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 4:30"
-                    value={step.paceMax ?? ""}
-                    onChange={(e) =>
-                      onUpdateStep(
-                        workout.id,
-                        currentPath,
-                        "paceMax",
-                        cleanPaceInput(e.target.value)
-                      )
-                    }
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
-                  />
+                  <select
+                    value={goalType}
+                    onChange={(e) => {
+                      onUpdateStep(workout.id, currentPath, "goalType", e.target.value);
+                    }}
+                    style={{ color: themeColor }}
+                    className="bg-stone-950 border border-stone-800 text-[10px] font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                  >
+                    <option value="allure">Allure (Fourchette)</option>
+                    <option value="vma_zone">Zone d'allure (Modèle VMA)</option>
+                    <option value="hr_zone">Zone de Fréquence Cardiaque (FC)</option>
+                    <option value="rpe">RPE Cible</option>
+                  </select>
                 </div>
 
-                <div>
-                  <label className="block text-[8px] uppercase font-bold text-[#CDCF61] mb-0.5">
-                    Allure Rapide (Max)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 4:15"
-                    value={step.paceMin ?? ""}
-                    onChange={(e) =>
-                      onUpdateStep(
-                        workout.id,
-                        currentPath,
-                        "paceMin",
-                        cleanPaceInput(e.target.value)
-                      )
-                    }
-                    className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
-                  />
-                </div>
+                {/* 1. ALLURE BRUTE */}
+                {goalType === "allure" && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[8px] uppercase font-bold text-[#CF6361] mb-0.5">
+                        Allure Lente (Min)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 4:30"
+                        value={step.paceMax ?? ""}
+                        onChange={(e) =>
+                          onUpdateStep(
+                            workout.id,
+                            currentPath,
+                            "paceMax",
+                            cleanPaceInput(e.target.value)
+                          )
+                        }
+                        className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] uppercase font-bold text-[#CDCF61] mb-0.5">
+                        Allure Rapide (Max)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 4:15"
+                        value={step.paceMin ?? ""}
+                        onChange={(e) =>
+                          onUpdateStep(
+                            workout.id,
+                            currentPath,
+                            "paceMin",
+                            cleanPaceInput(e.target.value)
+                          )
+                        }
+                        className="w-full bg-stone-950 border border-stone-800 text-[10px] text-stone-100 rounded-lg p-1.5 focus:outline-none placeholder:text-stone-600 font-mono text-center"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. ZONE VMA */}
+                {goalType === "vma_zone" && (
+                  <div className="pt-1">
+                    {athleteVmaTemplates.length === 0 ? (
+                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
+                        <p className="font-bold">⚠️ Aucun modèle de zones VMA défini</p>
+                        <p className="text-stone-400">
+                          Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures et de VMA.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[8px] uppercase font-bold text-stone-400 mb-1">
+                          Sélectionner la zone VMA
+                        </label>
+                        <select
+                          value={step.targetZoneId || ""}
+                          onChange={(e) => {
+                            const zoneId = e.target.value;
+                            const template = athleteVmaTemplates[0]; // Modèle principal
+                            const zone = template?.zones?.find((z: any) => z.id === zoneId);
+                            onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
+                            if (zone) {
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
+                              if (zone.paceMin) onUpdateStep(workout.id, currentPath, "paceMin", zone.paceMin);
+                              if (zone.paceMax) onUpdateStep(workout.id, currentPath, "paceMax", zone.paceMax);
+                            }
+                          }}
+                          className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
+                        >
+                          <option value="">-- Choisir une zone --</option>
+                          {athleteVmaTemplates[0]?.zones?.map((zone: any) => (
+                            <option key={zone.id} value={zone.id}>
+                              {zone.name} ({zone.paceMin} - {zone.paceMax} /km)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. ZONE FC */}
+                {goalType === "hr_zone" && (
+                  <div className="pt-1">
+                    {athleteHrTemplates.length === 0 ? (
+                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
+                        <p className="font-bold">⚠️ Aucun modèle de zones FC défini</p>
+                        <p className="text-stone-400">
+                          Rendez-vous dans votre Profil pour créer vos modèles de Fréquence Cardiaque.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[8px] uppercase font-bold text-stone-400 mb-1">
+                          Sélectionner la zone de FC
+                        </label>
+                        <select
+                          value={step.targetZoneId || ""}
+                          onChange={(e) => {
+                            const zoneId = e.target.value;
+                            const template = athleteHrTemplates[0];
+                            const zone = template?.zones?.find((z: any) => z.id === zoneId);
+                            onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
+                            if (zone) {
+                              onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
+                              onUpdateStep(workout.id, currentPath, "targetPace", `${zone.minBpm} - ${zone.maxBpm} bpm`);
+                            }
+                          }}
+                          className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
+                        >
+                          <option value="">-- Choisir une zone FC --</option>
+                          {athleteHrTemplates[0]?.zones?.map((zone: any) => (
+                            <option key={zone.id} value={zone.id}>
+                              {zone.name} ({zone.minBpm} - {zone.maxBpm} bpm)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. RPE CIBLE */}
+                {goalType === "rpe" && (
+                  <div className="pt-1">
+                    <label className="block text-[8px] uppercase font-bold text-stone-400 mb-1">
+                      Valeur de RPE Cible (1 à 10)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        placeholder="Ex: 7"
+                        value={step.targetRpe ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          onUpdateStep(workout.id, currentPath, "targetRpe", val === "" ? "" : Math.min(10, Math.max(1, parseInt(val, 10))));
+                        }}
+                        className="w-20 bg-stone-950 border border-stone-800 text-[10px] font-black text-stone-100 rounded-lg p-1.5 text-center focus:outline-none"
+                      />
+                      <span className="text-[10px] font-bold text-stone-400">/ 10 (Effort perçu)</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* OPTION RÉCUPÉRATION À LA MARCHE */}
@@ -502,7 +628,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
         
-        {/* HEADER DE L'ÉDITEUR */}
         <div className="flex justify-between items-center border-b border-stone-800 pb-3 gap-2">
           <div>
             <span
@@ -538,7 +663,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* MODALE D'IMPORTATION DE MODÈLE */}
         {showImportModal && (
           <div className="fixed inset-0 bg-stone-950/95 z-50 flex items-center justify-center p-4">
             <div
@@ -634,7 +758,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         )}
 
-        {/* MÉTRIQUES CALCULÉES */}
         <div className="grid grid-cols-2 gap-3 bg-stone-950 p-3.5 rounded-2xl border border-stone-800 text-center">
           <div>
             <span className="block text-[9px] font-bold text-stone-400 uppercase">
@@ -654,10 +777,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
         <PaceProfileChart steps={workout.steps} vma={vma} />
 
-        {/* PARAMÈTRES GÉNÉRAUX */}
         <div className="space-y-3">
           <div>
             <label className="block text-[10px] uppercase font-bold text-stone-400 mb-1">
@@ -784,7 +905,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* SECTION BLOCS */}
         <div className="space-y-3 border-t border-stone-800 pt-3">
           <div className="flex justify-between items-center">
             <label className="text-[11px] uppercase font-black text-stone-200 tracking-wider">
@@ -825,7 +945,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        {/* BOUTONS D'ACTION PRINCIPAUX */}
         <div className="flex gap-2 pt-2 border-t border-stone-800">
           <button
             type="button"

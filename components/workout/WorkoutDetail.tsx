@@ -158,6 +158,35 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   };
 
   const renderPaceBadge = (step: WorkoutStep) => {
+    // Si la cible est basée sur les zones VMA ou FC
+    if ((step.goalType === "vma_zone" || step.goalType === "hr_zone") && step.targetZoneName) {
+      return (
+        <div className="text-right">
+          <span className="text-[9px] text-stone-500 uppercase block font-bold">
+            {step.goalType === "vma_zone" ? "Zone VMA" : "Zone FC"}
+          </span>
+          <span className="font-black text-[#CF9A61] font-mono text-[11px] bg-[#CF9A61]/10 px-2 py-0.5 rounded border border-[#CF9A61]/30">
+            {step.targetZoneName}
+          </span>
+        </div>
+      );
+    }
+
+    // Si la cible est basée sur le RPE spécifique à l'étape
+    if (step.goalType === "rpe" && step.targetRpe) {
+      return (
+        <div className="text-right">
+          <span className="text-[9px] text-stone-500 uppercase block font-bold">
+            RPE Cible
+          </span>
+          <span className="font-black text-amber-400 font-mono text-[11px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+            RPE {step.targetRpe}
+          </span>
+        </div>
+      );
+    }
+
+    // Sinon, gestion classique de l'allure brute
     const slowPace = step.paceMax;
     const fastPace = step.paceMin;
 
