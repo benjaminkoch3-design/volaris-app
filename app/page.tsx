@@ -684,13 +684,19 @@ export default function Home() {
     : vma;
 
   // Récupération dynamique et robuste de la FC de l'athlète (qu'il soit connecté ou inspecté par le coach)
+  const parseFcValue = (val: any): number => {
+    if (val === null || val === undefined) return 0;
+    const cleaned = String(val).replace(/[^0-9.]/g, "");
+    return parseFloat(cleaned) || 0;
+  };
+
   const currentAthleteFcRest = isCoachInspecting
-    ? selectedAthlete?.fcRest ? parseFloat(String(selectedAthlete.fcRest).replace(" bpm", "")) : fcRest
-    : fcRest;
+    ? parseFcValue(selectedAthlete?.fcRest) || parseFcValue(fcRest) || 50
+    : parseFcValue(fcRest) || 50;
 
   const currentAthleteFcMax = isCoachInspecting
-    ? selectedAthlete?.fcMax ? parseFloat(String(selectedAthlete.fcMax).replace(" bpm", "")) : fcMax
-    : fcMax;
+    ? parseFcValue(selectedAthlete?.fcMax) || parseFcValue(fcMax) || 190
+    : parseFcValue(fcMax) || 190;
 
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
