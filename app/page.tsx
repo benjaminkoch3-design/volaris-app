@@ -683,6 +683,7 @@ export default function Home() {
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
 
+  // Récupération dynamique et robuste de la FC de l'athlète (qu'il soit connecté ou inspecté par le coach)
   const parseFcValue = (val: any): number => {
     if (val === null || val === undefined) return 0;
     const cleaned = String(val).replace(/[^0-9.]/g, "");
@@ -1334,16 +1335,24 @@ export default function Home() {
             setAssignedCoachAvatar(undefined);
           }
         }
-        if (profile.height) setHeight(profile.height.toString());
-        if (profile.weight) setWeight(profile.weight.toString());
+        if (profile.height !== null && profile.height !== undefined) setHeight(profile.height.toString());
+        if (profile.weight !== null && profile.weight !== undefined) setWeight(profile.weight.toString());
 
-        const resolvedVma = coachSettings?.custom_vma ?? profile.vma;
-        const resolvedFcRest = coachSettings?.custom_fc_min ?? profile.fc_rest;
-        const resolvedFcMax = coachSettings?.custom_fc_max ?? profile.fc_max;
+        // Récupération sécurisée avec fallback robuste sur les données du profil si coachSettings est vide
+        const resolvedVma = (coachSettings?.custom_vma !== null && coachSettings?.custom_vma !== undefined) ? coachSettings.custom_vma : profile.vma;
+        const resolvedFcRest = (coachSettings?.custom_fc_min !== null && coachSettings?.custom_fc_min !== undefined) ? coachSettings.custom_fc_min : profile.fc_rest;
+        const resolvedFcMax = (coachSettings?.custom_fc_max !== null && coachSettings?.custom_fc_max !== undefined) ? coachSettings.custom_fc_max : profile.fc_max;
 
-        if (resolvedVma) setVma(resolvedVma.toString());
-        if (resolvedFcRest) setFcRest(resolvedFcRest.toString());
-        if (resolvedFcMax) setFcMax(resolvedFcMax.toString());
+        if (resolvedVma !== null && resolvedVma !== undefined && resolvedVma !== "") {
+          setVma(resolvedVma.toString());
+          setUnknownVma(false);
+        } else {
+          setVma("");
+          setUnknownVma(true);
+        }
+
+        if (resolvedFcRest !== null && resolvedFcRest !== undefined) setFcRest(resolvedFcRest.toString());
+        if (resolvedFcMax !== null && resolvedFcMax !== undefined) setFcMax(resolvedFcMax.toString());
 
         if (profile.records && typeof profile.records === 'object') {
           setRecords(profile.records);
@@ -1805,11 +1814,11 @@ export default function Home() {
 
       if (updatedFields.fullName !== undefined) payload.full_name = updatedFields.fullName;
       if (updatedFields.avatarUrlVal !== undefined) payload.avatar_url = updatedFields.avatarUrlVal || null;
-      if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal ? parseFloat(updatedFields.heightVal) : null;
-      if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal ? parseFloat(updatedFields.weightVal) : null;
-      if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal ? parseFloat(updatedFields.vmaVal) : null;
-      if (updatedFields.fcRestVal !== undefined) payload.fc_rest = updatedFields.fcRestVal ? parseFloat(updatedFields.fcRestVal) : null;
-      if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal ? parseFloat(updatedFields.fcMaxVal) : null;
+      if (updatedFields.heightVal !== undefined) payload.height = updatedFields.heightVal !== "" ? parseFloat(updatedFields.heightVal) : null;
+      if (updatedFields.weightVal !== undefined) payload.weight = updatedFields.weightVal !== "" ? parseFloat(updatedFields.weightVal) : null;
+      if (updatedFields.vmaVal !== undefined) payload.vma = updatedFields.vmaVal !== "" ? parseFloat(updatedFields.vmaVal) : null;
+      if (updatedFields.fcRestVal !== undefined) payload.fc_rest = updatedFields.fcRestVal !== "" ? parseFloat(updatedFields.fcRestVal) : null;
+      if (updatedFields.fcMaxVal !== undefined) payload.fc_max = updatedFields.fcMaxVal !== "" ? parseFloat(updatedFields.fcMaxVal) : null;
       if (updatedFields.recordsMap !== undefined) payload.records = updatedFields.recordsMap;
 
       const { error } = await supabase
@@ -3078,7 +3087,6 @@ export default function Home() {
     );
   }
 
-  // ÉDITION DE LA BIBLIOTHÈQUE DU COACH : On passe explicitement VMA et FC à 0
   if (editingLibraryId) {
     const libTemplate = libraryWorkouts.find((l) => l.id === editingLibraryId);
     if (!libTemplate) {
@@ -3137,12 +3145,9 @@ export default function Home() {
         libraryWorkouts={libraryWorkouts}
         categories={customCategories}
         userRole={userRole}
-        
-        // 🚨 SÉCURITÉ BIBLIOTHÈQUE : Pas de VMA ni de FC de référence
-        vma={0}
-        fcRest={0}
-        fcMax={0}
-
+        vma={currentAthleteVma}
+        fcRest={currentAthleteFcRest}
+        fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
         coachVmaTemplates={coachZoneTemplates}
@@ -3830,7 +3835,7 @@ export default function Home() {
                     setAthleteName(data.name);
                     setHeight(data.height);
                     setWeight(data.weight);
-                    setVma(data.vma);
+                    setVma(data.unknownVma ? "" : data.vma);
                     setUnknownVma(data.unknownVma);
                     setFcRest(data.fcRest);
                     setFcMax(data.fcMax);
