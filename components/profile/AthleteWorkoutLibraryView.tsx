@@ -68,6 +68,9 @@ const getRpeColor = (rpeVal: number) => {
 export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps> = ({
   libraryWorkouts,
   categories,
+  athleteVma = 14,
+  athleteFcRest = 50,
+  athleteFcMax = 190,
   onAddCategory,
   onDeleteCategory,
   onRenameCategory,
@@ -177,6 +180,60 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
           <span>Créer une séance</span>
           <span className="text-sm">＋</span>
         </button>
+      </div>
+
+      {/* BANNIÈRE GESTION DES MODÈLES DE ZONES (% VMA) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CF9A61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#CF9A61]/10 border border-[#CF9A61]/30 flex items-center justify-center text-lg shrink-0">
+            ⚡
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
+              Mon Modèle de Zones d'Allures (% VMA)
+            </h3>
+            <p className="text-[11px] text-stone-400">
+              Basé sur votre VMA actuelle ({athleteVma} km/h). Personnalisez votre unique modèle personnel.
+            </p>
+          </div>
+        </div>
+
+        {onOpenZoneTemplates && (
+          <button
+            type="button"
+            onClick={onOpenZoneTemplates}
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+          >
+            Gérer mon modèle VMA ➔
+          </button>
+        )}
+      </div>
+
+      {/* BANNIÈRE GESTION DES MODÈLES DE FRÉQUENCE CARDIAQUE (% FCR) */}
+      <div className="bg-stone-900/80 border border-stone-800 hover:border-[#CF9A61]/50 rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-lg shrink-0 text-red-400">
+            ❤️
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase text-stone-100 tracking-tight">
+              Mon Modèle de Fréquence Cardiaque (% FCR)
+            </h3>
+            <p className="text-[11px] text-stone-400">
+              Basé sur vos valeurs (Repos : {athleteFcRest} bpm / Max : {athleteFcMax} bpm).
+            </p>
+          </div>
+        </div>
+
+        {onOpenHrZoneTemplates && (
+          <button
+            type="button"
+            onClick={onOpenHrZoneTemplates}
+            className="text-xs font-black uppercase tracking-wider text-stone-950 bg-[#CF9A61] hover:bg-[#b88652] px-4 py-2 rounded-xl transition cursor-pointer shadow-md shrink-0 w-full sm:w-auto text-center"
+          >
+            Gérer mon modèle FCR ➔
+          </button>
+        )}
       </div>
 
       {/* SÉLECTEUR & GESTION DES CATÉGORIES */}
