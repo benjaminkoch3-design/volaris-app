@@ -3237,57 +3237,21 @@ export default function Home() {
           />
         )}
 
-        {/* Affichage des modales de gestion des zones (VMA / FC) */}
-        {showZoneTemplatesView && (
+        {/* Gestion des modèles de zones du Coach (si connecté en mode coach) */}
+        {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
-            templates={
-              userRole === "coach" && !inspectingAthleteId
-                ? coachZoneTemplates
-                : (athleteVmaTemplates.length > 0
-                    ? athleteVmaTemplates
-                    : [{ id: "def_vma", name: "Modèle VMA Personnel", description: `Basé sur votre VMA de ${vma || 14} km/h`, zones: [] }])
-            }
-            onSaveTemplate={(tmpl) => {
-              if (userRole === "coach" && !inspectingAthleteId) {
-                handleSaveCoachZoneTemplate(tmpl);
-              } else {
-                handleSaveAthleteZoneTemplate({ ...tmpl, type: 'vma' });
-              }
-            }}
-            onDeleteTemplate={(id) => {
-              if (userRole === "coach" && !inspectingAthleteId) {
-                handleDeleteCoachZoneTemplate(id);
-              } else {
-                handleDeleteAthleteZoneTemplate(id);
-              }
-            }}
+            templates={coachZoneTemplates}
+            onSaveTemplate={handleSaveCoachZoneTemplate}
+            onDeleteTemplate={handleDeleteCoachZoneTemplate}
             onBack={() => setShowZoneTemplatesView(false)}
           />
         )}
 
-        {showHrZoneTemplatesView && (
+        {userRole === "coach" && !inspectingAthleteId && showHrZoneTemplatesView && (
           <CoachHrZoneTemplatesView
-            templates={
-              userRole === "coach" && !inspectingAthleteId
-                ? coachHrZoneTemplates
-                : (athleteHrTemplates.length > 0
-                    ? athleteHrTemplates
-                    : [{ id: "def_hr", name: "Modèle FC Personnel", description: `Repos: ${fcRest || 50} bpm / Max: ${fcMax || 190} bpm`, zones: [] }])
-            }
-            onSaveTemplate={(tmpl) => {
-              if (userRole === "coach" && !inspectingAthleteId) {
-                handleSaveCoachHrZoneTemplate(tmpl);
-              } else {
-                handleSaveAthleteZoneTemplate({ ...tmpl, type: 'hr' });
-              }
-            }}
-            onDeleteTemplate={(id) => {
-              if (userRole === "coach" && !inspectingAthleteId) {
-                handleDeleteCoachHrZoneTemplate(id);
-              } else {
-                handleDeleteAthleteZoneTemplate(id);
-              }
-            }}
+            templates={coachHrZoneTemplates}
+            onSaveTemplate={handleSaveCoachHrZoneTemplate}
+            onDeleteTemplate={handleDeleteCoachHrZoneTemplate}
             onBack={() => setShowHrZoneTemplatesView(false)}
           />
         )}
@@ -3555,161 +3519,181 @@ export default function Home() {
                     changeActiveTab("athletes");
                   }}
                 />
+              ) : showZoneTemplatesView ? (
+                <CoachZoneTemplatesView
+                  templates={
+                    athleteVmaTemplates.length > 0
+                      ? athleteVmaTemplates
+                      : [{ id: "def_vma", name: "Modèle VMA Personnel", description: `Basé sur votre VMA de ${vma || 14} km/h`, zones: [] }]
+                  }
+                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate({ ...tmpl, type: 'vma' })}
+                  onDeleteTemplate={(id) => handleDeleteAthleteZoneTemplate(id)}
+                  onBack={() => setShowZoneTemplatesView(false)}
+                />
+              ) : showHrZoneTemplatesView ? (
+                <CoachHrZoneTemplatesView
+                  templates={
+                    athleteHrTemplates.length > 0
+                      ? athleteHrTemplates
+                      : [{ id: "def_hr", name: "Modèle FC Personnel", description: `Repos: ${fcRest || 50} bpm / Max: ${fcMax || 190} bpm`, zones: [] }]
+                  }
+                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate({ ...tmpl, type: 'hr' })}
+                  onDeleteTemplate={(id) => handleDeleteAthleteZoneTemplate(id)}
+                  onBack={() => setShowHrZoneTemplatesView(false)}
+                />
+              ) : showAthleteLibrary ? (
+                <AthleteWorkoutLibraryView
+                  libraryWorkouts={libraryWorkouts}
+                  categories={customCategories}
+                  athleteId={session?.user?.id}
+                  athleteVma={parseFloat(vma) || 14}
+                  athleteFcRest={parseFloat(fcRest) || 50}
+                  athleteFcMax={parseFloat(fcMax) || 190}
+                  athleteVmaTemplates={athleteVmaTemplates}
+                  athleteHrTemplates={athleteHrTemplates}
+                  onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
+                  onDeleteAthleteZoneTemplate={handleDeleteAthleteZoneTemplate}
+                  onAddCategory={handleAddCategory}
+                  onDeleteCategory={handleDeleteCategory}
+                  onRenameCategory={handleRenameCategory}
+                  onUpdateCategoryColor={handleUpdateCategoryColor}
+                  onMoveCategory={handleMoveCategory}
+                  onMoveWorkout={handleMoveWorkout}
+                  onCreateNewTemplate={handleCreateNewTemplate}
+                  onEditTemplate={(id) => setEditingLibraryId(id)}
+                  onDeleteTemplate={handleDeleteTemplate}
+                  onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
+                  onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
+                  onBackToProfile={() => setShowAthleteLibrary(false)}
+                />
+              ) : showPhysiologyPage ? (
+                <PhysiologyPageView
+                  vma={vma}
+                  unknownVma={unknownVma}
+                  fcRest={fcRest}
+                  fcMax={fcMax}
+                  records={records}
+                  onBack={() => setShowPhysiologyPage(false)}
+                />
+              ) : showPersonalBestsPage ? (
+                <PersonalBestsPageView
+                  races={races}
+                  onBack={() => setShowPersonalBestsPage(false)}
+                  onOpenRaceList={() => {
+                    setShowPersonalBestsPage(false);
+                    setShowRecordsPage(true);
+                  }}
+                />
+              ) : showRecordsPage ? (
+                <RecordsPageView
+                  races={races}
+                  onBack={() => setShowRecordsPage(false)}
+                  onAddRace={handleAddRace}
+                  onUpdateRace={handleUpdateRace}
+                  onDeleteRace={handleDeleteRace}
+                  isReadOnly={false}
+                />
+              ) : showShoesPage ? (
+                <ShoesPageView
+                  shoes={shoes}
+                  onBack={() => setShowShoesPage(false)}
+                  onAddShoe={handleAddShoe}
+                  onDeleteShoe={handleDeleteShoe}
+                  onToggleActiveShoe={handleToggleActiveShoe}
+                  isReadOnly={false}
+                />
+              ) : showArchivedPlansPage ? (
+                <ArchivedPlansPageView
+                  archivedPlans={archivedPlans}
+                  onBack={() => setShowArchivedPlansPage(false)}
+                  onActivatePlan={handleSwitchActivePlan}
+                  onDeletePlan={handleDeleteSpecificPlan}
+                  onSelectWorkoutDetail={setSelectedWorkoutDetail}
+                />
+              ) : showConnectedDevicesPage ? (
+                <ConnectedDevicesPageView
+                  connectedDevices={connectedDevices}
+                  toggleDeviceConnection={toggleDeviceConnection}
+                  onBack={() => setShowConnectedDevicesPage(false)}
+                  isReadOnly={false}
+                />
               ) : (
-                showAthleteLibrary ? (
-                  <AthleteWorkoutLibraryView
-                    libraryWorkouts={libraryWorkouts}
-                    categories={customCategories}
-                    athleteId={session?.user?.id}
-                    athleteVma={parseFloat(vma) || 14}
-                    athleteFcRest={parseFloat(fcRest) || 50}
-                    athleteFcMax={parseFloat(fcMax) || 190}
-                    athleteVmaTemplates={athleteVmaTemplates}
-                    athleteHrTemplates={athleteHrTemplates}
-                    onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
-                    onDeleteAthleteZoneTemplate={handleDeleteAthleteZoneTemplate}
-                    onAddCategory={handleAddCategory}
-                    onDeleteCategory={handleDeleteCategory}
-                    onRenameCategory={handleRenameCategory}
-                    onUpdateCategoryColor={handleUpdateCategoryColor}
-                    onMoveCategory={handleMoveCategory}
-                    onMoveWorkout={handleMoveWorkout}
-                    onCreateNewTemplate={handleCreateNewTemplate}
-                    onEditTemplate={(id) => setEditingLibraryId(id)}
-                    onDeleteTemplate={handleDeleteTemplate}
-                    onOpenZoneTemplates={() => setShowZoneTemplatesView(true)}
-                    onOpenHrZoneTemplates={() => setShowHrZoneTemplatesView(true)}
-                    onBackToProfile={() => setShowAthleteLibrary(false)}
-                  />
-                ) : showPhysiologyPage ? (
-                  <PhysiologyPageView
-                    vma={vma}
-                    unknownVma={unknownVma}
-                    fcRest={fcRest}
-                    fcMax={fcMax}
-                    records={records}
-                    onBack={() => setShowPhysiologyPage(false)}
-                  />
-                ) : showPersonalBestsPage ? (
-                  <PersonalBestsPageView
-                    races={races}
-                    onBack={() => setShowPersonalBestsPage(false)}
-                    onOpenRaceList={() => {
-                      setShowPersonalBestsPage(false);
-                      setShowRecordsPage(true);
-                    }}
-                  />
-                ) : showRecordsPage ? (
-                  <RecordsPageView
-                    races={races}
-                    onBack={() => setShowRecordsPage(false)}
-                    onAddRace={handleAddRace}
-                    onUpdateRace={handleUpdateRace}
-                    onDeleteRace={handleDeleteRace}
-                    isReadOnly={false}
-                  />
-                ) : showShoesPage ? (
-                  <ShoesPageView
-                    shoes={shoes}
-                    onBack={() => setShowShoesPage(false)}
-                    onAddShoe={handleAddShoe}
-                    onDeleteShoe={handleDeleteShoe}
-                    onToggleActiveShoe={handleToggleActiveShoe}
-                    isReadOnly={false}
-                  />
-                ) : showArchivedPlansPage ? (
-                  <ArchivedPlansPageView
-                    archivedPlans={archivedPlans}
-                    onBack={() => setShowArchivedPlansPage(false)}
-                    onActivatePlan={handleSwitchActivePlan}
-                    onDeletePlan={handleDeleteSpecificPlan}
-                    onSelectWorkoutDetail={setSelectedWorkoutDetail}
-                  />
-                ) : showConnectedDevicesPage ? (
-                  <ConnectedDevicesPageView
-                    connectedDevices={connectedDevices}
-                    toggleDeviceConnection={toggleDeviceConnection}
-                    onBack={() => setShowConnectedDevicesPage(false)}
-                    isReadOnly={false}
-                  />
-                ) : (
-                  <ProfileView
-                    athleteName={session?.user?.user_metadata?.full_name || athleteName}
-                    setAthleteName={async (newName) => {
-                      setAthleteName(newName);
-                      await saveProfileToSupabase({ fullName: newName });
-                    }}
-                    avatarUrl={avatarUrl}
-                    onUpdateAvatar={handleUpdateAvatar}
-                    height={height}
-                    setHeight={async (newHeight) => {
-                      setHeight(newHeight);
-                      await saveProfileToSupabase({ heightVal: newHeight });
-                    }}
-                    weight={weight}
-                    setWeight={async (newWeight) => {
-                      setWeight(newWeight);
-                      await saveProfileToSupabase({ weightVal: newWeight });
-                    }}
-                    vma={vma}
-                    setVma={async (newVma) => {
-                      setVma(newVma);
-                      await saveProfileToSupabase({ vmaVal: newVma });
-                    }}
-                    unknownVma={unknownVma}
-                    setUnknownVma={setUnknownVma}
-                    fcRest={fcRest}
-                    setFcRest={async (newFcRest) => {
-                      setFcRest(newFcRest);
-                      await saveProfileToSupabase({ fcRestVal: newFcRest });
-                    }}
-                    fcMax={fcMax}
-                    setFcMax={async (newFcMax) => {
-                      setFcMax(newFcMax);
-                      await saveProfileToSupabase({ fcMaxVal: newFcMax });
-                    }}
-                    records={records}
-                    setRecords={async (actionOrValue) => {
-                      const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
-                      setRecords(nextRecords);
-                      await saveProfileToSupabase({ recordsMap: nextRecords });
-                    }}
-                    onSaveFullProfile={async (data) => {
-                      setAthleteName(data.name);
-                      setHeight(data.height);
-                      setWeight(data.weight);
-                      setVma(data.vma);
-                      setUnknownVma(data.unknownVma);
-                      setFcRest(data.fcRest);
-                      setFcMax(data.fcMax);
-                      if (data.records) setRecords(data.records);
+                <ProfileView
+                  athleteName={session?.user?.user_metadata?.full_name || athleteName}
+                  setAthleteName={async (newName) => {
+                    setAthleteName(newName);
+                    await saveProfileToSupabase({ fullName: newName });
+                  }}
+                  avatarUrl={avatarUrl}
+                  onUpdateAvatar={handleUpdateAvatar}
+                  height={height}
+                  setHeight={async (newHeight) => {
+                    setHeight(newHeight);
+                    await saveProfileToSupabase({ heightVal: newHeight });
+                  }}
+                  weight={weight}
+                  setWeight={async (newWeight) => {
+                    setWeight(newWeight);
+                    await saveProfileToSupabase({ weightVal: newWeight });
+                  }}
+                  vma={vma}
+                  setVma={async (newVma) => {
+                    setVma(newVma);
+                    await saveProfileToSupabase({ vmaVal: newVma });
+                  }}
+                  unknownVma={unknownVma}
+                  setUnknownVma={setUnknownVma}
+                  fcRest={fcRest}
+                  setFcRest={async (newFcRest) => {
+                    setFcRest(newFcRest);
+                    await saveProfileToSupabase({ fcRestVal: newFcRest });
+                  }}
+                  fcMax={fcMax}
+                  setFcMax={async (newFcMax) => {
+                    setFcMax(newFcMax);
+                    await saveProfileToSupabase({ fcMaxVal: newFcMax });
+                  }}
+                  records={records}
+                  setRecords={async (actionOrValue) => {
+                    const nextRecords = typeof actionOrValue === "function" ? actionOrValue(records) : actionOrValue;
+                    setRecords(nextRecords);
+                    await saveProfileToSupabase({ recordsMap: nextRecords });
+                  }}
+                  onSaveFullProfile={async (data) => {
+                    setAthleteName(data.name);
+                    setHeight(data.height);
+                    setWeight(data.weight);
+                    setVma(data.vma);
+                    setUnknownVma(data.unknownVma);
+                    setFcRest(data.fcRest);
+                    setFcMax(data.fcMax);
+                    if (data.records) setRecords(data.records);
 
-                      await saveProfileToSupabase({
-                        fullName: data.name,
-                        heightVal: data.height,
-                        weightVal: data.weight,
-                        vmaVal: data.unknownVma ? "" : data.vma,
-                        fcRestVal: data.fcRest,
-                        fcMaxVal: data.fcMax,
-                        recordsMap: data.records || records,
-                      });
-                    }}
-                    races={races}
-                    connectedDevices={connectedDevices}
-                    toggleDeviceConnection={toggleDeviceConnection}
-                    archivedPlans={archivedPlans}
-                    shoes={shoes}
-                    onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
-                    onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
-                    onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
-                    onOpenRecordsPage={() => setShowRecordsPage(true)}
-                    onOpenShoesPage={() => setShowShoesPage(true)}
-                    onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
-                    onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
-                    onOpenCalculators={() => setShowCalculatorsView(true)}
-                    isReadOnly={false}
-                  />
-                )
+                    await saveProfileToSupabase({
+                      fullName: data.name,
+                      heightVal: data.height,
+                      weightVal: data.weight,
+                      vmaVal: data.unknownVma ? "" : data.vma,
+                      fcRestVal: data.fcRest,
+                      fcMaxVal: data.fcMax,
+                      recordsMap: data.records || records,
+                    });
+                  }}
+                  races={races}
+                  connectedDevices={connectedDevices}
+                  toggleDeviceConnection={toggleDeviceConnection}
+                  archivedPlans={archivedPlans}
+                  shoes={shoes}
+                  onOpenAthleteLibrary={() => setShowAthleteLibrary(true)}
+                  onOpenPhysiologyPage={() => setShowPhysiologyPage(true)}
+                  onOpenPersonalBestsPage={() => setShowPersonalBestsPage(true)}
+                  onOpenRecordsPage={() => setShowRecordsPage(true)}
+                  onOpenShoesPage={() => setShowShoesPage(true)}
+                  onOpenArchivedPlansPage={() => setShowArchivedPlansPage(true)}
+                  onOpenConnectedDevicesPage={() => setShowConnectedDevicesPage(true)}
+                  onOpenCalculators={() => setShowCalculatorsView(true)}
+                  isReadOnly={false}
+                />
               )
             )}
           </>
