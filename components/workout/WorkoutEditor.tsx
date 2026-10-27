@@ -32,6 +32,8 @@ interface WorkoutEditorProps {
   categories?: LibraryCategory[];
   userRole?: UserRole;
   vma?: number | string;
+  athleteVmaTemplates?: any[];
+  athleteHrTemplates?: any[];
 }
 
 const getRpeColor = (rpe: number) => {

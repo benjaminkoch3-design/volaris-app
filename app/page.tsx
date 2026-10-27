@@ -69,7 +69,7 @@ import { CoachZoneTemplatesView, ZoneTemplate } from "../components/coach/CoachZ
 import { CoachHrZoneTemplatesView, HrZoneTemplate } from "../components/coach/CoachHrZoneTemplatesView";
 import { CoachDailyWorkoutsView, AthleteDailySession } from "../components/coach/CoachDailyWorkoutsView";
 import { CoachCalendarView } from "../components/coach/CoachCalendarView";
-import { CoachAthleteProfileView } from "../components/coach/CoachAthleteProfileView"; // <--- Importé ici
+import { CoachAthleteProfileView } from "../components/coach/CoachAthleteProfileView";
 
 // Messagerie
 import { ChatView } from "../components/chat/ChatView";
@@ -119,6 +119,10 @@ export default function Home() {
   // État d'affichage de la vue de gestion des modèles de fréquence cardiaque (% FCR) du coach
   const [showHrZoneTemplatesView, setShowHrZoneTemplatesView] = useState<boolean>(false);
   const [coachHrZoneTemplates, setCoachHrZoneTemplates] = useState<HrZoneTemplate[]>([]);
+
+  // États pour les modèles personnels de zones de l'athlète
+  const [athleteVmaTemplates, setAthleteVmaTemplates] = useState<any[]>([]);
+  const [athleteHrTemplates, setAthleteHrTemplates] = useState<any[]>([]);
 
   const handleSaveCoachZoneTemplate = async (template: ZoneTemplate) => {
     if (!session?.user) return;
@@ -199,6 +203,48 @@ export default function Home() {
     if (error) {
       console.error("Erreur suppression modèle FC :", error.message);
     }
+  };
+
+  // Fonctions de gestion des modèles personnels de l'athlète
+  const handleSaveAthleteZoneTemplate = async (template: any) => {
+    if (!session?.user) return;
+    const targetUserId = session.user.id;
+
+    const templateId = template.id || `ath_zone_${Date.now()}`;
+    const templatePayload = {
+      id: templateId,
+      user_id: targetUserId,
+      type: template.type,
+      name: template.name,
+      zones: template.zones,
+    };
+
+    if (template.type === 'vma') {
+      setAthleteVmaTemplates((prev) => {
+        const exists = prev.some((t) => t.id === templateId);
+        if (exists) return prev.map((t) => (t.id === templateId ? templatePayload : t));
+        return [templatePayload, ...prev];
+      });
+    } else {
+      setAthleteHrTemplates((prev) => {
+        const exists = prev.some((t) => t.id === templateId);
+        if (exists) return prev.map((t) => (t.id === templateId ? templatePayload : t));
+        return [templatePayload, ...prev];
+      });
+    }
+
+    const { error } = await supabase.from("athlete_zone_templates").upsert(templatePayload);
+    if (error) {
+      console.error("Erreur sauvegarde modèle athlète :", error.message);
+    }
+  };
+
+  const handleDeleteAthleteZoneTemplate = async (templateId: string) => {
+    if (!session?.user) return;
+    setAthleteVmaTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    setAthleteHrTemplates((prev) => prev.filter((t) => t.id !== templateId));
+
+    await supabase.from("athlete_zone_templates").delete().eq("id", templateId);
   };
 
   const navigateToPlanStats = () => {
@@ -1350,6 +1396,17 @@ export default function Home() {
           steps: l.steps || [],
           createdAt: l.created_at || "",
         })));
+      }
+
+      // Chargement des modèles personnels de zones de l'athlète
+      const { data: athTemplatesData } = await supabase
+        .from("athlete_zone_templates")
+        .select("*")
+        .eq("user_id", session.user.id);
+
+      if (athTemplatesData) {
+        setAthleteVmaTemplates(athTemplatesData.filter((t: any) => t.type === 'vma'));
+        setAthleteHrTemplates(athTemplatesData.filter((t: any) => t.type === 'hr'));
       }
 
       if (userRole === "coach") {
@@ -2938,6 +2995,8 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
+        athleteVmaTemplates={athleteVmaTemplates}
+        athleteHrTemplates={athleteHrTemplates}
       />
     );
   }
@@ -2966,6 +3025,8 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
+        athleteVmaTemplates={athleteVmaTemplates}
+        athleteHrTemplates={athleteHrTemplates}
       />
     );
   }
@@ -2980,6 +3041,8 @@ export default function Home() {
         onOpenDebrief={(workout) => setDebriefWorkout(workout)}
         userRole={userRole}
         vma={currentAthleteVma}
+        athleteVmaTemplates={athleteVmaTemplates}
+        athleteHrTemplates={athleteHrTemplates}
       />
     );
   }
@@ -3229,6 +3292,14 @@ export default function Home() {
           <AthleteWorkoutLibraryView
             libraryWorkouts={libraryWorkouts}
             categories={customCategories}
+            athleteId={session?.user?.id}
+            athleteVma={parseFloat(vma) || 14}
+            athleteFcRest={parseFloat(fcRest) || 50}
+            athleteFcMax={parseFloat(fcMax) || 190}
+            athleteVmaTemplates={athleteVmaTemplates}
+            athleteHrTemplates={athleteHrTemplates}
+            onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
+            onDeleteAthleteZoneTemplate={handleDeleteAthleteZoneTemplate}
             onAddCategory={handleAddCategory}
             onDeleteCategory={handleDeleteCategory}
             onRenameCategory={handleRenameCategory}
@@ -3473,7 +3544,7 @@ export default function Home() {
               />
             )}
 
-            {/* 5. PROFIL : Séparation stricte entre le Coach (vue personnalisée) et l'Athlète (profil complet) */}
+            {/* Profil */}
             {activeTab === "profil" && (
               isCoachInspecting && selectedAthlete ? (
                 <CoachAthleteProfileView
@@ -3491,6 +3562,14 @@ export default function Home() {
                   <AthleteWorkoutLibraryView
                     libraryWorkouts={libraryWorkouts}
                     categories={customCategories}
+                    athleteId={session?.user?.id}
+                    athleteVma={parseFloat(vma) || 14}
+                    athleteFcRest={parseFloat(fcRest) || 50}
+                    athleteFcMax={parseFloat(fcMax) || 190}
+                    athleteVmaTemplates={athleteVmaTemplates}
+                    athleteHrTemplates={athleteHrTemplates}
+                    onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
+                    onDeleteAthleteZoneTemplate={handleDeleteAthleteZoneTemplate}
                     onAddCategory={handleAddCategory}
                     onDeleteCategory={handleDeleteCategory}
                     onRenameCategory={handleRenameCategory}

@@ -23,6 +23,8 @@ interface WorkoutDetailProps {
   onOpenDebrief?: (workout: Workout) => void;
   userRole?: "athlete" | "coach";
   vma?: number | string;
+  athleteVmaTemplates?: any[];
+  athleteHrTemplates?: any[];
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {

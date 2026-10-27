@@ -12,6 +12,10 @@ interface AthleteWorkoutLibraryViewProps {
   athleteVma?: number | string;
   athleteFcRest?: number | string;
   athleteFcMax?: number | string;
+  athleteVmaTemplates?: any[];
+  athleteHrTemplates?: any[];
+  onSaveAthleteZoneTemplate?: (template: any) => void;
+  onDeleteAthleteZoneTemplate?: (templateId: string) => void;
   onAddCategory: (label: string, color?: string) => void;
   onDeleteCategory: (id: string) => void;
   onRenameCategory?: (id: string, newLabel: string) => void;
@@ -82,6 +86,10 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   athleteVma = 14,
   athleteFcRest = 50,
   athleteFcMax = 190,
+  athleteVmaTemplates = [],
+  athleteHrTemplates = [],
+  onSaveAthleteZoneTemplate,
+  onDeleteAthleteZoneTemplate,
   onAddCategory,
   onDeleteCategory,
   onRenameCategory,
@@ -108,8 +116,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
   const [colorPickerCatId, setColorPickerCatId] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // Gestion des modèles perso d'allure et FC de l'athlète
-  const [athleteTemplates, setAthleteTemplates] = useState<ZoneTemplate[]>([]);
+  // Gestion de la sélection de l'athlète depuis Supabase
   const [selectedVmaTmplId, setSelectedVmaTmplId] = useState<string>("");
   const [selectedHrTmplId, setSelectedHrTmplId] = useState<string>("");
   const [savingZones, setSavingZones] = useState(false);
@@ -139,21 +146,21 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
     }
   }, [editingCategoryId]);
 
-  // Charger les modèles et la sélection de l'athlète depuis Supabase
+  // Charger la sélection actuelle de l'athlète depuis Supabase
   useEffect(() => {
-    const fetchAthleteZones = async () => {
-      const [tmplRes, profileRes] = await Promise.all([
-        supabase.from("athlete_zone_templates").select("*").eq("user_id", athleteId),
-        supabase.from("profiles").select("athlete_vma_template_id, athlete_hr_template_id").eq("id", athleteId).maybeSingle()
-      ]);
+    const fetchAthleteProfileZones = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("athlete_vma_template_id, athlete_hr_template_id")
+        .eq("id", athleteId)
+        .maybeSingle();
 
-      if (tmplRes.data) setAthleteTemplates(tmplRes.data);
-      if (profileRes.data) {
-        if (profileRes.data.athlete_vma_template_id) setSelectedVmaTmplId(profileRes.data.athlete_vma_template_id);
-        if (profileRes.data.athlete_hr_template_id) setSelectedHrTmplId(profileRes.data.athlete_hr_template_id);
+      if (data) {
+        if (data.athlete_vma_template_id) setSelectedVmaTmplId(data.athlete_vma_template_id);
+        if (data.athlete_hr_template_id) setSelectedHrTmplId(data.athlete_hr_template_id);
       }
     };
-    if (athleteId) fetchAthleteZones();
+    if (athleteId) fetchAthleteProfileZones();
   }, [athleteId]);
 
   const handleCreateCategorySubmit = (e: React.FormEvent) => {
@@ -205,14 +212,14 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
       zones: newTmplZones,
     };
 
-    const { error } = await supabase.from("athlete_zone_templates").insert(newTmpl);
-    if (!error) {
-      setAthleteTemplates([...athleteTemplates, newTmpl]);
-      if (type === 'vma') setSelectedVmaTmplId(newId);
-      if (type === 'hr') setSelectedHrTmplId(newId);
-      setShowNewZoneForm(null);
-      setNewTmplName("");
+    if (onSaveAthleteZoneTemplate) {
+      onSaveAthleteZoneTemplate(newTmpl);
     }
+
+    if (type === 'vma') setSelectedVmaTmplId(newId);
+    if (type === 'hr') setSelectedHrTmplId(newId);
+    setShowNewZoneForm(null);
+    setNewTmplName("");
   };
 
   const currentCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -220,8 +227,8 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
     (w) => w.categoryId === selectedCategoryId
   );
 
-  const activeVmaTmpl = athleteTemplates.find((t) => String(t.id) === String(selectedVmaTmplId) && t.type === 'vma');
-  const activeHrTmpl = athleteTemplates.find((t) => String(t.id) === String(selectedHrTmplId) && t.type === 'hr');
+  const activeVmaTmpl = athleteVmaTemplates.find((t) => String(t.id) === String(selectedVmaTmplId));
+  const activeHrTmpl = athleteHrTemplates.find((t) => String(t.id) === String(selectedHrTmplId));
 
   const numVma = parseFloat(String(athleteVma)) || 14;
   const numFcRest = parseFloat(String(athleteFcRest)) || 50;
@@ -560,7 +567,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                 Modèles d'Allure & Fréquence Cardiaque (Athlète)
               </h3>
               <p className="text-xs text-stone-400 mt-1">
-                Définissez vos propres modèles de zones. Ils s'appliqueront automatiquement à votre profil (vos modèles peuvent être différents de ceux du coach).
+                Définissez vos propres modèles de zones. Ils s'appliqueront automatiquement à votre profil.
               </p>
             </div>
 
@@ -610,7 +617,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                   className="flex-1 sm:w-64 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                 >
                   <option value="">-- Aucun modèle d'allure personnel --</option>
-                  {athleteTemplates.filter(t => t.type === 'vma').map((t) => (
+                  {athleteVmaTemplates.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
@@ -680,7 +687,7 @@ export const AthleteWorkoutLibraryView: React.FC<AthleteWorkoutLibraryViewProps>
                   className="flex-1 sm:w-64 bg-stone-900 border border-stone-800 rounded-xl px-3 py-2 text-xs font-bold text-stone-100 focus:outline-none focus:border-[#CF9A61]"
                 >
                   <option value="">-- Aucun modèle FC personnel --</option>
-                  {athleteTemplates.filter(t => t.type === 'hr').map((t) => (
+                  {athleteHrTemplates.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
