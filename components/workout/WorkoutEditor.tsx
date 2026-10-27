@@ -79,16 +79,19 @@ const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPerce
 };
 
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
-  if (!fcMaxVal || fcMaxVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
+  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 190; // Valeur de secours par défaut
+  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 50;   // Valeur de secours par défaut
   
-  if (fcRestVal && fcRestVal > 0 && fcMaxVal > fcRestVal) {
-    const reserve = fcMaxVal - fcRestVal;
-    const minBpm = Math.round(fcRestVal + reserve * (minPercent / 100));
-    const maxBpm = Math.round(fcRestVal + reserve * (maxPercent / 100));
+  if (minPercent === undefined || maxPercent === undefined) return null;
+  
+  if (maxToUse > restToUse) {
+    const reserve = maxToUse - restToUse;
+    const minBpm = Math.round(restToUse + reserve * (minPercent / 100));
+    const maxBpm = Math.round(restToUse + reserve * (maxPercent / 100));
     return `${minBpm} - ${maxBpm} bpm`;
   } else {
-    const minBpm = Math.round((minPercent / 100) * fcMaxVal);
-    const maxBpm = Math.round((maxPercent / 100) * fcMaxVal);
+    const minBpm = Math.round((minPercent / 100) * maxToUse);
+    const maxBpm = Math.round((maxPercent / 100) * maxToUse);
     return `${minBpm} - ${maxBpm} bpm`;
   }
 };
