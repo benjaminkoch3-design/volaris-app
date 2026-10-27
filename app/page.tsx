@@ -683,7 +683,6 @@ export default function Home() {
     ? selectedAthlete?.vma ? selectedAthlete.vma.replace(" km/h", "").replace("N/A", "").trim() : ""
     : vma;
 
-  // Récupération dynamique et robuste de la FC de l'athlète (qu'il soit connecté ou inspecté par le coach)
   const parseFcValue = (val: any): number => {
     if (val === null || val === undefined) return 0;
     const cleaned = String(val).replace(/[^0-9.]/g, "");
@@ -1083,7 +1082,6 @@ export default function Home() {
           .select("*")
           .in("user_id", athleteIds);
 
-        // Charger aussi les settings coach_athlete_settings pour récupérer les VMA/FC personnalisées par le coach
         const { data: coachAthSettings } = await supabase
           .from("coach_athlete_settings")
           .select("*")
@@ -1339,7 +1337,6 @@ export default function Home() {
         if (profile.height) setHeight(profile.height.toString());
         if (profile.weight) setWeight(profile.weight.toString());
 
-        // Priorité aux réglages personnalisés du coach (coach_athlete_settings) s'ils existent
         const resolvedVma = coachSettings?.custom_vma ?? profile.vma;
         const resolvedFcRest = coachSettings?.custom_fc_min ?? profile.fc_rest;
         const resolvedFcMax = coachSettings?.custom_fc_max ?? profile.fc_max;
@@ -2240,7 +2237,6 @@ export default function Home() {
   };
 
   const handleDeleteWorkout = async (workoutId: string) => {
-    // 1. Mise à jour de l'état local en transformant la séance en jour de repos
     setDraftWorkouts((prev) =>
       prev.map((w) => {
         if (w.id === workoutId) {
@@ -2260,7 +2256,6 @@ export default function Home() {
       })
     );
 
-    // 2. Synchronisation immédiate avec Supabase pour que le changement persiste au rechargement
     if (session?.user) {
       await supabase.from("workouts").update({
         is_rest: true,
@@ -3083,6 +3078,7 @@ export default function Home() {
     );
   }
 
+  // ÉDITION DE LA BIBLIOTHÈQUE DU COACH : On passe explicitement VMA et FC à 0
   if (editingLibraryId) {
     const libTemplate = libraryWorkouts.find((l) => l.id === editingLibraryId);
     if (!libTemplate) {
@@ -3141,9 +3137,12 @@ export default function Home() {
         libraryWorkouts={libraryWorkouts}
         categories={customCategories}
         userRole={userRole}
-        vma={currentAthleteVma}
-        fcRest={currentAthleteFcRest}
-        fcMax={currentAthleteFcMax}
+        
+        // 🚨 SÉCURITÉ BIBLIOTHÈQUE : Pas de VMA ni de FC de référence
+        vma={0}
+        fcRest={0}
+        fcMax={0}
+
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
         coachVmaTemplates={coachZoneTemplates}
