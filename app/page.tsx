@@ -3023,7 +3023,6 @@ export default function Home() {
         categories={customCategories}
         userRole={userRole}
         vma={currentAthleteVma}
-        // 👉 Passage des modèles du coach pour que l'éditeur utilise en priorité le favori (isDefault)
         athleteVmaTemplates={coachZoneTemplates}
         athleteHrTemplates={coachHrZoneTemplates}
       />

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole, ZoneTemplate } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
-import { calculateStepMetrics, getWorkoutTypeConfig, formatPaceFromSpeed } from "../../utils/calculations";
+import { calculateStepMetrics, getWorkoutTypeConfig } from "../../utils/calculations";
 import { PaceProfileChart } from "./PaceProfileChart";
 
 interface WorkoutEditorProps {
@@ -32,6 +32,8 @@ interface WorkoutEditorProps {
   categories?: LibraryCategory[];
   userRole?: UserRole;
   vma?: number | string;
+  fcRest?: number | string;
+  fcMax?: number | string;
   athleteVmaTemplates?: any[];
   athleteHrTemplates?: any[];
   coachVmaTemplates?: any[];
@@ -45,10 +47,35 @@ const getRpeColor = (rpe: number) => {
   return "#ef4444";
 };
 
+const formatPaceFromSpeedKmH = (speedKmH: number): string => {
+  if (!speedKmH || speedKmH <= 0) return "--:--";
+  const totalSeconds = 3600 / speedKmH;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = Math.round(totalSeconds % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
 const formatPaceFromSeconds = (totalSec: number) => {
   const mins = Math.floor(totalSec / 60);
   const secs = Math.round(totalSec % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
+const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
+  if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
+  const minSpeed = (vmaVal * minPercent) / 100;
+  const maxSpeed = (vmaVal * maxPercent) / 100;
+  const paceFast = formatPaceFromSpeedKmH(maxSpeed);
+  const paceSlow = formatPaceFromSpeedKmH(minSpeed);
+  return `${paceSlow} - ${paceFast} /km`;
+};
+
+const calculateHrRangeFromKarvonen = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
+  if (!fcRestVal || !fcMaxVal || fcMaxVal <= fcRestVal || minPercent === undefined || maxPercent === undefined) return null;
+  const reserve = fcMaxVal - fcRestVal;
+  const minBpm = Math.round(fcRestVal + (minPercent / 100) * reserve);
+  const maxBpm = Math.round(fcRestVal + (maxPercent / 100) * reserve);
+  return `${minBpm} - ${maxBpm} bpm`;
 };
 
 export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
@@ -63,6 +90,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   categories = [],
   userRole = "athlete",
   vma,
+  fcRest,
+  fcMax,
   athleteVmaTemplates = [],
   athleteHrTemplates = [],
   coachVmaTemplates = [],
@@ -72,6 +101,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState<string>(categories[0]?.id || "");
 
+  const numericVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma || 0);
+  const numericFcRest = typeof fcRest === "string" ? parseFloat(fcRest) : Number(fcRest || 0);
+  const numericFcMax = typeof fcMax === "string" ? parseFloat(fcMax) : Number(fcMax || 0);
+
   const metrics = calculateStepMetrics(workout.steps, vma);
   const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
 
@@ -79,7 +112,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
   const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
 
-  // Récupération des modèles VMA et FC à utiliser (Priorité au modèle favori isDefault)
   const availableVmaTemplates = isCoach
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
@@ -98,35 +130,30 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     (w) => !selectedCatId || w.categoryId === selectedCatId
   );
 
-  const applyVmaToImportedSteps = (steps: WorkoutStep[], athleteVma?: number | string): WorkoutStep[] => {
-    const parsedVma = typeof athleteVma === "string" ? parseFloat(athleteVma.replace(",", ".")) : Number(athleteVma);
-    const hasVma = !isNaN(parsedVma) && parsedVma > 0;
-    const targetPaceSec65 = hasVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
-
+  // Mapping intelligent par index lors de l'importation d'un modèle bibliothèque
+  const adaptStepsToCurrentAthleteZones = (steps: WorkoutStep[]): WorkoutStep[] => {
     return steps.map((step) => {
       let updatedStep = { ...step };
 
       if (step.type === "repeat" && step.nestedSteps && step.nestedSteps.length > 0) {
-        updatedStep.nestedSteps = applyVmaToImportedSteps(step.nestedSteps, athleteVma);
+        updatedStep.nestedSteps = adaptStepsToCurrentAthleteZones(step.nestedSteps);
         return updatedStep;
       }
 
-      const isWalking = step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
-      const isRecoveryOrWarmupOrCalm =
-        step.type === "echauffement" ||
-        step.type === "recup" ||
-        step.type === "recup_marche" ||
-        step.type === "retour_calme";
-
-      if (isWalking) {
-        if (!step.paceMin && !step.paceMax) {
-          updatedStep.paceMin = "10:00";
-          updatedStep.paceMax = "10:30";
+      // Si le bloc utilise une zone VMA ou FC, on cherche l'index de la zone d'origine pour l'appliquer au modèle de l'athlète
+      if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
+        const originalZoneIndex = defaultVmaTemplate.zones.findIndex((z: any) => z.id === step.targetZoneId);
+        if (originalZoneIndex !== -1 && defaultVmaTemplate.zones[originalZoneIndex]) {
+          const matchedZone = defaultVmaTemplate.zones[originalZoneIndex];
+          updatedStep.targetZoneId = matchedZone.id;
+          updatedStep.targetZoneName = matchedZone.name;
         }
-      } else if (isRecoveryOrWarmupOrCalm && targetPaceSec65) {
-        if (!step.paceMin && !step.paceMax && !step.targetPace) {
-          updatedStep.paceMin = formatPaceFromSeconds(targetPaceSec65 - 5);
-          updatedStep.paceMax = formatPaceFromSeconds(targetPaceSec65 + 5);
+      } else if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
+        const originalZoneIndex = defaultHrTemplate.zones.findIndex((z: any) => z.id === step.targetZoneId);
+        if (originalZoneIndex !== -1 && defaultHrTemplate.zones[originalZoneIndex]) {
+          const matchedZone = defaultHrTemplate.zones[originalZoneIndex];
+          updatedStep.targetZoneId = matchedZone.id;
+          updatedStep.targetZoneName = matchedZone.name;
         }
       }
 
@@ -143,8 +170,8 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     onUpdateWorkout(workout.id, "km", template.km || "");
     onUpdateWorkout(workout.id, "rpe", template.rpe || "5");
 
-    const adjustedSteps = applyVmaToImportedSteps(template.steps || [], vma);
-    onUpdateWorkout(workout.id, "steps", adjustedSteps);
+    const adaptedSteps = adaptStepsToCurrentAthleteZones(template.steps || []);
+    onUpdateWorkout(workout.id, "steps", adaptedSteps);
 
     setShowImportModal(false);
   };
@@ -192,6 +219,21 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
 
       const goalType = step.goalType || "allure";
+
+      const selectedVmaZone = defaultVmaTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
+      const selectedHrZone = defaultHrTemplate?.zones?.find((z: any) => z.id === step.targetZoneId);
+
+      const computedVmaPaceRange = selectedVmaZone
+        ? selectedVmaZone.paceMin && selectedVmaZone.paceMax
+          ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
+          : calculatePaceRangeFromVma(numericVma, selectedVmaZone.minPercent, selectedVmaZone.maxPercent)
+        : null;
+
+      const computedHrBpmRange = selectedHrZone
+        ? selectedHrZone.minBpm && selectedHrZone.maxBpm
+          ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
+          : calculateHrRangeFromKarvonen(numericFcRest, numericFcMax, selectedHrZone.minPercent, selectedHrZone.maxPercent)
+        : null;
 
       return (
         <div
@@ -289,29 +331,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                     </button>
                   </div>
                 </div>
-
-                {Number(step.reps || 0) > 1 && (
-                  <div className="pt-2 border-t border-stone-800/60">
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">
-                      <input
-                        type="checkbox"
-                        checked={Boolean((step as any).skipLastRecovery)}
-                        onChange={(e) =>
-                          onUpdateStep(
-                            workout.id,
-                            currentPath,
-                            "skipLastRecovery" as any,
-                            e.target.checked
-                          )
-                        }
-                        className="w-3.5 h-3.5 rounded border-stone-700 bg-stone-950 text-[#CF9A61] focus:ring-0 cursor-pointer accent-[#CF9A61]"
-                      />
-                      <span className="font-semibold leading-tight">
-                        Ne pas faire la dernière récupération (enchaîner directement)
-                      </span>
-                    </label>
-                  </div>
-                )}
               </div>
 
               {step.nestedSteps && step.nestedSteps.length > 0 && (
@@ -425,7 +444,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                 </div>
               </div>
 
-              {/* SÉLECTEUR DE TYPE DE CIBLE (Allure, Zone VMA, Zone FC, RPE) */}
+              {/* SÉLECTEUR DE TYPE DE CIBLE DU BLOC */}
               <div className="space-y-2 bg-stone-900/40 p-2.5 rounded-xl border border-stone-800/60">
                 <div className="flex justify-between items-center">
                   <label className="block text-[8px] uppercase font-bold text-stone-400">
@@ -490,17 +509,12 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                   </div>
                 )}
 
-                {/* 2. ZONE VMA (Modèle favori utilisé en priorité) */}
+                {/* 2. ZONE VMA */}
                 {goalType === "vma_zone" && (
-                  <div className="pt-1">
+                  <div className="pt-1 space-y-2">
                     {!defaultVmaTemplate ? (
-                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
-                        <p className="font-bold">⚠️ Aucun modèle de zones VMA disponible</p>
-                        <p className="text-stone-400">
-                          {isCoach
-                            ? "Veuillez définir un modèle VMA dans votre configuration coach."
-                            : "Rendez-vous dans votre Profil pour créer vos modèles de zones d'allures."}
-                        </p>
+                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300">
+                        ⚠️ Aucun modèle de zone VMA disponible
                       </div>
                     ) : (
                       <div>
@@ -509,7 +523,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             Sélectionner la zone VMA
                           </label>
                           <span className="text-[8px] text-[#CF9A61] font-bold">
-                            Modèle : {defaultVmaTemplate.name} {defaultVmaTemplate.isDefault ? "⭐ (Favori)" : ""}
+                            Modèle : {defaultVmaTemplate.name} {defaultVmaTemplate.isDefault ? "⭐" : ""}
                           </span>
                         </div>
                         <select
@@ -520,8 +534,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
-                              if (zone.paceMin) onUpdateStep(workout.id, currentPath, "paceMin", zone.paceMin);
-                              if (zone.paceMax) onUpdateStep(workout.id, currentPath, "paceMax", zone.paceMax);
                             }
                           }}
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
@@ -529,26 +541,28 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           <option value="">-- Choisir une zone --</option>
                           {defaultVmaTemplate.zones?.map((zone: any) => (
                             <option key={zone.id} value={zone.id}>
-                              {zone.name} {zone.paceMin && zone.paceMax ? `(${zone.paceMin} - ${zone.paceMax} /km)` : zone.minPercent ? `(${zone.minPercent}% - ${zone.maxPercent}%)` : ""}
+                              {zone.name} ({zone.minPercent}% - {zone.maxPercent}%)
                             </option>
                           ))}
                         </select>
+
+                        {computedVmaPaceRange && (
+                          <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
+                            <span className="text-[9px] font-bold text-stone-300 uppercase">Cible Allure :</span>
+                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedVmaPaceRange}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* 3. ZONE FC (Modèle favori utilisé en priorité) */}
+                {/* 3. ZONE FC */}
                 {goalType === "hr_zone" && (
-                  <div className="pt-1">
+                  <div className="pt-1 space-y-2">
                     {!defaultHrTemplate ? (
-                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300 space-y-1">
-                        <p className="font-bold">⚠️ Aucun modèle de zones FC disponible</p>
-                        <p className="text-stone-400">
-                          {isCoach
-                            ? "Veuillez définir un modèle FC dans votre configuration coach."
-                            : "Rendez-vous dans votre Profil pour créer vos modèles de Fréquence Cardiaque."}
-                        </p>
+                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-[10px] text-amber-300">
+                        ⚠️ Aucun modèle FC disponible
                       </div>
                     ) : (
                       <div>
@@ -557,7 +571,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             Sélectionner la zone de FC
                           </label>
                           <span className="text-[8px] text-[#CF9A61] font-bold">
-                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐ (Favori)" : ""}
+                            Modèle : {defaultHrTemplate.name} {defaultHrTemplate.isDefault ? "⭐" : ""}
                           </span>
                         </div>
                         <select
@@ -568,9 +582,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                             onUpdateStep(workout.id, currentPath, "targetZoneId", zoneId);
                             if (zone) {
                               onUpdateStep(workout.id, currentPath, "targetZoneName", zone.name);
-                              if (zone.minBpm && zone.maxBpm) {
-                                onUpdateStep(workout.id, currentPath, "targetPace", `${zone.minBpm} - ${zone.maxBpm} bpm`);
-                              }
                             }
                           }}
                           className="w-full bg-stone-950 border border-stone-800 text-[10px] font-bold text-stone-100 rounded-lg p-2 focus:outline-none cursor-pointer"
@@ -578,10 +589,17 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           <option value="">-- Choisir une zone FC --</option>
                           {defaultHrTemplate.zones?.map((zone: any) => (
                             <option key={zone.id} value={zone.id}>
-                              {zone.name} {zone.minBpm && zone.maxBpm ? `(${zone.minBpm} - ${zone.maxBpm} bpm)` : zone.minPercent ? `(${zone.minPercent}% - ${zone.maxPercent}%)` : ""}
+                              {zone.name} ({zone.minPercent}% - {zone.maxPercent}%)
                             </option>
                           ))}
                         </select>
+
+                        {computedHrBpmRange && (
+                          <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
+                            <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
+                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedHrBpmRange}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
