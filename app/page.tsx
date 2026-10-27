@@ -91,7 +91,6 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [userRole, setUserRole] = useState<UserRole>("athlete");
 
-  // Récupération de l'onglet précédent sauvegardé
   const [activeTab, setActiveTab] = useState<ActiveTab>("accueil");
   const [statsSubTab, setStatsSubTab] = useState<"plan" | "annual">("annual");
 
@@ -109,18 +108,15 @@ export default function Home() {
   const [allCoachAthletesPlans, setAllCoachAthletesPlans] = useState<Plan[]>([]);
   const [allCoachAthletesWorkouts, setAllCoachAthletesWorkouts] = useState<Workout[]>([]);
 
-  // État d'affichage de la page d'aide aux calculs (VDOT / VMA / Allures)
   const [showCalculatorsView, setShowCalculatorsView] = useState<boolean>(false);
 
-  // État d'affichage de la vue de gestion des modèles de zones d'allures du coach
+  // Vues de gestion des modèles de zones (VMA et FC) partagées ou spécifiques
   const [showZoneTemplatesView, setShowZoneTemplatesView] = useState<boolean>(false);
   const [coachZoneTemplates, setCoachZoneTemplates] = useState<ZoneTemplate[]>([]);
 
-  // État d'affichage de la vue de gestion des modèles de fréquence cardiaque (% FCR) du coach
   const [showHrZoneTemplatesView, setShowHrZoneTemplatesView] = useState<boolean>(false);
   const [coachHrZoneTemplates, setCoachHrZoneTemplates] = useState<HrZoneTemplate[]>([]);
 
-  // États pour les modèles personnels uniques de zones de l'athlète
   const [athleteVmaTemplates, setAthleteVmaTemplates] = useState<any[]>([]);
   const [athleteHrTemplates, setAthleteHrTemplates] = useState<any[]>([]);
 
@@ -164,7 +160,6 @@ export default function Home() {
     }
   };
 
-  // Fonctions de gestion pour les modèles de Fréquence Cardiaque (% FCR) du coach
   const handleSaveCoachHrZoneTemplate = async (template: HrZoneTemplate) => {
     if (!session?.user) return;
 
@@ -205,7 +200,6 @@ export default function Home() {
     }
   };
 
-  // Fonctions de gestion pour les modèles personnels uniques de l'athlète (limités à 1 par type)
   const handleSaveAthleteZoneTemplate = async (template: any) => {
     if (!session?.user) return;
     const targetUserId = session.user.id;
@@ -395,7 +389,6 @@ export default function Home() {
     setLoadingAuth(false);
   };
 
-  // Sous-pages de l'onglet Profil
   const [showAthleteLibrary, setShowAthleteLibrary] = useState(false);
   const [showPhysiologyPage, setShowPhysiologyPage] = useState(false);
   const [showPersonalBestsPage, setShowPersonalBestsPage] = useState(false);
@@ -1392,7 +1385,6 @@ export default function Home() {
         })));
       }
 
-      // Chargement des modèles personnels de zones de l'athlète
       const { data: athTemplatesData } = await supabase
         .from("athlete_zone_templates")
         .select("*")
@@ -3245,20 +3237,57 @@ export default function Home() {
           />
         )}
 
-        {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
+        {/* Affichage des modales de gestion des zones (VMA / FC) */}
+        {showZoneTemplatesView && (
           <CoachZoneTemplatesView
-            templates={coachZoneTemplates}
-            onSaveTemplate={handleSaveCoachZoneTemplate}
-            onDeleteTemplate={handleDeleteCoachZoneTemplate}
+            templates={
+              userRole === "coach" && !inspectingAthleteId
+                ? coachZoneTemplates
+                : (athleteVmaTemplates.length > 0
+                    ? athleteVmaTemplates
+                    : [{ id: "def_vma", name: "Modèle VMA Personnel", description: `Basé sur votre VMA de ${vma || 14} km/h`, zones: [] }])
+            }
+            onSaveTemplate={(tmpl) => {
+              if (userRole === "coach" && !inspectingAthleteId) {
+                handleSaveCoachZoneTemplate(tmpl);
+              } else {
+                handleSaveAthleteZoneTemplate({ ...tmpl, type: 'vma' });
+              }
+            }}
+            onDeleteTemplate={(id) => {
+              if (userRole === "coach" && !inspectingAthleteId) {
+                handleDeleteCoachZoneTemplate(id);
+              } else {
+                handleDeleteAthleteZoneTemplate(id);
+              }
+            }}
             onBack={() => setShowZoneTemplatesView(false)}
           />
         )}
 
-        {userRole === "coach" && !inspectingAthleteId && showHrZoneTemplatesView && (
+        {showHrZoneTemplatesView && (
           <CoachHrZoneTemplatesView
-            templates={coachHrZoneTemplates}
-            onSaveTemplate={handleSaveCoachHrZoneTemplate}
-            onDeleteTemplate={handleDeleteCoachHrZoneTemplate}
+            templates={
+              userRole === "coach" && !inspectingAthleteId
+                ? coachHrZoneTemplates
+                : (athleteHrTemplates.length > 0
+                    ? athleteHrTemplates
+                    : [{ id: "def_hr", name: "Modèle FC Personnel", description: `Repos: ${fcRest || 50} bpm / Max: ${fcMax || 190} bpm`, zones: [] }])
+            }
+            onSaveTemplate={(tmpl) => {
+              if (userRole === "coach" && !inspectingAthleteId) {
+                handleSaveCoachHrZoneTemplate(tmpl);
+              } else {
+                handleSaveAthleteZoneTemplate({ ...tmpl, type: 'hr' });
+              }
+            }}
+            onDeleteTemplate={(id) => {
+              if (userRole === "coach" && !inspectingAthleteId) {
+                handleDeleteCoachHrZoneTemplate(id);
+              } else {
+                handleDeleteAthleteZoneTemplate(id);
+              }
+            }}
             onBack={() => setShowHrZoneTemplatesView(false)}
           />
         )}
