@@ -240,7 +240,8 @@ export default function Home() {
 
   const handleSaveAthleteZoneTemplate = async (template: any) => {
     if (!session?.user) return;
-    const targetUserId = session.user.id;
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
+    if (!targetUserId) return;
 
     const existingList = template.type === 'vma' ? athleteVmaTemplates : athleteHrTemplates;
     const templateId = existingList.length > 0 ? existingList[0].id : `ath_zone_${Date.now()}`;
@@ -1424,7 +1425,7 @@ export default function Home() {
         })));
       }
 
-      // Si un coach inspecte un athlète, on récupère les modèles de l'athlète inspecté
+      // CORRECTION ICI : cibler l'athlète inspecté s'il y en a un, sinon l'utilisateur connecté
       const templatesTargetId = isCoachInspecting ? inspectingAthleteId : session.user.id;
       const { data: athTemplatesData } = await supabase
         .from("athlete_zone_templates")
@@ -1434,6 +1435,9 @@ export default function Home() {
       if (athTemplatesData) {
         setAthleteVmaTemplates(athTemplatesData.filter((t: any) => t.type === 'vma'));
         setAthleteHrTemplates(athTemplatesData.filter((t: any) => t.type === 'hr'));
+      } else {
+        setAthleteVmaTemplates([]);
+        setAthleteHrTemplates([]);
       }
 
       if (userRole === "coach") {
@@ -3026,8 +3030,8 @@ export default function Home() {
         vma={currentAthleteVma}
         fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
         fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
-        athleteVmaTemplates={isCoachInspecting ? (selectedAthlete as any)?.vmaTemplates || coachZoneTemplates : athleteVmaTemplates}
-        athleteHrTemplates={isCoachInspecting ? (selectedAthlete as any)?.hrTemplates || coachHrZoneTemplates : athleteHrTemplates}
+        athleteVmaTemplates={athleteVmaTemplates}
+        athleteHrTemplates={athleteHrTemplates}
       />
     );
   }
@@ -3058,8 +3062,8 @@ export default function Home() {
         vma={currentAthleteVma}
         fcRest={selectedAthlete?.fcRest ? parseFloat(selectedAthlete.fcRest) : fcRest}
         fcMax={selectedAthlete?.fcMax ? parseFloat(selectedAthlete.fcMax) : fcMax}
-        athleteVmaTemplates={isCoachInspecting ? (selectedAthlete as any)?.vmaTemplates || coachZoneTemplates : athleteVmaTemplates}
-        athleteHrTemplates={isCoachInspecting ? (selectedAthlete as any)?.hrTemplates || coachHrZoneTemplates : athleteHrTemplates}
+        athleteVmaTemplates={athleteVmaTemplates}
+        athleteHrTemplates={athleteHrTemplates}
       />
     );
   }
