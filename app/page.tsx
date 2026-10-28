@@ -240,30 +240,47 @@ export default function Home() {
 
   const handleSaveAthleteZoneTemplate = async (template: any) => {
     if (!session?.user) return;
-    const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
-    if (!targetUserId) return;
+    const targetUserId = session.user.id; // L'athlète connecté
 
-    const existingList = template.type === 'vma' ? athleteVmaTemplates : athleteHrTemplates;
-    const templateId = existingList.length > 0 ? existingList[0].id : `ath_zone_${Date.now()}`;
+    // Déterminer s'il s'agit d'un modèle VMA ou FC (transmis explicitement ou récupéré de la liste active)
+    const zoneType = template.type || (athleteVmaTemplates.some(t => t.id === template.id) ? 'vma' : 'hr');
+    const existingList = zoneType === 'vma' ? athleteVmaTemplates : athleteHrTemplates;
+    
+    // Si le template a déjà un ID valide en base, on le garde, sinon on laisse Supabase gérer ou on prend le premier existant
+    const templateId = template.id || (existingList.length > 0 ? existingList[0].id : undefined);
 
-    const templatePayload = {
-      id: templateId,
+    const templatePayload: any = {
       user_id: targetUserId,
-      type: template.type,
-      name: template.name,
+      type: zoneType,
+      name: template.name || (zoneType === 'vma' ? 'Modèle VMA' : 'Modèle FC'),
       is_default: true,
-      zones: template.zones,
+      zones: template.zones || [],
     };
 
-    if (template.type === 'vma') {
-      setAthleteVmaTemplates([templatePayload]);
-    } else {
-      setAthleteHrTemplates([templatePayload]);
+    if (templateId) {
+      templatePayload.id = templateId;
     }
 
-    const { error } = await supabase.from("athlete_zone_templates").upsert(templatePayload);
+    // On effectue l'upsert et on récupère la ligne insérée/mise à jour avec .select().single()
+    const { data, error } = await supabase
+      .from("athlete_zone_templates")
+      .upsert(templatePayload)
+      .select()
+      .single();
+
     if (error) {
       console.error("Erreur sauvegarde modèle athlète :", error.message);
+      alert(`Erreur de sauvegarde : ${error.message}`);
+      return;
+    }
+
+    // Mise à jour immédiate du state local avec l'objet retourné par la base
+    if (data) {
+      if (zoneType === 'vma') {
+        setAthleteVmaTemplates([data]);
+      } else {
+        setAthleteHrTemplates([data]);
+      }
     }
   };
 
