@@ -660,10 +660,19 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           })}
                         </select>
 
-                        {computedHrBpmRange && (
+                        {/* AFFICHAGE CONDITIONNEL : BPM si FC max présente, SINON message d'alerte / pourcentages purs */}
+                        {selectedHrZone && (
                           <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
-                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedHrBpmRange}</span>
+                            {numericFcMax > 0 ? (
+                              <span className="text-xs font-black text-[#CDCF61] font-mono">
+                                {computedHrBpmRange}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-amber-400">
+                                {hrMinMax.min}% - {hrMinMax.max}% FCR (FC Max non renseignée dans le profil)
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

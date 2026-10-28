@@ -702,6 +702,14 @@ export default function Home() {
     return parseFloat(cleaned) || 0;
   };
 
+  const currentAthleteFcRest = isCoachInspecting
+    ? parseFcValue(selectedAthlete?.fcRest) || parseFcValue(fcRest)
+    : parseFcValue(fcRest);
+
+  const currentAthleteFcMax = isCoachInspecting
+    ? parseFcValue(selectedAthlete?.fcMax) || parseFcValue(fcMax)
+    : parseFcValue(fcMax);
+
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
