@@ -1495,7 +1495,6 @@ export default function Home() {
         })));
       }
 
-      // CHARGEMENT DES TEMPLATES DE ZONES (DISTINCTION STRICTE ATHLÈTE / COACH)
       if (isCoachInspecting && coachIdForTemplates) {
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
@@ -3149,10 +3148,13 @@ export default function Home() {
       steps: libTemplate.steps,
     };
 
+    const isCoachLibraryMode = userRole === "coach" && !isCoachInspecting;
+
     return (
       <WorkoutEditor
         workout={mockWorkout}
         startDate={newPlanForm.startDate}
+        isLibraryEditing={isCoachLibraryMode}
         onClose={() => setEditingLibraryId(null)}
         onUpdateWorkout={(id, field, value) => {
           setLibraryWorkouts((prev) =>
@@ -3205,6 +3207,7 @@ export default function Home() {
       <WorkoutEditor
         workout={workout}
         startDate={newPlanForm.startDate}
+        isLibraryEditing={false}
         onClose={() => setEditingWorkoutId(null)}
         onUpdateWorkout={handleUpdateDraftWorkout}
         onAddStep={handleAddStepToWorkout}

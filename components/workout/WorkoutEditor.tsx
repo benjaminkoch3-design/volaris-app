@@ -9,6 +9,7 @@ import { PaceProfileChart } from "./PaceProfileChart";
 interface WorkoutEditorProps {
   workout: Workout;
   startDate: string;
+  isLibraryEditing?: boolean; // Ajouté ici
   onClose: () => void;
   onUpdateWorkout: (id: string, field: keyof Workout, value: any) => void;
   onAddStep: (workoutId: string, parentPath?: string[]) => void;
@@ -106,6 +107,8 @@ const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, 
 
 export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   workout,
+  startDate,
+  isLibraryEditing = false,
   onClose,
   onUpdateWorkout,
   onAddStep,
@@ -263,7 +266,6 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
       const vmaMinMax = selectedVmaZone ? getZoneMinMax(selectedVmaZone) : { min: 0, max: 0 };
       const hrMinMax = selectedHrZone ? getZoneMinMax(selectedHrZone) : { min: 0, max: 0 };
 
-      // Si le coach édite sans VMA de référence, on affiche simplement le pourcentage pur du modèle
       const computedVmaPaceRange = selectedVmaZone
         ? numericVma > 0
           ? (selectedVmaZone.paceMin && selectedVmaZone.paceMax
@@ -272,14 +274,13 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           : `${vmaMinMax.min}% - ${vmaMinMax.max}% VMA`
         : null;
 
-      // Si le coach édite sans FC max de référence, on affiche uniquement le pourcentage pur de la zone FC
-    const computedHrBpmRange = selectedHrZone
-      ? (numericFcMax > 0
-          ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
-              ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
-              : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max))
-          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR`)
-      : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
+      const computedHrBpmRange = selectedHrZone
+        ? (numericFcMax > 0
+            ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
+                ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
+                : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max))
+            : `${hrMinMax.min}% - ${hrMinMax.max}% FCR`)
+        : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
 
       return (
         <div
@@ -605,7 +606,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         {computedVmaPaceRange && (
                           <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible Allure :</span>
-                            {userRole === "coach" && numericVma <= 0 ? (
+                            {isLibraryEditing ? (
                               <span className="text-xs font-black text-[#CDCF61] font-mono">
                                 {vmaMinMax.min}% - {vmaMinMax.max}% VMA
                               </span>
@@ -670,11 +671,10 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                           })}
                         </select>
 
-                        {/* AFFICHAGE CONDITIONNEL : BPM si FC max présente, SINON message d'alerte / pourcentages purs */}
                         {selectedHrZone && (
                           <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
-                            {userRole === "coach" && numericFcMax <= 0 ? (
+                            {isLibraryEditing ? (
                               <span className="text-xs font-black text-[#CDCF61] font-mono">
                                 {hrMinMax.min}% - {hrMinMax.max}% FCR
                               </span>
