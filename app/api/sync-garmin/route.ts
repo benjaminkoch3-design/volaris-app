@@ -1,8 +1,8 @@
-// @ts-nocheck
 // app/api/sync-garmin/route.ts
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
 
+// --- UTILITAIRES DE CONVERSION DE DUREE ET DISTANCE ---
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
 
@@ -45,11 +45,11 @@ const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: n
   return { type: "time", value: Math.round((rawNum || 5) * 60) };
 };
 
+// --- UTILITAIRES DE CONVERSION D'ALLURE (Min:Sec ou km/h -> s/km) ---
 const parsePaceStringToSeconds = (str: string): number | null => {
   if (!str) return null;
   const clean = str.toString().trim().toLowerCase();
 
-  // Ne pas parser si le texte fait référence à du temps de récupération (ex: "2 min")
   if (clean.includes("min de recup") || clean.includes("recup")) {
     return null;
   }
@@ -69,6 +69,7 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   return null;
 };
 
+// Extraction de l'allure en m/s (Garmin attend des m/s)
 const extractPaceRangeInMetersPerSecond = (
   step: any
 ): { slowSpeedMs: number; fastSpeedMs: number } | null => {
@@ -78,7 +79,6 @@ const extractPaceRangeInMetersPerSecond = (
   const explicitMin = step.paceMin || step.targetPaceMin || step.minPace;
   const explicitMax = step.paceMax || step.targetPaceMax || step.maxPace;
 
-  // 1. Allures explicites min / max renseignées dans le bloc
   if (explicitMin && explicitMax) {
     const s1 = parsePaceStringToSeconds(explicitMin);
     const s2 = parsePaceStringToSeconds(explicitMax);
@@ -94,7 +94,6 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // 2. Vérification ciblée dans les champs d'allure du bloc uniquement (pas de fallback parasite)
   if (!fastSec || !slowSec) {
     const textToScan = [
       step.pace,
@@ -123,7 +122,6 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // Validation d'une allure de course réaliste (entre 2:00/km et 11:40/km)
   if (fastSec && slowSec && fastSec >= 120 && slowSec <= 700) {
     return {
       slowSpeedMs: 1000 / slowSec,
@@ -134,6 +132,41 @@ const extractPaceRangeInMetersPerSecond = (
   return null;
 };
 
+// --- EXTRACTION ET VALIDE DES ZONES FC (BPM) ---
+const extractHrRangeInBpm = (
+  step: any
+): { minBpm: number; maxBpm: number } | null => {
+  let minBpm = parseFloat(step.hrMin || step.targetHrMin || step.minHr || step.fcMin);
+  let maxBpm = parseFloat(step.hrMax || step.targetHrMax || step.maxHr || step.fcMax);
+
+  if (!isNaN(minBpm) && !isNaN(maxBpm) && minBpm > 30 && maxBpm <= 230) {
+    return {
+      minBpm: Math.min(minBpm, maxBpm),
+      maxBpm: Math.max(minBpm, maxBpm),
+    };
+  }
+
+  // Fallback scan dans goalValue ou description si format "140-150 bpm" ou "140-150"
+  const textToScan = [step.goalValue, step.description, step.targetHr]
+    .filter(Boolean)
+    .join(" ");
+
+  const hrMatch = textToScan.match(/(\d{2,3})\s*(?:-|–|—|à|to|\/)\s*(\d{2,3})\s*(?:bpm|fc)?/i);
+  if (hrMatch) {
+    const b1 = parseInt(hrMatch[1], 10);
+    const b2 = parseInt(hrMatch[2], 10);
+    if (b1 >= 40 && b1 <= 220 && b2 >= 40 && b2 <= 220) {
+      return {
+        minBpm: Math.min(b1, b2),
+        maxBpm: Math.max(b1, b2),
+      };
+    }
+  }
+
+  return null;
+};
+
+// --- MAPPAGE DES TYPES D'ETAPE GARMIN CONNECT ---
 const getGarminStepType = (type: string) => {
   switch (type) {
     case "echauffement":
@@ -148,6 +181,7 @@ const getGarminStepType = (type: string) => {
   }
 };
 
+// --- ROUTE POST PRINCIPALE ---
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -185,8 +219,9 @@ export async function POST(request: Request) {
       );
       const isTime = parsed.type === "time";
 
-      // Scan strict du bloc sans fallback parasite sur la description générale
+      // 1. Détection des cibles (Cible Allure prioritaires, puis Cible FC)
       const paceRange = extractPaceRangeInMetersPerSecond(step);
+      const hrRange = extractHrRangeInBpm(step);
 
       let targetType = {
         workoutTargetTypeId: 1,
@@ -197,8 +232,7 @@ export async function POST(request: Request) {
       let targetValueOne = null;
       let targetValueTwo = null;
 
-      // Si une allure cible est bien définie sur CE bloc précis
-      if (paceRange) {
+      if (step.goalType === "allure" && paceRange) {
         targetType = {
           workoutTargetTypeId: 6,
           workoutTargetTypeKey: "pace.zone",
@@ -207,9 +241,46 @@ export async function POST(request: Request) {
         };
         targetValueOne = paceRange.slowSpeedMs;
         targetValueTwo = paceRange.fastSpeedMs;
+      } else if (step.goalType === "fc" && hrRange) {
+        targetType = {
+          workoutTargetTypeId: 4,
+          workoutTargetTypeKey: "heart.rate.zone",
+          displayOrder: 4,
+          displayable: true,
+        };
+        targetValueOne = hrRange.minBpm;
+        targetValueTwo = hrRange.maxBpm;
+      } else if (paceRange) { // Fallback si non explicitement précisé mais décelé
+        targetType = {
+          workoutTargetTypeId: 6,
+          workoutTargetTypeKey: "pace.zone",
+          displayOrder: 6,
+          displayable: true,
+        };
+        targetValueOne = paceRange.slowSpeedMs;
+        targetValueTwo = paceRange.fastSpeedMs;
+      } else if (hrRange) {
+        targetType = {
+          workoutTargetTypeId: 4,
+          workoutTargetTypeKey: "heart.rate.zone",
+          displayOrder: 4,
+          displayable: true,
+        };
+        targetValueOne = hrRange.minBpm;
+        targetValueTwo = hrRange.maxBpm;
       }
 
-      // Configuration de la condition de fin : Bouton Lap ou Durée/Distance
+      // 2. Gestion du RPE (Injecté dans la description Garmin car non géré comme cible)
+      let stepDescription = step.description || "";
+      if (step.rpe || step.goalType === "rpe") {
+        const rpeVal = step.rpe || step.goalValue;
+        if (rpeVal) {
+          const rpeText = `[RPE ${rpeVal}/10]`;
+          stepDescription = stepDescription ? `${rpeText} ${stepDescription}` : rpeText;
+        }
+      }
+
+      // 3. Configuration de la condition de fin (Bouton Lap ou Durée/Distance)
       const endConditionObj = isLapButton
         ? {
             conditionTypeId: 1,
@@ -230,7 +301,7 @@ export async function POST(request: Request) {
         stepOrder: customOrder,
         stepType: getGarminStepType(step.type),
         childStepId: null,
-        description: step.description || null,
+        description: stepDescription || null,
         endCondition: endConditionObj,
         endConditionValue: isLapButton ? null : parsed.value,
         endConditionCompare: null,
@@ -259,7 +330,6 @@ export async function POST(request: Request) {
           if (skipLast && reps > 1 && hasRecoveryAtEnd) {
             const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
 
-            // 1. Première partie : boucle de (reps - 1) répétitions complètes
             if (reps - 1 === 1) {
               step.nestedSteps.forEach((nStep: any) => {
                 workoutSteps.push(buildStepDTO(nStep, stepOrder++));
@@ -281,7 +351,6 @@ export async function POST(request: Request) {
               });
             }
 
-            // 2. Dernière répétition : uniquement le travail
             stepsWithoutLastRecovery.forEach((nStep: any) => {
               workoutSteps.push(buildStepDTO(nStep, stepOrder++));
             });
@@ -314,6 +383,7 @@ export async function POST(request: Request) {
             durationOrDist: `${workout.km || 8}km`,
             paceMin: workout.paceMin || "",
             paceMax: workout.paceMax || "",
+            rpe: workout.rpe || "",
           },
           1
         )
