@@ -273,13 +273,13 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         : null;
 
       // Si le coach édite sans FC max de référence, on affiche uniquement le pourcentage pur de la zone FC
-      const computedHrBpmRange = selectedHrZone
-        ? numericFcMax > 0
+    const computedHrBpmRange = selectedHrZone
+      ? (numericFcMax > 0
           ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
               ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
               : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, hrMinMax.min, hrMinMax.max))
-          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR/FCM`
-        : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
+          : `${hrMinMax.min}% - ${hrMinMax.max}% FCR`)
+      : (hrMinMax.min > 0 || hrMinMax.max > 0 ? `${hrMinMax.min}% - ${hrMinMax.max}%` : null);
 
       return (
         <div
