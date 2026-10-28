@@ -3759,9 +3759,9 @@ export default function Home() {
                   libraryWorkouts={libraryWorkouts}
                   categories={customCategories}
                   athleteId={session?.user?.id}
-                  athleteVma={parseFloat(vma) || 14}
-                  athleteFcRest={parseFloat(fcRest) || 50}
-                  athleteFcMax={parseFloat(fcMax) || 190}
+                  athleteVma={parseFloat(vma)}
+                  athleteFcRest={parseFloat(fcRest)}
+                  athleteFcMax={parseFloat(fcMax)}
                   athleteVmaTemplates={athleteVmaTemplates}
                   athleteHrTemplates={athleteHrTemplates}
                   onSaveAthleteZoneTemplate={handleSaveAthleteZoneTemplate}
