@@ -605,7 +605,17 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         {computedVmaPaceRange && (
                           <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible Allure :</span>
-                            <span className="text-xs font-black text-[#CDCF61] font-mono">{computedVmaPaceRange}</span>
+                            {userRole === "coach" && numericVma <= 0 ? (
+                              <span className="text-xs font-black text-[#CDCF61] font-mono">
+                                {vmaMinMax.min}% - {vmaMinMax.max}% VMA
+                              </span>
+                            ) : numericVma > 0 ? (
+                              <span className="text-xs font-black text-[#CDCF61] font-mono">{computedVmaPaceRange}</span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-amber-400">
+                                {vmaMinMax.min}% - {vmaMinMax.max}% VMA (VMA non renseignée dans le profil)
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -664,7 +674,11 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                         {selectedHrZone && (
                           <div className="mt-2 p-2 bg-[#CDCF61]/10 border border-[#CDCF61]/40 rounded-xl flex justify-between items-center">
                             <span className="text-[9px] font-bold text-stone-300 uppercase">Cible FC :</span>
-                            {numericFcMax > 0 ? (
+                            {userRole === "coach" && numericFcMax <= 0 ? (
+                              <span className="text-xs font-black text-[#CDCF61] font-mono">
+                                {hrMinMax.min}% - {hrMinMax.max}% FCR
+                              </span>
+                            ) : numericFcMax > 0 ? (
                               <span className="text-xs font-black text-[#CDCF61] font-mono">
                                 {computedHrBpmRange}
                               </span>
