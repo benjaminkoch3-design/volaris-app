@@ -238,16 +238,14 @@ export default function Home() {
     }
   };
 
-  const handleSaveAthleteZoneTemplate = async (template: any) => {
+  const handleSaveAthleteZoneTemplate = async (template: any, forcedType?: 'vma' | 'hr') => {
     if (!session?.user) return;
-    const targetUserId = session.user.id; // L'athlète connecté
+    const targetUserId = isCoachInspecting ? inspectingAthleteId : session.user.id;
+    if (!targetUserId) return;
 
-    // Déterminer s'il s'agit d'un modèle VMA ou FC (transmis explicitement ou récupéré de la liste active)
-    const zoneType = template.type || (athleteVmaTemplates.some(t => t.id === template.id) ? 'vma' : 'hr');
+    const zoneType = forcedType || template.type || 'vma';
     const existingList = zoneType === 'vma' ? athleteVmaTemplates : athleteHrTemplates;
-    
-    // Si le template a déjà un ID valide en base, on le garde, sinon on laisse Supabase gérer ou on prend le premier existant
-    const templateId = template.id || (existingList.length > 0 ? existingList[0].id : undefined);
+    const templateId = (template.id && !template.id.startsWith('def_')) ? template.id : (existingList.length > 0 ? existingList[0].id : undefined);
 
     const templatePayload: any = {
       user_id: targetUserId,
@@ -261,7 +259,6 @@ export default function Home() {
       templatePayload.id = templateId;
     }
 
-    // On effectue l'upsert et on récupère la ligne insérée/mise à jour avec .select().single()
     const { data, error } = await supabase
       .from("athlete_zone_templates")
       .upsert(templatePayload)
@@ -274,7 +271,6 @@ export default function Home() {
       return;
     }
 
-    // Mise à jour immédiate du state local avec l'objet retourné par la base
     if (data) {
       if (zoneType === 'vma') {
         setAthleteVmaTemplates([data]);
@@ -1209,7 +1205,6 @@ export default function Home() {
 
             const displayName = customMap[a.id] || a.full_name || a.email || "Athlète";
 
-            // Le coach voit en priorité ses réglages personnalisés, sinon la base de l'athlète
             const resolvedVma = settingsForAth?.custom_vma ?? a.vma;
             const resolvedFcRest = settingsForAth?.custom_fc_min ?? a.fc_rest;
             const resolvedFcMax = settingsForAth?.custom_fc_max ?? a.fc_max;
@@ -1355,7 +1350,6 @@ export default function Home() {
         if (profile.height !== null && profile.height !== undefined) setHeight(profile.height.toString());
         if (profile.weight !== null && profile.weight !== undefined) setWeight(profile.weight.toString());
 
-        // SÉPARATION STRICTE : Si le coach inspecte, il charge ses réglages (ou fallback profil). Si c'est l'athlète, il charge ses propres données profiles.
         if (isCoachInspecting) {
           const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
           const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
@@ -1501,7 +1495,8 @@ export default function Home() {
         })));
       }
 
-      if (coachIdForTemplates) {
+      // CHARGEMENT DES TEMPLATES DE ZONES (DISTINCTION STRICTE ATHLÈTE / COACH)
+      if (isCoachInspecting && coachIdForTemplates) {
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
 
@@ -1818,7 +1813,6 @@ export default function Home() {
       return sessions;
     };
 
-  // FONCTION DE SAUVEGARDE SÉPARÉE ENTRE L'athlète ET LE coach
   const saveProfileToSupabase = async (updatedFields: {
     fullName?: string;
     avatarUrlVal?: string;
@@ -1832,7 +1826,6 @@ export default function Home() {
     if (!session?.user) return;
 
     try {
-      // 1. Si le coach est en train d'inspecter un athlète, ses modifications vont dans coach_athlete_settings
       if (isCoachInspecting && inspectingAthleteId) {
         const payload: any = {
           coach_id: session.user.id,
@@ -1854,7 +1847,6 @@ export default function Home() {
         return;
       }
 
-      // 2. Sinon, c'est l'athlète (ou le coach modifiant son propre profil) qui modifie sa table "profiles"
       const targetUserId = session.user.id;
       const payload: any = {};
 
@@ -3742,9 +3734,9 @@ export default function Home() {
                   templates={
                     athleteVmaTemplates.length > 0
                       ? athleteVmaTemplates
-                      : [{ id: "def_vma", name: "Modèle VMA Personnel", description: `Basé sur votre VMA de ${vma || 14} km/h`, zones: [] }]
+                      : [{ name: "Modèle VMA Personnel", description: `Basé sur votre VMA de ${vma || 12} km/h`, zones: [] }]
                   }
-                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate({ ...tmpl, type: 'vma' })}
+                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate(tmpl, 'vma')}
                   onDeleteTemplate={(id) => handleDeleteAthleteZoneTemplate(id)}
                   onBack={() => setShowZoneTemplatesView(false)}
                 />
@@ -3753,9 +3745,9 @@ export default function Home() {
                   templates={
                     athleteHrTemplates.length > 0
                       ? athleteHrTemplates
-                      : [{ id: "def_hr", name: "Modèle FC Personnel", description: `Repos: ${fcRest || 50} bpm / Max: ${fcMax || 190} bpm`, zones: [] }]
+                      : [{ name: "Modèle FC Personnel", description: `Repos: ${fcRest || 50} bpm / Max: ${fcMax || 190} bpm`, zones: [] }]
                   }
-                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate({ ...tmpl, type: 'hr' })}
+                  onSaveTemplate={(tmpl) => handleSaveAthleteZoneTemplate(tmpl, 'hr')}
                   onDeleteTemplate={(id) => handleDeleteAthleteZoneTemplate(id)}
                   onBack={() => setShowHrZoneTemplatesView(false)}
                 />
