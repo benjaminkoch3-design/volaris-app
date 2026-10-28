@@ -408,18 +408,18 @@ export async function POST(request: Request) {
 
     let result: any = null;
     if (typeof gc.addWorkout === "function") {
-      result = await gc.addWorkout(payload);
-    } else if (typeof gc.post === "function") {
-      result = await gc.post(
+      result = await gc.addWorkout(payload as any);
+    } else if (typeof (gc as any).post === "function") {
+      result = await (gc as any).post(
         "https://connect.garmin.com/modern/proxy/workout-service/workout",
-        payload
+        payload as any
       );
     } else {
-      const res = await gc.client.post(
+      const res: any = await (gc as any).client.post(
         "https://connect.garmin.com/modern/proxy/workout-service/workout",
-        payload
+        payload as any
       );
-      result = res.data;
+      result = res?.data || res;
     }
 
     return NextResponse.json({
