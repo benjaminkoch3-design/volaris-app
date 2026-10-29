@@ -3239,8 +3239,8 @@ export default function Home() {
         onOpenDebrief={(workout) => setDebriefWorkout(workout)}
         userRole={userRole}
         vma={currentAthleteVma}
-        fcRest={fcRest}
-        fcMax={fcMax}
+        fcRest={currentAthleteFcRest}
+        fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
       />
