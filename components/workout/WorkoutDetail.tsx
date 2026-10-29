@@ -264,7 +264,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
-    // 2. Si la cible est une zone FC
+    // 2. Si la cible est une zone FC (affichage forcé en BPM si fcMax configuré)
     if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
       const selectedHrZone = defaultHrTemplate.zones.find((z: any, zIdx: number) => 
         (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -275,7 +275,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 
       if (selectedHrZone) {
         const { min, max } = getZoneMinMax(selectedHrZone);
-        const computedBpm = numericFcMax > 0 ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, min, max) : null;
+        const computedBpm = numericFcMax > 0 
+          ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, min, max) 
+          : `${min}% - ${max}%`;
 
         return (
           <div className="text-right">
@@ -283,7 +285,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               {selectedHrZone.name || "Zone FC"}
             </span>
             <span className="font-black text-rose-400 font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
-              {computedBpm || `${min}% - ${max}%`}
+              {computedBpm}
             </span>
           </div>
         );
