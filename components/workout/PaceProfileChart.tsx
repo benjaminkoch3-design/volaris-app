@@ -7,6 +7,9 @@ import { generatePaceProfile } from "../../utils/calculations";
 interface PaceProfileChartProps {
   steps?: WorkoutStep[];
   vma?: number | string;
+  athleteVmaTemplates?: any[];
+  coachVmaTemplates?: any[];
+  userRole?: string;
 }
 
 const formatMinutesToHours = (totalMinutes: number): string => {
@@ -32,6 +35,21 @@ const formatDetailedDuration = (sec: number) => {
   if (m === 0) return `${remainingS}s`;
   if (remainingS === 0) return `${m} min`;
   return `${m} min ${remainingS}s`;
+};
+
+// Fonction utilitaire pour extraire min/max d'une zone VMA
+const getZoneMinMax = (zone: any) => {
+  if (!zone) return { min: 0, max: 0 };
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? 0;
+  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+  return { min, max };
+};
+
+const formatPaceFromSpeedKmH = (speedKmH: number): number => {
+  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return 0;
+  return 3600 / speedKmH; // Retourne bien un nombre (secondes par kilomètre)
 };
 
 // Couleurs avec dégradés verticaux préservant les teintes Volaris
@@ -97,10 +115,52 @@ const LEGEND = [
   { label: "Calme", ...COLORS.retour_calme },
 ];
 
-export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }) => {
+export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
+  steps,
+  vma,
+  athleteVmaTemplates = [],
+  coachVmaTemplates = [],
+  userRole = "athlete",
+}) => {
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const profile = generatePaceProfile(steps, vma);
+  const numericVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma || 0);
+  
+  const isCoach = userRole === "coach";
+  const availableVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+    : athleteVmaTemplates;
+  const defaultVmaTemplate = availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
+
+  // Post-traitement des steps pour injecter les allures VMA calculées si besoin
+  const processedSteps = steps?.map((step) => {
+    if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
+      const selectedVmaZone = defaultVmaTemplate.zones.find(
+        (z: any, zIdx: number) => 
+          String(z.id) === String(step.targetZoneId) || 
+          String(z.name) === String(step.targetZoneId) ||
+          String(zIdx) === String(step.targetZoneId)
+      );
+      if (selectedVmaZone) {
+        const { min, max } = getZoneMinMax(selectedVmaZone);
+        // On prend la vitesse moyenne de la zone (ou max) par rapport à la VMA
+        const targetPercent = (min + max) / 2;
+        if (numericVma > 0 && targetPercent > 0) {
+          const speedKmH = (numericVma * targetPercent) / 100;
+          const calculatedSec = formatPaceFromSpeedKmH(speedKmH);
+          if (calculatedSec) {
+            return {
+              ...step,
+              paceSecPerKm: calculatedSec,
+            };
+          }
+        }
+      }
+    }
+    return step;
+  });
+
+  const profile = generatePaceProfile(processedSteps, vma);
   if (!profile || profile.length === 0) return null;
 
   const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
@@ -191,7 +251,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
 
       {/* Graphique */}
       <div className="flex gap-2">
-        {/* Axe Y : valeurs conservées à gauche sans ligne pointillée */}
         <div className="relative h-32 w-10 shrink-0">
           {yTicks.map((t, i) => (
             <span
@@ -205,12 +264,10 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Zone de tracé sans pointillés */}
           <div
             className="relative h-32 select-none"
             onMouseLeave={() => setHovered(null)}
           >
-            {/* Barres d'allure avec dégradé vertical */}
             {bars.map((bar, i) => {
               const isHovered = hovered === i;
               const isDimmed = hovered !== null && !isHovered;
@@ -241,7 +298,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
               );
             })}
 
-            {/* Infobulle flottante */}
             {active && (
               <div
                 className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border border-stone-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur transition-transform dark:border-stone-700 dark:bg-stone-900/95"
@@ -275,7 +331,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
             )}
           </div>
 
-          {/* Axe X (Graduation temporelle en bas) */}
           <div className="relative mt-1.5 h-3 border-t border-stone-200 dark:border-stone-800">
             {xTicks.map((t) => (
               <span
@@ -290,7 +345,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({ steps, vma }
         </div>
       </div>
 
-      {/* Légende */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-stone-100 dark:border-stone-900">
         {LEGEND.map((l) => (
           <span

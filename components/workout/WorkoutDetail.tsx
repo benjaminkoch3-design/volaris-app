@@ -284,7 +284,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             <span className="text-[9px] text-stone-500 uppercase block font-bold">
               {selectedHrZone.name || "Zone FC"}
             </span>
-            <span className="font-black text-rose-400 font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+            <span className="font-black text-[#CF9A61] font-mono text-[11px] bg-[#CF9A61]/10 px-2 py-0.5 rounded border border-[#CF9A61]/30">
               {computedBpm}
             </span>
           </div>
