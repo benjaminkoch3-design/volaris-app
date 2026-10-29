@@ -47,11 +47,6 @@ const getZoneMinMax = (zone: any) => {
   return { min, max };
 };
 
-const formatPaceFromSpeedKmH = (speedKmH: number): number => {
-  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return 0;
-  return 3600 / speedKmH; // Retourne bien un nombre (secondes par kilomètre)
-};
-
 // Couleurs avec dégradés verticaux préservant les teintes Volaris
 const COLORS: Record<
   string,
@@ -125,14 +120,14 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
   const [hovered, setHovered] = useState<number | null>(null);
 
   const numericVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma || 0);
-  
+
   const isCoach = userRole === "coach";
   const availableVmaTemplates = isCoach
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
   const defaultVmaTemplate = availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
-  // Post-traitement des steps pour injecter les allures VMA calculées si besoin
+  // Traduction des blocs "vma_zone" en allures (secondes/km) pour le graphique
   const processedSteps = steps?.map((step) => {
     if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
       const selectedVmaZone = defaultVmaTemplate.zones.find(
@@ -141,17 +136,16 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
           String(z.name) === String(step.targetZoneId) ||
           String(zIdx) === String(step.targetZoneId)
       );
-      if (selectedVmaZone) {
+      if (selectedVmaZone && numericVma > 0) {
         const { min, max } = getZoneMinMax(selectedVmaZone);
-        // On prend la vitesse moyenne de la zone (ou max) par rapport à la VMA
-        const targetPercent = (min + max) / 2;
-        if (numericVma > 0 && targetPercent > 0) {
-          const speedKmH = (numericVma * targetPercent) / 100;
-          const calculatedSec = formatPaceFromSpeedKmH(speedKmH);
-          if (calculatedSec) {
+        if (min > 0 && max > 0) {
+          const avgPercent = (min + max) / 2;
+          const speedKmH = (numericVma * avgPercent) / 100;
+          if (speedKmH > 0) {
+            const paceSec = 3600 / speedKmH;
             return {
               ...step,
-              paceSecPerKm: calculatedSec,
+              paceSecPerKm: paceSec,
             };
           }
         }
