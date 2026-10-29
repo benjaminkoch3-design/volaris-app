@@ -23,8 +23,12 @@ interface WorkoutDetailProps {
   onOpenDebrief?: (workout: Workout) => void;
   userRole?: "athlete" | "coach";
   vma?: number | string;
+  fcRest?: number | string;
+  fcMax?: number | string;
   athleteVmaTemplates?: any[];
   athleteHrTemplates?: any[];
+  coachVmaTemplates?: any[];
+  coachHrTemplates?: any[];
 }
 
 const getRpeColor = (rpe: number): { text: string; bg: string; border: string } => {
@@ -34,6 +38,61 @@ const getRpeColor = (rpe: number): { text: string; bg: string; border: string } 
   return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" };
 };
 
+// --- UTILITAIRES DE CALCULS (ALLURES & FC) ---
+const getZoneMinMax = (zone: any) => {
+  if (!zone) return { min: 0, max: 0 };
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
+
+  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
+  const textSource = zone.name || zone.label || "";
+  if ((min === 0 || max === 0) && textSource) {
+    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
+    if (matches && matches[1] && matches[2]) {
+      min = parseFloat(matches[1]);
+      max = parseFloat(matches[2]);
+    }
+  }
+  return { min, max };
+};
+
+const formatPaceFromSpeedKmH = (speedKmH: number): string => {
+  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "--:--";
+  const totalSeconds = 3600 / speedKmH;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = Math.round(totalSeconds % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
+const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
+  if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
+  const speedSlow = (vmaVal * minPercent) / 100;
+  const speedFast = (vmaVal * maxPercent) / 100;
+  if (speedSlow <= 0 || speedFast <= 0) return null;
+  const paceSlow = formatPaceFromSpeedKmH(speedSlow);
+  const paceFast = formatPaceFromSpeedKmH(speedFast);
+  return `${paceFast} - ${paceSlow} /km`;
+};
+
+const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
+  const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 0;
+  const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 0;
+  if (minPercent === undefined || maxPercent === undefined || maxToUse <= 0) return null;
+  
+  if (maxToUse > restToUse) {
+    const reserve = maxToUse - restToUse;
+    const minBpm = Math.round(restToUse + reserve * (minPercent / 100));
+    const maxBpm = Math.round(restToUse + reserve * (maxPercent / 100));
+    return `${minBpm} - ${maxBpm} bpm`;
+  } else {
+    const minBpm = Math.round((minPercent / 100) * maxToUse);
+    const maxBpm = Math.round((maxPercent / 100) * maxToUse);
+    return `${minBpm} - ${maxBpm} bpm`;
+  }
+};
+
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   workout,
   completedWorkouts = {},
@@ -41,6 +100,12 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   onOpenDebrief,
   userRole = "athlete",
   vma,
+  fcRest,
+  fcMax,
+  athleteVmaTemplates = [],
+  athleteHrTemplates = [],
+  coachVmaTemplates = [],
+  coachHrTemplates = [],
 }) => {
   const isCoach = userRole === "coach";
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
@@ -48,6 +113,21 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
+
+  const numericVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma || 0);
+  const numericFcRest = typeof fcRest === "string" ? parseFloat(fcRest) : Number(fcRest || 0);
+  const numericFcMax = typeof fcMax === "string" ? parseFloat(fcMax) : Number(fcMax || 0);
+
+  const availableVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+    : athleteVmaTemplates;
+
+  const availableHrTemplates = isCoach
+    ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
+    : athleteHrTemplates;
+
+  const defaultVmaTemplate = availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
+  const defaultHrTemplate = availableHrTemplates.find((t: any) => t.isDefault || t.is_default) || availableHrTemplates[0];
 
   const hasDebrief =
     (workout.completedRpe !== undefined && workout.completedRpe !== null) ||
@@ -158,21 +238,59 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   };
 
   const renderPaceBadge = (step: WorkoutStep) => {
-    // Si la cible est basée sur les zones VMA ou FC
-    if ((step.goalType === "vma_zone" || step.goalType === "hr_zone") && step.targetZoneName) {
-      return (
-        <div className="text-right">
-          <span className="text-[9px] text-stone-500 uppercase block font-bold">
-            {step.goalType === "vma_zone" ? "Zone VMA" : "Zone FC"}
-          </span>
-          <span className="font-black text-[#CF9A61] font-mono text-[11px] bg-[#CF9A61]/10 px-2 py-0.5 rounded border border-[#CF9A61]/30">
-            {step.targetZoneName}
-          </span>
-        </div>
+    // 1. Si la cible est une zone VMA
+    if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
+      const selectedVmaZone = defaultVmaTemplate.zones.find((z: any, zIdx: number) => 
+        (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
+        (step.targetZoneId && String(z.name) === String(step.targetZoneId)) ||
+        (step.targetZoneName && String(z.name) === String(step.targetZoneName)) ||
+        (String(zIdx) === String(step.targetZoneId))
       );
+
+      if (selectedVmaZone) {
+        const { min, max } = getZoneMinMax(selectedVmaZone);
+        const computedPace = numericVma > 0 ? calculatePaceRangeFromVma(numericVma, min, max) : null;
+
+        return (
+          <div className="text-right">
+            <span className="text-[9px] text-stone-500 uppercase block font-bold">
+              {selectedVmaZone.name || "Zone VMA"}
+            </span>
+            <span className="font-black text-[#CF9A61] font-mono text-[11px] bg-[#CF9A61]/10 px-2 py-0.5 rounded border border-[#CF9A61]/30">
+              {computedPace || `${min}% - ${max}% VMA`}
+            </span>
+          </div>
+        );
+      }
     }
 
-    // Si la cible est basée sur le RPE spécifique à l'étape
+    // 2. Si la cible est une zone FC
+    if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
+      const selectedHrZone = defaultHrTemplate.zones.find((z: any, zIdx: number) => 
+        (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
+        (step.targetZoneId && String(z.name) === String(step.targetZoneId)) ||
+        (step.targetZoneName && String(z.name) === String(step.targetZoneName)) ||
+        (String(zIdx) === String(step.targetZoneId))
+      );
+
+      if (selectedHrZone) {
+        const { min, max } = getZoneMinMax(selectedHrZone);
+        const computedBpm = numericFcMax > 0 ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, min, max) : null;
+
+        return (
+          <div className="text-right">
+            <span className="text-[9px] text-stone-500 uppercase block font-bold">
+              {selectedHrZone.name || "Zone FC"}
+            </span>
+            <span className="font-black text-rose-400 font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+              {computedBpm || `${min}% - ${max}%`}
+            </span>
+          </div>
+        );
+      }
+    }
+
+    // 3. Si la cible est basée sur le RPE spécifique à l'étape
     if (step.goalType === "rpe" && step.targetRpe) {
       return (
         <div className="text-right">
@@ -186,7 +304,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       );
     }
 
-    // Sinon, gestion classique de l'allure brute
+    // 4. Sinon, gestion classique de l'allure brute
     const slowPace = step.paceMax;
     const fastPace = step.paceMin;
 
