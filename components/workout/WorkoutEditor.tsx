@@ -105,7 +105,14 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
 
-  const metrics = calculateStepMetrics(workout.steps, vma, activeVmaTemplates);
+  const metrics = calculateStepMetrics(
+    workout.steps, 
+    vma, 
+    athleteVmaTemplates, 
+    userRole, 
+    coachVmaTemplates, 
+    athleteVmaTemplates
+  );
   const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
 
   const themeColor = isCoach ? "#CDCF61" : "#CF9A61";

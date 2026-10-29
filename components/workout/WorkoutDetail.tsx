@@ -78,7 +78,14 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
 
-  const metrics = calculateStepMetrics(workout.steps, vma, activeVmaTemplates);
+  const metrics = calculateStepMetrics(
+    workout.steps, 
+    vma, 
+    athleteVmaTemplates, 
+    userRole, 
+    coachVmaTemplates, 
+    athleteVmaTemplates
+  );
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);

@@ -77,9 +77,9 @@ export const CoachAthleteProfileView: React.FC<CoachAthleteProfileViewProps> = (
   const height = cleanVal(athlete.height);
   const weight = cleanVal(athlete.weight);
 
-  const initialVma = cleanVal(athlete.vma) || "14";
-  const initialFcMin = cleanVal(athlete.fcRest || athlete.fc_rest) || "50";
-  const initialFcMax = cleanVal(athlete.fcMax || athlete.fc_max) || "190";
+  const initialVma = cleanVal(athlete.vma);
+  const initialFcMin = cleanVal(athlete.fcRest || athlete.fc_rest);
+  const initialFcMax = cleanVal(athlete.fcMax || athlete.fc_max);
 
   const [customVma, setCustomVma] = useState<string>(initialVma);
   const [customFcMin, setCustomFcMin] = useState<string>(initialFcMin);

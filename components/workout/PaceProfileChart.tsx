@@ -115,8 +115,14 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     : athleteVmaTemplates;
 
   // On génère le profil en passant directement les templates VMA centralisés dans calculations.ts
-  const profile = generatePaceProfile(steps, vma, availableVmaTemplates);
-  if (!profile || profile.length === 0) return null;
+  const profile = generatePaceProfile(
+    steps, 
+    vma, 
+    availableVmaTemplates, 
+    userRole, 
+    coachVmaTemplates, 
+    athleteVmaTemplates
+  );
 
   const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
   if (totalTimeSec <= 0) return null;

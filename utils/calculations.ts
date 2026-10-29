@@ -336,7 +336,14 @@ export const calculatePaceRangeFromVmaTemplates = (
   return `${formatPaceFromSpeed(speedFast)} - ${formatPaceFromSpeed(speedSlow)} /km`;
 };
 
-export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string, vmaTemplates?: any[]): number {
+export function getStepPaceInSeconds(
+  step: WorkoutStep, 
+  vma?: number | string, 
+  vmaTemplates?: any[], 
+  userRole?: string,
+  coachVmaTemplates?: any[],
+  athleteVmaTemplates?: any[]
+): number {
   const pMin = step.paceMin ? parsePaceToSeconds(step.paceMin) : null;
   const pMax = step.paceMax ? parsePaceToSeconds(step.paceMax) : null;
 
@@ -348,12 +355,18 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string, v
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
+  // Résolution des templates VMA selon le rôle (Coach vs Athlète)
+  const isCoach = userRole === "coach";
+  const activeTemplates = isCoach
+    ? (coachVmaTemplates && coachVmaTemplates.length > 0 ? coachVmaTemplates : vmaTemplates)
+    : (vmaTemplates || athleteVmaTemplates);
+
   const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
   const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
 
-  // Calcul dynamique centralisé si zone VMA
-  if (step.goalType === "vma_zone" && step.targetZoneId && vmaTemplates && vmaTemplates.length > 0) {
-    const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
+  // Si zone VMA explicitement configurée dans le bloc
+  if (step.goalType === "vma_zone" && step.targetZoneId && activeTemplates && activeTemplates.length > 0) {
+    const defaultTemplate = activeTemplates.find((t: any) => t.isDefault || t.is_default) || activeTemplates[0];
     const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
       String(z.id) === String(step.targetZoneId) || 
       String(z.name) === String(step.targetZoneId) ||
@@ -369,29 +382,21 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string, v
     }
   }
 
-  // 1. Récupération à la marche : estimation fixée à 10'00 /km (600s)
-  const isWalking =
-    step.type === "recup_marche" ||
-    Boolean((step as any).isWalkingRecovery);
+  // Récupération à la marche : estimation fixée à 10'00 /km (600s)
+  const isWalking = step.type === "recup_marche" || Boolean((step as any).isWalkingRecovery);
+  if (isWalking) return 600;
 
-  if (isWalking) {
-    return 600; // 10:00 min/km
+  // Application des pourcentages de VMA : 85% pour corps, 65% pour échauffement/récup/calme
+  const isCorps = step.type === "corps";
+  const targetPct = isCorps ? 0.85 : 0.65;
+
+  if (hasValidVma) {
+    const speed = targetPct * parsedVma;
+    if (speed > 0) return Math.round(3600 / speed);
   }
 
-  // 2. Récupérations / Échauffement / Calme : 65% de la VMA par défaut si déclarée
-  const pace65PctVma = hasValidVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
-
-  switch (step.type) {
-    case "echauffement":
-      return pace65PctVma !== null ? pace65PctVma : 340;
-    case "recup":
-    case "retour_calme":
-      return pace65PctVma !== null ? pace65PctVma : 360;
-    case "corps":
-      return 270;
-    default:
-      return 300;
-  }
+  // Repli total si VMA absente : 4:30/km (270s) pour corps, 6:00/km (360s) pour les autres
+  return isCorps ? 270 : 360;
 }
 
 // Convertisseur précis durée / distance avec support du bouton Lap
@@ -448,7 +453,10 @@ export function parseStepMetricsValues(
 export function calculateStepMetrics(
   steps?: WorkoutStep[],
   vma?: number | string,
-  vmaTemplates?: any[]
+  vmaTemplates?: any[],
+  userRole?: string,
+  coachVmaTemplates?: any[],
+  athleteVmaTemplates?: any[]
 ): { totalKm: number; totalMinutes: number } {
   let totalKm = 0;
   let totalSeconds = 0;
@@ -458,18 +466,30 @@ export function calculateStepMetrics(
   }
 
   const computeSingleStep = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates);
-    const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
+    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates, userRole, coachVmaTemplates, athleteVmaTemplates);
+    const { km: rawKm, seconds: rawSec, hasParsed } = parseStepMetricsValues(
+      step.durationOrDist || "", 
+      step.endCondition
+    );
 
-    if (hasParsed) {
-      if (km > 0) {
-        totalKm += km;
-        totalSeconds += km * paceSec;
-      } else if (seconds > 0) {
-        totalSeconds += seconds;
-        totalKm += paceSec > 0 ? seconds / paceSec : 0;
-      }
+    let km = rawKm;
+    let seconds = rawSec;
+
+    // Triangulation : si on a 1 info de durée/distance ET l'allure, ou cas sans info du tout
+    if (step.endCondition === "lap_button" || (!hasParsed && step.endCondition !== "distance" && step.endCondition !== "temps")) {
+      seconds = 120; // 2 min par défaut si aucune info (bouton lap)
+      km = paceSec > 0 ? seconds / paceSec : 0;
+    } else if (km > 0 && seconds === 0 && paceSec > 0) {
+      seconds = km * paceSec;
+    } else if (seconds > 0 && km === 0 && paceSec > 0) {
+      km = seconds / paceSec;
+    } else if (!hasParsed) {
+      seconds = 60;
+      km = paceSec > 0 ? seconds / paceSec : 0;
     }
+
+    totalKm += km;
+    totalSeconds += seconds;
   };
 
   const processStepList = (stepList: WorkoutStep[]) => {
@@ -655,26 +675,34 @@ export interface PaceProfilePoint {
 export function generatePaceProfile(
   steps?: WorkoutStep[],
   vma?: number | string,
-  vmaTemplates?: any[]
+  vmaTemplates?: any[],
+  userRole?: string,
+  coachVmaTemplates?: any[],
+  athleteVmaTemplates?: any[]
 ): PaceProfilePoint[] {
   if (!steps || steps.length === 0) return [];
 
   const profile: PaceProfilePoint[] = [];
 
   const pushPoint = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates);
-    const { km, seconds, hasParsed } = parseStepMetricsValues(
+    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates, userRole, coachVmaTemplates, athleteVmaTemplates);
+    const { km: rawKm, seconds: rawSec, hasParsed } = parseStepMetricsValues(
       step.durationOrDist || "",
       step.endCondition
     );
 
     let durSec = 60;
-    if (hasParsed) {
-      if (km > 0) {
-        durSec = km * paceSec;
-      } else if (seconds > 0) {
-        durSec = seconds;
-      }
+    let km = rawKm;
+    let seconds = rawSec;
+
+    if (step.endCondition === "lap_button" || (!hasParsed)) {
+      durSec = 120; // 2 min par défaut pour le lap button ou bloc vide
+    } else if (km > 0 && seconds === 0 && paceSec > 0) {
+      durSec = km * paceSec;
+    } else if (seconds > 0 && km === 0) {
+      durSec = seconds;
+    } else {
+      durSec = 60;
     }
 
     const mins = Math.floor(paceSec / 60);
