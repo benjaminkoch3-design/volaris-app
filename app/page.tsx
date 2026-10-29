@@ -32,6 +32,8 @@ import {
   calculateWeeklyPlannedKm,
 } from "../utils/calculations";
 
+import { parseDistanceTextToMeters, parseTimeToSeconds } from "../utils/vdot";
+
 // Composants Communs
 import { Header } from "../components/common/Header";
 import { BottomNav, ActiveTab } from "../components/common/BottomNav";
@@ -83,6 +85,45 @@ const getLocalDateString = (): string => {
   return `${year}-${month}-${day}`;
 };
 
+const getRecordKeyFromDistance = (distanceStr: string): string | null => {
+  if (!distanceStr) return null;
+  const lower = distanceStr.toLowerCase().trim();
+  if (lower.includes("semi") || lower.includes("21.1")) return "rSemi";
+  if (lower.includes("marathon") && !lower.includes("semi")) return "rMarathon";
+  if (lower.includes("10k") || lower.includes("10 km") || lower.includes("10000")) return "r10k";
+  if (lower.includes("5k") || lower.includes("5 km") || lower.includes("5000")) return "r5k";
+  
+  const m = parseDistanceTextToMeters(distanceStr);
+  if (m >= 4500 && m <= 5500) return "r5k";
+  if (m >= 9500 && m <= 10500) return "r10k";
+  if (m >= 20000 && m <= 22000) return "rSemi";
+  if (m >= 41000 && m <= 43000) return "rMarathon";
+  return null;
+};
+
+const deriveRecordsFromRaces = (racesList: Race[], existingRecords: Record<string, string> = {}): Record<string, string> => {
+  const newRecords = { ...existingRecords };
+  
+  racesList.forEach((r) => {
+    if (!r.time || r.category === "trail") return;
+    const key = getRecordKeyFromDistance(r.distance);
+    if (!key) return;
+
+    const currentBestStr = newRecords[key];
+    if (!currentBestStr) {
+      newRecords[key] = r.time;
+    } else {
+      const currentSec = parseTimeToSeconds(currentBestStr);
+      const newSec = parseTimeToSeconds(r.time);
+      if (newSec > 0 && (currentSec === 0 || newSec < currentSec)) {
+        newRecords[key] = r.time;
+      }
+    }
+  });
+
+  return newRecords;
+};
+
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState<boolean>(true);
@@ -110,7 +151,6 @@ export default function Home() {
 
   const [showCalculatorsView, setShowCalculatorsView] = useState<boolean>(false);
 
-  // Vues de gestion des modèles de zones (VMA et FC) partagées ou spécifiques
   const [showZoneTemplatesView, setShowZoneTemplatesView] = useState<boolean>(false);
   const [coachZoneTemplates, setCoachZoneTemplates] = useState<ZoneTemplate[]>([]);
 
@@ -1319,6 +1359,28 @@ export default function Home() {
         coachSettings = settingsData;
       }
 
+      const { data: racesData } = await supabase
+        .from("races")
+        .select("*")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false });
+
+      let loadedRaces: Race[] = [];
+      if (racesData) {
+        loadedRaces = racesData.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          distance: r.distance,
+          time: r.time,
+          category: r.category,
+          elevationGain: r.elevation_gain,
+          utmbIndex: r.utmb_index,
+          date: r.date || undefined,
+          rank: r.rank || undefined,
+        }));
+        setRaces(loadedRaces);
+      }
+
       if (profile) {
         if (!isCoachInspecting) {
           if (profile.full_name) setAthleteName(profile.full_name);
@@ -1371,9 +1433,9 @@ export default function Home() {
           setFcMax(athFcMax);
         }
 
-        if (profile.records && typeof profile.records === 'object') {
-          setRecords(profile.records);
-        }
+        const initialRecords = profile.records && typeof profile.records === 'object' ? profile.records : {};
+        const synchronizedRecords = deriveRecordsFromRaces(loadedRaces, initialRecords);
+        setRecords(synchronizedRecords);
       }
 
       const { data: runs } = await supabase
@@ -1420,26 +1482,6 @@ export default function Home() {
             })));
           }
         }
-      }
-
-      const { data: racesData } = await supabase
-        .from("races")
-        .select("*")
-        .eq("user_id", targetUserId)
-        .order("created_at", { ascending: false });
-
-      if (racesData) {
-        setRaces(racesData.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          distance: r.distance,
-          time: r.time,
-          category: r.category,
-          elevationGain: r.elevation_gain,
-          utmbIndex: r.utmb_index,
-          date: r.date || undefined,
-          rank: r.rank || undefined,
-        })));
       }
 
       const { data: shoesData } = await supabase
@@ -1916,7 +1958,7 @@ export default function Home() {
     }
 
     if (data) {
-      setRaces([{
+      const newRacesList: Race[] = [{
         id: data.id,
         name: data.name,
         distance: data.distance,
@@ -1926,7 +1968,13 @@ export default function Home() {
         utmbIndex: data.utmb_index,
         date: data.date,
         rank: data.rank,
-      }, ...races]);
+      }, ...races];
+
+      setRaces(newRacesList);
+
+      const updatedRecords = deriveRecordsFromRaces(newRacesList, records);
+      setRecords(updatedRecords);
+      await saveProfileToSupabase({ recordsMap: updatedRecords });
 
       delete (window as any).__volaris_temp_race;
 
@@ -1964,7 +2012,12 @@ export default function Home() {
     if (updatedData.date !== undefined) payload.date = updatedData.date || null;
     if (updatedData.rank !== undefined) payload.rank = updatedData.rank ? String(updatedData.rank).trim() : null;
 
-    setRaces((prev) => prev.map((r) => (r.id === id ? { ...r, ...updatedData, elevationGain: elevationVal ?? undefined, rank: payload.rank ?? undefined } : r)));
+    const updatedRacesList = races.map((r) => (r.id === id ? { ...r, ...updatedData, elevationGain: elevationVal ?? undefined, rank: payload.rank ?? undefined } : r));
+    setRaces(updatedRacesList);
+
+    const updatedRecords = deriveRecordsFromRaces(updatedRacesList, records);
+    setRecords(updatedRecords);
+    await saveProfileToSupabase({ recordsMap: updatedRecords });
 
     const { error } = await supabase.from("races").update(payload).eq("id", id);
     if (error) {
@@ -1974,7 +2027,13 @@ export default function Home() {
 
   const handleDeleteRace = async (id: string) => {
     if (isCoachInspecting || !session?.user) return;
-    setRaces((prev) => prev.filter((r) => r.id !== id));
+    const updatedRacesList = races.filter((r) => r.id !== id);
+    setRaces(updatedRacesList);
+
+    const updatedRecords = deriveRecordsFromRaces(updatedRacesList, {});
+    setRecords(updatedRecords);
+    await saveProfileToSupabase({ recordsMap: updatedRecords });
+
     await supabase.from("races").delete().eq("id", id);
   };
 
