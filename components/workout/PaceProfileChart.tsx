@@ -139,8 +139,12 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
       if (selectedVmaZone && numericVma > 0) {
         const { min, max } = getZoneMinMax(selectedVmaZone);
         if (min > 0 && max > 0) {
-          const avgPercent = (min + max) / 2;
-          const speedKmH = (numericVma * avgPercent) / 100;
+          // Pour l'affichage sur une barre unique, on prend par exemple l'allure la plus rapide 
+          // ou le pivot de la zone, ou alors on s'aligne sur le calcul exact de l'éditeur.
+          // min % VMA = allure lente, max % VMA = allure rapide. 
+          // Si l'on veut positionner la barre sur l'allure cible centrale :
+          const targetPercent = (min + max) / 2;
+          const speedKmH = (numericVma * targetPercent) / 100;
           if (speedKmH > 0) {
             const paceSec = 3600 / speedKmH;
             return {
