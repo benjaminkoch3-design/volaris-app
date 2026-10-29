@@ -917,7 +917,13 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        <PaceProfileChart steps={workout.steps} vma={vma} />
+        <PaceProfileChart 
+          steps={workout.steps} 
+          vma={vma} 
+          userRole={userRole}
+          athleteVmaTemplates={athleteVmaTemplates}
+          coachVmaTemplates={coachVmaTemplates}
+        />
 
         <div className="space-y-3">
           <div>

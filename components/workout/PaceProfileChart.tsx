@@ -127,7 +127,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     : athleteVmaTemplates;
   const defaultVmaTemplate = availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
-  // Traduction des blocs "vma_zone" en allures (secondes/km) pour le graphique
+  // Traduction dynamique des blocs "vma_zone" en secondes par kilomètre pour le graphique
   const processedSteps = steps?.map((step) => {
     if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
       const selectedVmaZone = defaultVmaTemplate.zones.find(
@@ -139,14 +139,11 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
       if (selectedVmaZone && numericVma > 0) {
         const { min, max } = getZoneMinMax(selectedVmaZone);
         if (min > 0 && max > 0) {
-          // Pour l'affichage sur une barre unique, on prend par exemple l'allure la plus rapide 
-          // ou le pivot de la zone, ou alors on s'aligne sur le calcul exact de l'éditeur.
-          // min % VMA = allure lente, max % VMA = allure rapide. 
-          // Si l'on veut positionner la barre sur l'allure cible centrale :
-          const targetPercent = (min + max) / 2;
-          const speedKmH = (numericVma * targetPercent) / 100;
+          // On prend le milieu de la zone pour placer la barre du graphique
+          const avgPercent = (min + max) / 2;
+          const speedKmH = (numericVma * avgPercent) / 100;
           if (speedKmH > 0) {
-            const paceSec = 3600 / speedKmH;
+            const paceSec = Math.round(3600 / speedKmH);
             return {
               ...step,
               paceSecPerKm: paceSec,
@@ -249,6 +246,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
 
       {/* Graphique */}
       <div className="flex gap-2">
+        {/* Axe Y : valeurs conservées à gauche sans ligne pointillée */}
         <div className="relative h-32 w-10 shrink-0">
           {yTicks.map((t, i) => (
             <span
@@ -262,10 +260,12 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
         </div>
 
         <div className="min-w-0 flex-1">
+          {/* Zone de tracé sans pointillés */}
           <div
             className="relative h-32 select-none"
             onMouseLeave={() => setHovered(null)}
           >
+            {/* Barres d'allure avec dégradé vertical */}
             {bars.map((bar, i) => {
               const isHovered = hovered === i;
               const isDimmed = hovered !== null && !isHovered;
@@ -296,6 +296,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
               );
             })}
 
+            {/* Infobulle flottante */}
             {active && (
               <div
                 className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border border-stone-200 bg-white/95 px-3 py-2 shadow-xl backdrop-blur transition-transform dark:border-stone-700 dark:bg-stone-900/95"
@@ -329,6 +330,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
             )}
           </div>
 
+          {/* Axe X (Graduation temporelle en bas) */}
           <div className="relative mt-1.5 h-3 border-t border-stone-200 dark:border-stone-800">
             {xTicks.map((t) => (
               <span
@@ -343,6 +345,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
         </div>
       </div>
 
+      {/* Légende */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-stone-100 dark:border-stone-900">
         {LEGEND.map((l) => (
           <span
