@@ -3,13 +3,18 @@
 import React, { useState } from "react";
 import { Workout, WorkoutStep, LibraryWorkout, LibraryCategory, UserRole } from "../../types";
 import { WORKOUT_TYPES_CONFIG } from "../../constants";
-import { calculateStepMetrics, getWorkoutTypeConfig } from "../../utils/calculations";
+import {
+  calculateStepMetrics,
+  getWorkoutTypeConfig,
+  getZoneMinMax,
+  calculatePaceRangeFromVmaTemplates,
+} from "../../utils/calculations";
 import { PaceProfileChart } from "./PaceProfileChart";
 
 interface WorkoutEditorProps {
   workout: Workout;
   startDate: string;
-  isLibraryEditing?: boolean; // Ajouté ici
+  isLibraryEditing?: boolean;
   onClose: () => void;
   onUpdateWorkout: (id: string, field: keyof Workout, value: any) => void;
   onAddStep: (workoutId: string, parentPath?: string[]) => void;
@@ -46,45 +51,6 @@ const getRpeColor = (rpe: number) => {
   if (rpe <= 5) return "#f59e0b";
   if (rpe <= 7) return "#f97316";
   return "#ef4444";
-};
-
-const getZoneMinMax = (zone: any) => {
-  if (!zone) return { min: 0, max: 0 };
-  
-  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
-  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
-
-  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
-  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
-
-  const textSource = zone.name || zone.label || "";
-  if ((min === 0 || max === 0) && textSource) {
-    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
-    if (matches && matches[1] && matches[2]) {
-      min = parseFloat(matches[1]);
-      max = parseFloat(matches[2]);
-    }
-  }
-
-  return { min, max };
-};
-
-const formatPaceFromSpeedKmH = (speedKmH: number): string => {
-  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "--:--";
-  const totalSeconds = 3600 / speedKmH;
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = Math.round(totalSeconds % 60);
-  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-};
-
-const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
-  if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
-  const speedSlow = (vmaVal * minPercent) / 100;
-  const speedFast = (vmaVal * maxPercent) / 100;
-  if (speedSlow <= 0 || speedFast <= 0) return null;
-  const paceSlow = formatPaceFromSpeedKmH(speedSlow);
-  const paceFast = formatPaceFromSpeedKmH(speedFast);
-  return `${paceFast} - ${paceSlow} /km`;
 };
 
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
@@ -134,23 +100,23 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
   const numericFcRest = typeof fcRest === "string" ? parseFloat(fcRest) : Number(fcRest || 0);
   const numericFcMax = typeof fcMax === "string" ? parseFloat(fcMax) : Number(fcMax || 0);
 
-  const metrics = calculateStepMetrics(workout.steps, vma);
-  const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
-
   const isCoach = userRole === "coach";
-  const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
-  const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
-
-  const availableVmaTemplates = isCoach
+  const activeVmaTemplates = isCoach
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
+
+  const metrics = calculateStepMetrics(workout.steps, vma, activeVmaTemplates);
+  const selectedTypeConfig = getWorkoutTypeConfig(workout.type || "footing");
+
+  const themeColor = isCoach ? "#CDCF61" : "#CF9A61";
+  const themeHoverBg = isCoach ? "hover:bg-[#b8bb52]" : "hover:bg-[#b88652]";
 
   const availableHrTemplates = isCoach
     ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
     : athleteHrTemplates;
 
   const defaultVmaTemplate =
-    availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
+    activeVmaTemplates.find((t: any) => t.isDefault || t.is_default) || activeVmaTemplates[0];
 
   const defaultHrTemplate =
     availableHrTemplates.find((t: any) => t.isDefault || t.is_default) || availableHrTemplates[0];
@@ -270,7 +236,7 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
         ? numericVma > 0
           ? (selectedVmaZone.paceMin && selectedVmaZone.paceMax
               ? `${selectedVmaZone.paceMin} - ${selectedVmaZone.paceMax} /km`
-              : calculatePaceRangeFromVma(numericVma, vmaMinMax.min, vmaMinMax.max))
+              : calculatePaceRangeFromVmaTemplates(numericVma, step.targetZoneId, step.targetZoneName, activeVmaTemplates))
           : `${vmaMinMax.min}% - ${vmaMinMax.max}% VMA`
         : null;
 
@@ -917,9 +883,9 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
-        <PaceProfileChart 
-          steps={workout.steps} 
-          vma={vma} 
+        <PaceProfileChart
+          steps={workout.steps}
+          vma={vma}
           userRole={userRole}
           athleteVmaTemplates={athleteVmaTemplates}
           coachVmaTemplates={coachVmaTemplates}

@@ -237,7 +237,7 @@ export const getISOWeeksForMonth = (year: number, monthIndex: number): number[] 
 };
 
 // ==========================================
-// PACE, SPEED & TIME PARSING
+// PACE, SPEED & TIME PARSING & ZONES UTILS
 // ==========================================
 
 export const parseTimeToHours = (str: string): number | null => {
@@ -289,7 +289,54 @@ export function parsePaceToSeconds(paceStr?: string): number {
   return !isNaN(val) && val > 0 ? Math.round(val * 60) : 300;
 }
 
-export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): number {
+export const getZoneMinMax = (zone: any) => {
+  if (!zone) return { min: 0, max: 0 };
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
+
+  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
+  const textSource = zone.name || zone.label || "";
+  if ((min === 0 || max === 0) && textSource) {
+    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
+    if (matches && matches[1] && matches[2]) {
+      min = parseFloat(matches[1]);
+      max = parseFloat(matches[2]);
+    }
+  }
+  return { min, max };
+};
+
+export const calculatePaceRangeFromVmaTemplates = (
+  vmaVal: number,
+  targetZoneId?: string,
+  targetZoneName?: string,
+  vmaTemplates?: any[]
+): string | null => {
+  if (!vmaVal || vmaVal <= 0 || !vmaTemplates || vmaTemplates.length === 0) return null;
+  const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
+  if (!defaultTemplate?.zones) return null;
+
+  const zone = defaultTemplate.zones.find((z: any, zIdx: number) => 
+    (targetZoneId && String(z.id) === String(targetZoneId)) || 
+    (targetZoneId && String(z.name) === String(targetZoneId)) ||
+    (targetZoneName && String(z.name) === String(targetZoneName)) ||
+    (String(zIdx) === String(targetZoneId))
+  );
+
+  if (!zone) return null;
+  const { min, max } = getZoneMinMax(zone);
+  if (min <= 0 || max <= 0) return null;
+
+  const speedSlow = (vmaVal * min) / 100;
+  const speedFast = (vmaVal * max) / 100;
+  if (speedSlow <= 0 || speedFast <= 0) return null;
+
+  return `${formatPaceFromSpeed(speedFast)} - ${formatPaceFromSpeed(speedSlow)} /km`;
+};
+
+export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string, vmaTemplates?: any[]): number {
   const pMin = step.paceMin ? parsePaceToSeconds(step.paceMin) : null;
   const pMax = step.paceMax ? parsePaceToSeconds(step.paceMax) : null;
 
@@ -301,6 +348,27 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): 
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
+  const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
+  const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
+
+  // Calcul dynamique centralisé si zone VMA
+  if (step.goalType === "vma_zone" && step.targetZoneId && vmaTemplates && vmaTemplates.length > 0) {
+    const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
+    const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
+      String(z.id) === String(step.targetZoneId) || 
+      String(z.name) === String(step.targetZoneId) ||
+      String(zIdx) === String(step.targetZoneId)
+    );
+    if (zone && hasValidVma) {
+      const { min, max } = getZoneMinMax(zone);
+      if (min > 0 && max > 0) {
+        const avgPercent = (min + max) / 2;
+        const speedKmH = (parsedVma * avgPercent) / 100;
+        if (speedKmH > 0) return Math.round(3600 / speedKmH);
+      }
+    }
+  }
+
   // 1. Récupération à la marche : estimation fixée à 10'00 /km (600s)
   const isWalking =
     step.type === "recup_marche" ||
@@ -311,8 +379,6 @@ export function getStepPaceInSeconds(step: WorkoutStep, vma?: number | string): 
   }
 
   // 2. Récupérations / Échauffement / Calme : 65% de la VMA par défaut si déclarée
-  const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
-  const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
   const pace65PctVma = hasValidVma ? Math.round(3600 / (0.65 * parsedVma)) : null;
 
   switch (step.type) {
@@ -381,7 +447,8 @@ export function parseStepMetricsValues(
 
 export function calculateStepMetrics(
   steps?: WorkoutStep[],
-  vma?: number | string
+  vma?: number | string,
+  vmaTemplates?: any[]
 ): { totalKm: number; totalMinutes: number } {
   let totalKm = 0;
   let totalSeconds = 0;
@@ -391,7 +458,7 @@ export function calculateStepMetrics(
   }
 
   const computeSingleStep = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step, vma);
+    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates);
     const { km, seconds, hasParsed } = parseStepMetricsValues(step.durationOrDist || "", step.endCondition);
 
     if (hasParsed) {
@@ -587,14 +654,15 @@ export interface PaceProfilePoint {
 
 export function generatePaceProfile(
   steps?: WorkoutStep[],
-  vma?: number | string
+  vma?: number | string,
+  vmaTemplates?: any[]
 ): PaceProfilePoint[] {
   if (!steps || steps.length === 0) return [];
 
   const profile: PaceProfilePoint[] = [];
 
   const pushPoint = (step: WorkoutStep) => {
-    const paceSec = getStepPaceInSeconds(step, vma);
+    const paceSec = getStepPaceInSeconds(step, vma, vmaTemplates);
     const { km, seconds, hasParsed } = parseStepMetricsValues(
       step.durationOrDist || "",
       step.endCondition

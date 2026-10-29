@@ -7,6 +7,8 @@ import { WORKOUT_TYPES_CONFIG } from "../../constants";
 import {
   calculateStepMetrics,
   getStepTypeLabel,
+  getZoneMinMax,
+  calculatePaceRangeFromVmaTemplates,
 } from "../../utils/calculations";
 import {
   GarminLogo,
@@ -36,44 +38,6 @@ const getRpeColor = (rpe: number): { text: string; bg: string; border: string } 
   if (rpe <= 5) return { text: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" };
   if (rpe <= 7) return { text: "#f97316", bg: "rgba(249, 115, 22, 0.12)", border: "rgba(249, 115, 22, 0.3)" };
   return { text: "#ef4444", bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.3)" };
-};
-
-// --- UTILITAIRES DE CALCULS (ALLURES & FC) ---
-const getZoneMinMax = (zone: any) => {
-  if (!zone) return { min: 0, max: 0 };
-  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
-  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
-
-  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
-  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
-
-  const textSource = zone.name || zone.label || "";
-  if ((min === 0 || max === 0) && textSource) {
-    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
-    if (matches && matches[1] && matches[2]) {
-      min = parseFloat(matches[1]);
-      max = parseFloat(matches[2]);
-    }
-  }
-  return { min, max };
-};
-
-const formatPaceFromSpeedKmH = (speedKmH: number): string => {
-  if (!speedKmH || speedKmH <= 0 || isNaN(speedKmH)) return "--:--";
-  const totalSeconds = 3600 / speedKmH;
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = Math.round(totalSeconds % 60);
-  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-};
-
-const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPercent?: number) => {
-  if (!vmaVal || vmaVal <= 0 || minPercent === undefined || maxPercent === undefined) return null;
-  const speedSlow = (vmaVal * minPercent) / 100;
-  const speedFast = (vmaVal * maxPercent) / 100;
-  if (speedSlow <= 0 || speedFast <= 0) return null;
-  const paceSlow = formatPaceFromSpeedKmH(speedSlow);
-  const paceFast = formatPaceFromSpeedKmH(speedFast);
-  return `${paceFast} - ${paceSlow} /km`;
 };
 
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
@@ -109,7 +73,12 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 }) => {
   const isCoach = userRole === "coach";
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
-  const metrics = calculateStepMetrics(workout.steps, vma);
+
+  const activeVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+    : athleteVmaTemplates;
+
+  const metrics = calculateStepMetrics(workout.steps, vma, activeVmaTemplates);
   const targetRpe = workout.rpe ? Math.min(10, Math.max(1, parseInt(workout.rpe, 10) || 5)) : 5;
   const estimatedLoad = Math.round((metrics.totalMinutes || 0) * targetRpe);
   const rpeTheme = getRpeColor(targetRpe);
@@ -118,15 +87,11 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const numericFcRest = typeof fcRest === "string" ? parseFloat(fcRest) : Number(fcRest || 0);
   const numericFcMax = typeof fcMax === "string" ? parseFloat(fcMax) : Number(fcMax || 0);
 
-  const availableVmaTemplates = isCoach
-    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
-    : athleteVmaTemplates;
-
   const availableHrTemplates = isCoach
     ? (coachHrTemplates.length > 0 ? coachHrTemplates : athleteHrTemplates)
     : athleteHrTemplates;
 
-  const defaultVmaTemplate = availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
+  const defaultVmaTemplate = activeVmaTemplates.find((t: any) => t.isDefault || t.is_default) || activeVmaTemplates[0];
   const defaultHrTemplate = availableHrTemplates.find((t: any) => t.isDefault || t.is_default) || availableHrTemplates[0];
 
   const hasDebrief =
@@ -143,10 +108,8 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   );
 
   const [showTelemetryModal, setShowTelemetryModal] = useState(false);
-
   const [hasGarminCreds, setHasGarminCreds] = useState(false);
   const [hasCorosCreds, setHasCorosCreds] = useState(false);
-
   const [loadingPlatform, setLoadingPlatform] = useState<"garmin" | "coros" | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
@@ -181,11 +144,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const res = await fetch("/api/sync-garmin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: savedEmail,
-            password: savedPwd,
-            workout,
-          }),
+          body: JSON.stringify({ email: savedEmail, password: savedPwd, workout }),
         });
 
         const data = await res.json();
@@ -217,11 +176,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         const res = await fetch("/api/sync-coros", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: savedEmail,
-            password: savedPwd,
-            workout,
-          }),
+          body: JSON.stringify({ email: savedEmail, password: savedPwd, workout }),
         });
 
         const data = await res.json();
@@ -249,7 +204,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 
       if (selectedVmaZone) {
         const { min, max } = getZoneMinMax(selectedVmaZone);
-        const computedPace = numericVma > 0 ? calculatePaceRangeFromVma(numericVma, min, max) : null;
+        const computedPace = numericVma > 0 ? calculatePaceRangeFromVmaTemplates(numericVma, step.targetZoneId, step.targetZoneName, activeVmaTemplates) : null;
 
         return (
           <div className="text-right">
@@ -264,7 +219,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
-    // 2. Si la cible est une zone FC (affichage forcé en BPM si fcMax configuré)
+    // 2. Si la cible est une zone FC
     if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
       const selectedHrZone = defaultHrTemplate.zones.find((z: any, zIdx: number) => 
         (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -284,7 +239,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
             <span className="text-[9px] text-stone-500 uppercase block font-bold">
               {selectedHrZone.name || "Zone FC"}
             </span>
-            <span className="font-black text-[#CF9A61] font-mono text-[11px] bg-[#CF9A61]/10 px-2 py-0.5 rounded border border-[#CF9A61]/30">
+            <span className="font-black text-rose-400 font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
               {computedBpm}
             </span>
           </div>
@@ -292,7 +247,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
-    // 3. Si la cible est basée sur le RPE spécifique à l'étape
+    // 3. RPE Cible
     if (step.goalType === "rpe" && step.targetRpe) {
       return (
         <div className="text-right">
@@ -306,7 +261,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       );
     }
 
-    // 4. Sinon, gestion classique de l'allure brute
+    // 4. Allure classique
     const slowPace = step.paceMax;
     const fastPace = step.paceMin;
 
@@ -407,10 +362,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
     <div className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
         {showTelemetryModal && (
-          <WorkoutTelemetryModal
-            workout={workout}
-            onClose={() => setShowTelemetryModal(false)}
-          />
+          <WorkoutTelemetryModal workout={workout} onClose={() => setShowTelemetryModal(false)} />
         )}
 
         {/* HEADER */}
@@ -420,9 +372,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               <span className="text-[10px] font-bold text-[#CF9A61] uppercase tracking-wider block">
                 Semaine {workout.weekNumber} • {workout.dayName}
               </span>
-              <span
-                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}
-              >
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}>
                 {typeConfig.label}
               </span>
             </div>
@@ -442,67 +392,26 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         {/* MÉTRIQUES CIBLES */}
         <div className="grid grid-cols-4 gap-2 bg-stone-950 p-3 rounded-2xl border border-stone-800 text-center items-center">
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">
-              Distance
-            </span>
-            <span className="text-sm font-black text-[#CF9A61]">
-              {workout.km || metrics.totalKm} km
-            </span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">Distance</span>
+            <span className="text-sm font-black text-[#CF9A61]">{workout.km || metrics.totalKm} km</span>
           </div>
 
           <div>
-            <span className="block text-[8px] font-bold text-stone-400 uppercase">
-              Durée
-            </span>
-            <span className="text-sm font-black text-[#CF9A61]">
-              {metrics.totalMinutes} min
-            </span>
+            <span className="block text-[8px] font-bold text-stone-400 uppercase">Durée</span>
+            <span className="text-sm font-black text-[#CF9A61]">{metrics.totalMinutes} min</span>
           </div>
 
-          <div
-            style={{
-              backgroundColor: rpeTheme.bg,
-              borderColor: rpeTheme.border,
-            }}
-            className="border rounded-xl py-1 px-1 transition-all"
-          >
-            <span
-              style={{ color: rpeTheme.text }}
-              className="block text-[8px] font-bold uppercase opacity-90"
-            >
-              RPE Cible
-            </span>
-            <span
-              style={{ color: rpeTheme.text }}
-              className="text-sm font-black"
-            >
-              {workout.rpe ? `${workout.rpe}/10` : "5/10"}
-            </span>
+          <div style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }} className="border rounded-xl py-1 px-1 transition-all">
+            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">RPE Cible</span>
+            <span style={{ color: rpeTheme.text }} className="text-sm font-black">{workout.rpe ? `${workout.rpe}/10` : "5/10"}</span>
           </div>
 
-          <div
-            style={{
-              backgroundColor: rpeTheme.bg,
-              borderColor: rpeTheme.border,
-            }}
-            className="border rounded-xl py-1 px-1 transition-all"
-          >
-            <span
-              style={{ color: rpeTheme.text }}
-              className="block text-[8px] font-bold uppercase opacity-90"
-            >
-              Charge
-            </span>
-            <span
-              style={{ color: rpeTheme.text }}
-              className="text-sm font-black"
-            >
-              {estimatedLoad}
-            </span>
+          <div style={{ backgroundColor: rpeTheme.bg, borderColor: rpeTheme.border }} className="border rounded-xl py-1 px-1 transition-all">
+            <span style={{ color: rpeTheme.text }} className="block text-[8px] font-bold uppercase opacity-90">Charge</span>
+            <span style={{ color: rpeTheme.text }} className="text-sm font-black">{estimatedLoad}</span>
           </div>
         </div>
 
-        {/* BOUTON D'ACCÈS AUX GRAPHIQUES TÉLÉMÉTRIQUES */}
         {hasDebrief && (
           <button
             type="button"
@@ -513,16 +422,11 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           </button>
         )}
 
-        {/* SYNCHRONISATION MONTRES */}
         {!isCoach && (
           <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 space-y-2.5">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">
-                Synchronisation Montre
-              </span>
-              <span className="text-[9px] text-stone-500 font-bold">
-                Exporter la séance
-              </span>
+              <span className="text-[10px] font-black uppercase text-[#CF9A61] tracking-wider block">Synchronisation Montre</span>
+              <span className="text-[9px] text-stone-500 font-bold">Exporter la séance</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -531,17 +435,9 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                 onClick={() => handlePushToPlatform("garmin")}
                 disabled={loadingPlatform !== null}
                 className="p-2.5 bg-stone-900 hover:bg-[#007CC3]/20 border border-stone-800 hover:border-[#007CC3]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
-                title={hasGarminCreds ? "Envoyer vers Garmin Connect" : "Connecter Garmin dans le profil"}
               >
                 <GarminLogo className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase text-stone-300">
-                  {loadingPlatform === "garmin" ? "Envoi..." : "Garmin"}
-                </span>
-                {!hasGarminCreds && (
-                  <span className="text-[8px] text-stone-500 font-normal">
-                    (non lié)
-                  </span>
-                )}
+                <span className="text-xs font-bold uppercase text-stone-300">{loadingPlatform === "garmin" ? "Envoi..." : "Garmin"}</span>
               </button>
 
               <button
@@ -549,28 +445,14 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
                 onClick={() => handlePushToPlatform("coros")}
                 disabled={loadingPlatform !== null}
                 className="p-2.5 bg-stone-900 hover:bg-[#F8283B]/20 border border-stone-800 hover:border-[#F8283B]/50 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer group disabled:opacity-50"
-                title={hasCorosCreds ? "Envoyer vers COROS Training Hub" : "Connecter COROS dans le profil"}
               >
                 <CorosLogo className="w-5 h-5" />
-                <span className="text-xs font-bold uppercase text-stone-300">
-                  {loadingPlatform === "coros" ? "Envoi..." : "COROS"}
-                </span>
-                {!hasCorosCreds && (
-                  <span className="text-[8px] text-stone-500 font-normal">
-                    (non lié)
-                  </span>
-                )}
+                <span className="text-xs font-bold uppercase text-stone-300">{loadingPlatform === "coros" ? "Envoi..." : "COROS"}</span>
               </button>
             </div>
 
             {syncStatus && (
-              <p className={`text-[10px] text-center font-bold animate-fadeIn ${
-                syncStatus.startsWith("✅")
-                  ? "text-emerald-400"
-                  : syncStatus.startsWith("⚠️")
-                  ? "text-amber-400"
-                  : "text-rose-400"
-              }`}>
+              <p className={`text-[10px] text-center font-bold animate-fadeIn ${syncStatus.startsWith("✅") ? "text-emerald-400" : "text-rose-400"}`}>
                 {syncStatus}
               </p>
             )}
@@ -578,41 +460,35 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
         )}
 
         {/* PROFIL D'ALLURE CHRONOLOGIQUE */}
-        <PaceProfileChart steps={workout.steps} vma={vma} />
+        <PaceProfileChart
+          steps={workout.steps}
+          vma={vma}
+          userRole={userRole}
+          athleteVmaTemplates={athleteVmaTemplates}
+          coachVmaTemplates={coachVmaTemplates}
+        />
 
-        {/* DESCRIPTION */}
         {workout.description && (
           <div className="bg-stone-950/60 p-3 rounded-2xl border border-stone-800 space-y-1">
-            <span className="text-[9px] font-bold uppercase text-stone-400 block">
-              Description de la séance
-            </span>
-            <p className="text-xs text-stone-300 leading-relaxed">
-              {workout.description}
-            </p>
+            <span className="text-[9px] font-bold uppercase text-stone-400 block">Description de la séance</span>
+            <p className="text-xs text-stone-300 leading-relaxed">{workout.description}</p>
           </div>
         )}
 
-        {/* REMARQUE COACH */}
         {workout.remark && (
           <div className="bg-[#CDCF61]/10 border border-[#CDCF61]/30 p-3 rounded-2xl space-y-0.5">
-            <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">
-              💡 Conseil du Coach
-            </span>
+            <span className="text-[9px] font-bold uppercase text-[#CDCF61] block">💡 Conseil du Coach</span>
             <p className="text-xs text-[#CDCF61]/90">{workout.remark}</p>
           </div>
         )}
 
-        {/* STRUCTURE DES BLOCS */}
         <div className="space-y-2 border-t border-stone-800 pt-3">
           <span className="text-[10px] font-black uppercase text-stone-200 tracking-wider block">
-            Structure de la séance ({workout.steps?.length || 0} bloc
-            {workout.steps && workout.steps.length > 1 ? "s" : ""})
+            Structure de la séance ({workout.steps?.length || 0} bloc{workout.steps && workout.steps.length > 1 ? "s" : ""})
           </span>
 
           {!workout.steps || workout.steps.length === 0 ? (
-            <p className="text-xs text-stone-500 italic text-center py-2">
-              Aucun bloc structuré renseigné.
-            </p>
+            <p className="text-xs text-stone-500 italic text-center py-2">Aucun bloc structuré renseigné.</p>
           ) : (
             <div className="max-h-[25vh] overflow-y-auto custom-scrollbar pr-1">
               {renderStepTree(workout.steps)}
@@ -620,7 +496,6 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           )}
         </div>
 
-        {/* ACTIONS */}
         <div className="flex gap-2 pt-2 border-t border-stone-800">
           <button
             type="button"
