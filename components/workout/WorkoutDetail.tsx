@@ -79,6 +79,7 @@ const calculatePaceRangeFromVma = (vmaVal: number, minPercent?: number, maxPerce
 const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, minPercent?: number, maxPercent?: number) => {
   const maxToUse = fcMaxVal && fcMaxVal > 0 ? fcMaxVal : 0;
   const restToUse = fcRestVal && fcRestVal > 0 ? fcRestVal : 0;
+  
   if (minPercent === undefined || maxPercent === undefined || maxToUse <= 0) return null;
   
   if (maxToUse > restToUse) {
@@ -264,7 +265,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
-    // 2. Si la cible est une zone FC (affichage forcé en BPM si fcMax configuré)
+    // 2. Si la cible est une zone FC (Calcul des BPM avec Karvonen / Max comme dans l'éditeur)
     if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
       const selectedHrZone = defaultHrTemplate.zones.find((z: any, zIdx: number) => 
         (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -275,8 +276,10 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
 
       if (selectedHrZone) {
         const { min, max } = getZoneMinMax(selectedHrZone);
-        const computedBpm = numericFcMax > 0 
-          ? calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, min, max) 
+        const computedHrBpmRange = numericFcMax > 0
+          ? (selectedHrZone.minBpm && selectedHrZone.maxBpm
+              ? `${selectedHrZone.minBpm} - ${selectedHrZone.maxBpm} bpm`
+              : calculateHrRangeFromKarvonenOrMax(numericFcRest, numericFcMax, min, max))
           : `${min}% - ${max}%`;
 
         return (
@@ -285,7 +288,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
               {selectedHrZone.name || "Zone FC"}
             </span>
             <span className="font-black text-rose-400 font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
-              {computedBpm}
+              {computedHrBpmRange || `${min}% - ${max}%`}
             </span>
           </div>
         );
