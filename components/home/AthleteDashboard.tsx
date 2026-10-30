@@ -247,7 +247,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Données journalières de la semaine en cours
+  // Données journalières de la semaine en cours (avec les templates VMA actifs)
   const dailyMetricsData = Array.from({ length: 7 }, (_, dIdx) => {
     const dayWorkouts = (activePlan?.workouts || []).filter(
       (w) => Number(w.weekNumber) === currentWeekNum && Number(w.dayIndex) === dIdx && !w.isRest
