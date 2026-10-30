@@ -150,16 +150,12 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
     if (averageVdot <= 0) return null;
     const baseThresholdSec = vdotToPace(averageVdot, 0.88);
 
-    // Ajustements demandés sur l'allure (sec/km) :
-    // Courts : -1% à +1% de l'allure de seuil
     const shortPaceMin = baseThresholdSec * 0.99;
     const shortPaceMax = baseThresholdSec * 1.01;
 
-    // Moyens : +3% à +6% (allure légèrement plus lente/accessible)
     const medPaceMin = baseThresholdSec * 1.03;
     const medPaceMax = baseThresholdSec * 1.06;
 
-    // Longs : +6% à +9% (allure plus durable)
     const longPaceMin = baseThresholdSec * 1.06;
     const longPaceMax = baseThresholdSec * 1.09;
 
@@ -464,18 +460,28 @@ export const PaceCalculatorsView: React.FC<PaceCalculatorsViewProps> = ({
                   <div className="flex items-center gap-2 w-full md:w-auto">
                     <span className="text-[10px] font-mono font-bold text-stone-500 w-5">#{idx + 1}</span>
                     <select
-                      value={ref.distMeters}
-                      onChange={(e) =>
-                        handleUpdateReference(ref.id, "distMeters", parseInt(e.target.value, 10))
+                      value={
+                        ref.distMeters === 21097.5
+                          ? "semi"
+                          : ref.distMeters === 42195
+                          ? "marathon"
+                          : ref.distMeters
                       }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let meters = Number(val);
+                        if (val === "semi") meters = 21097.5;
+                        if (val === "marathon") meters = 42195;
+                        handleUpdateReference(ref.id, "distMeters", meters);
+                      }}
                       className="bg-stone-900 border border-stone-800 rounded-xl px-2.5 py-1.5 text-xs font-bold text-stone-100 focus:outline-none cursor-pointer"
                     >
                       <option value={1500}>1 500 m</option>
                       <option value={3000}>3 000 m</option>
                       <option value={5000}>5 km</option>
                       <option value={10000}>10 km</option>
-                      <option value={21097.5}>Semi-marathon (21.1 km)</option>
-                      <option value={42195}>Marathon (42.2 km)</option>
+                      <option value="semi">Semi-marathon (21.1 km)</option>
+                      <option value="marathon">Marathon (42.2 km)</option>
                     </select>
                   </div>
 
