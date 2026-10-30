@@ -3502,14 +3502,6 @@ export default function Home() {
           </div>
         )}
 
-        {showCalculatorsView && (
-          <PaceCalculatorsView
-            userRole={userRole}
-            initialVma={currentAthleteVma}
-            onBack={() => setShowCalculatorsView(false)}
-          />
-        )}
-
         {userRole === "coach" && !inspectingAthleteId && showZoneTemplatesView && (
           <CoachZoneTemplatesView
             templates={coachZoneTemplates}
