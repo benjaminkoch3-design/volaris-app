@@ -22,6 +22,9 @@ interface AthleteDashboardProps {
   onOpenDebrief: (workout: Workout) => void;
   isReadOnly?: boolean;
   vma?: number | string;
+  athleteVmaTemplates?: any[];
+  coachVmaTemplates?: any[];
+  userRole?: string;
 }
 
 const getWorkoutTypeHexColor = (type: string) => {
@@ -75,6 +78,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   onOpenDebrief,
   isReadOnly = false,
   vma,
+  athleteVmaTemplates = [],
+  coachVmaTemplates = [],
+  userRole = "athlete",
 }) => {
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
@@ -783,7 +789,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                   {/* 3. PROFIL D'ALLURE DE LA SÉANCE */}
                   {todayWorkout.steps && todayWorkout.steps.length > 0 && (
                     <div className="pt-1">
-                      <PaceProfileChart steps={todayWorkout.steps} vma={vma} />
+                      <PaceProfileChart
+                        steps={todayWorkout.steps}
+                        vma={vma}
+                        athleteVmaTemplates={athleteVmaTemplates}
+                        coachVmaTemplates={coachVmaTemplates}
+                        userRole={userRole}
+                      />
                     </div>
                   )}
 
