@@ -3895,6 +3895,12 @@ export default function Home() {
                   onBack={() => setShowConnectedDevicesPage(false)}
                   isReadOnly={false}
                 />
+              ) : showCalculatorsView ? (
+                <PaceCalculatorsView
+                  userRole={userRole}
+                  initialVma={currentAthleteVma}
+                  onBack={() => setShowCalculatorsView(false)}
+                />
               ) : (
                 <ProfileView
                   athleteName={session?.user?.user_metadata?.full_name || athleteName}
