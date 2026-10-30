@@ -3584,6 +3584,10 @@ export default function Home() {
                   setPlanCreationStep(1);
                 }}
                 onNavigateToVolumeChart={navigateToPlanStats}
+                vma={currentAthleteVma}
+                athleteVmaTemplates={athleteVmaTemplates}
+                coachVmaTemplates={coachZoneTemplates}
+                userRole={userRole}
               />
             )}
 
