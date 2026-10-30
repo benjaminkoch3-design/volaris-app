@@ -80,9 +80,13 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   vma,
   athleteVmaTemplates = [],
   coachVmaTemplates = [],
-  userRole = "athlete", //
+  userRole = "athlete",
 }) => {
   const isCoach = userRole === "coach";
+  const activeVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+    : athleteVmaTemplates;
+
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
 
@@ -261,8 +265,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     let dayPlannedRpes: number[] = [];
 
     dayWorkouts.forEach((w) => {
-      const activeVmaTemplates = isCoach ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates) : athleteVmaTemplates;
-      const stepM = w.steps && w.steps.length > 0 ? calculateStepMetrics(w.steps, vma, activeVmaTemplates) : { totalKm: 0, totalMinutes: 0 };
+      const stepM = w.steps && w.steps.length > 0 
+        ? calculateStepMetrics(w.steps, vma, activeVmaTemplates) 
+        : { totalKm: 0, totalMinutes: 0 };
 
       // Distance
       if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
