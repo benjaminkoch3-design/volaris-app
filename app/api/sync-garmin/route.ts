@@ -2,6 +2,7 @@
 // app/api/sync-garmin/route.ts
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
+import { getZoneMinMax } from "../../utils/calculations";
 
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
@@ -68,28 +69,29 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   return null;
 };
 
-const getZoneMinMax = (zone: any) => {
-  if (!zone) return { min: 0, max: 0 };
-  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
-  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
+const calculateBpmFromZone = (step: any, hrTemplates: any[], fcRest: number, fcMax: number) => {
+  let minPercent = 0;
+  let maxPercent = 0;
 
-  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
-  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
-
-  const textSource = zone.name || zone.label || "";
-  if ((min === 0 || max === 0) && textSource) {
-    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
-    if (matches && matches[1] && matches[2]) {
-      min = parseFloat(matches[1]);
-      max = parseFloat(matches[2]);
+  if (step.targetZoneId && hrTemplates && hrTemplates.length > 0) {
+    const defaultTemplate = hrTemplates.find((t: any) => t.isDefault || t.is_default) || hrTemplates[0];
+    const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
+      String(z.id) === String(step.targetZoneId) || 
+      String(z.name) === String(step.targetZoneId) ||
+      String(zIdx) === String(step.targetZoneId) ||
+      (step.targetZoneName && String(z.name) === String(step.targetZoneName))
+    );
+    if (zone) {
+      const range = getZoneMinMax(zone);
+      minPercent = range.min;
+      maxPercent = range.max;
     }
   }
-  return { min, max };
-};
 
-const calculateBpmFromZone = (zone: any, fcRest: number, fcMax: number) => {
-  if (!zone) return null;
-  const { min: minPercent, max: maxPercent } = getZoneMinMax(zone);
+  if (minPercent === 0 || maxPercent === 0) {
+    minPercent = parseFloat(step.minPercent || 60);
+    maxPercent = parseFloat(step.maxPercent || 75);
+  }
 
   const maxToUse = fcMax && fcMax > 0 ? fcMax : 190;
   const restToUse = fcRest && fcRest > 0 ? fcRest : 50;
@@ -135,27 +137,44 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  if ((!fastSec || !slowSec) && step.goalType === "vma_zone" && step.targetZoneId && vma > 0 && vmaTemplates.length > 0) {
-    const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
-    const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
-      String(z.id) === String(step.targetZoneId) || 
-      String(z.name) === String(step.targetZoneId) ||
-      String(zIdx) === String(step.targetZoneId) ||
-      (step.targetZoneName && String(z.name) === String(step.targetZoneName))
-    );
+  // Résolution précise via le template VMA et getZoneMinMax[cite: 5]
+  if ((!fastSec || !slowSec) && step.goalType === "vma_zone" && vma > 0) {
+    let minPct = 0;
+    let maxPct = 0;
 
-    if (zone) {
-      const { min: minPct, max: maxPct } = getZoneMinMax(zone);
-      if (minPct > 0 && maxPct > 0) {
-        const speedMinMs = (vma * minPct) / 100 / 3.6;
-        const speedMaxMs = (vma * maxPct) / 100 / 3.6;
+    if (step.targetZoneId && vmaTemplates && vmaTemplates.length > 0) {
+      const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
+      const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
+        String(z.id) === String(step.targetZoneId) || 
+        String(z.name) === String(step.targetZoneId) ||
+        String(zIdx) === String(step.targetZoneId) ||
+        (step.targetZoneName && String(z.name) === String(step.targetZoneName))
+      );
 
-        if (speedMinMs > 0 && speedMaxMs > 0) {
-          return {
-            slowSpeedMs: Math.min(speedMinMs, speedMaxMs),
-            fastSpeedMs: Math.max(speedMinMs, speedMaxMs),
-          };
-        }
+      if (zone) {
+        const range = getZoneMinMax(zone);
+        minPct = range.min;
+        maxPct = range.max;
+      }
+    }
+
+    if (minPct === 0 || maxPct === 0) {
+      minPct = parseFloat(step.minPercent || step.minVmaPercent || 70);
+    }
+    if (minPct === 0 || maxPct === 0) {
+      maxPct = parseFloat(step.maxPercent || step.maxVmaPercent || 90);
+    }
+
+    if (minPct > 0 && maxPct > 0) {
+      // Conversion VMA (km/h) en m/s (divisé par 3.6)
+      const speedMinMs = (vma * minPct) / 100 / 3.6;
+      const speedMaxMs = (vma * maxPct) / 100 / 3.6;
+
+      if (speedMinMs > 0 && speedMaxMs > 0) {
+        return {
+          slowSpeedMs: Math.min(speedMinMs, speedMaxMs),
+          fastSpeedMs: Math.max(speedMinMs, speedMaxMs),
+        };
       }
     }
   }
@@ -238,7 +257,7 @@ export async function POST(request: Request) {
     const workoutSteps: any[] = [];
     let stepOrder = 1;
 
-    const numericVma = parseFloat(athleteVma) || 0;
+    const numericVma = parseFloat(athleteVma) || 14;
     const numericFcRest = parseFloat(athleteFcRest) || 50;
     const numericFcMax = parseFloat(athleteFcMax) || 190;
 
@@ -274,27 +293,17 @@ export async function POST(request: Request) {
         };
         targetValueOne = paceRange.slowSpeedMs;
         targetValueTwo = paceRange.fastSpeedMs;
-      } else if (step.goalType === "hr_zone" && step.targetZoneId && hrTemplates && hrTemplates.length > 0) {
-        const defaultHrTemplate = hrTemplates.find((t: any) => t.isDefault || t.is_default) || hrTemplates[0];
-        const zone = defaultHrTemplate?.zones?.find((z: any, zIdx: number) => 
-          String(z.id) === String(step.targetZoneId) || 
-          String(z.name) === String(step.targetZoneId) ||
-          String(zIdx) === String(step.targetZoneId) ||
-          (step.targetZoneName && String(z.name) === String(step.targetZoneName))
-        );
-
-        if (zone) {
-          const bpmRange = calculateBpmFromZone(zone, numericFcRest, numericFcMax);
-          if (bpmRange) {
-            targetType = {
-              workoutTargetTypeId: 4,
-              workoutTargetTypeKey: "heart.rate.zone",
-              displayOrder: 4,
-              displayable: true,
-            };
-            targetValueOne = bpmRange.minBpm;
-            targetValueTwo = bpmRange.maxBpm;
-          }
+      } else if (step.goalType === "hr_zone") {
+        const bpmRange = calculateBpmFromZone(step, hrTemplates || [], numericFcRest, numericFcMax);
+        if (bpmRange) {
+          targetType = {
+            workoutTargetTypeId: 4,
+            workoutTargetTypeKey: "heart.rate.zone",
+            displayOrder: 4,
+            displayable: true,
+          };
+          targetValueOne = bpmRange.minBpm;
+          targetValueTwo = bpmRange.maxBpm;
         }
       } else if (step.goalType === "rpe" && step.targetRpe) {
         const rpeComment = `RPE Cible : ${step.targetRpe}/10`;
