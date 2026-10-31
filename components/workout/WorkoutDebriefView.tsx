@@ -48,7 +48,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
       ? Math.round(targetKm * 5.2)
       : 45;
 
-  // États autorisant la chaîne vide '' pour permettre l'effacement total
   const [distanceKm, setDistanceKm] = useState<number | "">(
     workout?.completedKm !== undefined && !isNaN(Number(workout.completedKm))
       ? Number(workout.completedKm)
@@ -82,7 +81,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     workout?.shoeId || safeShoes.find((s) => s.isActive)?.id || ""
   );
 
-  // Par défaut sur la vue "watch" (montre)
   const [activeTabMode, setActiveTabMode] = useState<"manual" | "watch">("watch");
   const [importedActivityName, setImportedActivityName] = useState<string>(
     workout?.importedActivityName || ""
@@ -234,7 +232,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
     <div className="fixed inset-0 bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto font-sans">
       <div className="bg-stone-900 border border-stone-800 rounded-3xl p-4 sm:p-5 max-w-md w-full space-y-4 shadow-2xl animate-fadeIn my-auto max-h-[92vh] overflow-y-auto custom-scrollbar">
         
-        {/* MODALE TÉLÉMÉTRIE */}
         {showTelemetryModal && (
           <WorkoutTelemetryModal
             workout={{
@@ -250,7 +247,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           />
         )}
 
-        {/* EN-TÊTE COMPACT */}
         <div className="flex justify-between items-start border-b border-stone-800 pb-2.5">
           <div>
             <span className="text-[9px] font-black text-[#CF9A61] uppercase tracking-widest block">
@@ -274,7 +270,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* SÉLECTEUR D'ONGLETS COMPACT (PAR DÉFAUT : MONTRE) */}
         <div className="flex bg-stone-950 p-0.5 rounded-xl border border-stone-800 gap-1">
           <button
             type="button"
@@ -303,7 +298,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </button>
         </div>
 
-        {/* 1. IMPORT MONTRE (AFFICHÉ EN PREMIER) */}
         {activeTabMode === "watch" && (
           <div className="bg-stone-950 p-3 rounded-xl border border-stone-800 space-y-2.5 animate-fadeIn">
             {isActivityImported && importedActivityName ? (
@@ -409,12 +403,9 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
         )}
 
-        {/* 2. SAISIE MANUELLE */}
         {activeTabMode === "manual" && (
           <div className="space-y-2.5 animate-fadeIn">
-            {/* DISTANCE & DÉNIVELÉ */}
             <div className="grid grid-cols-2 gap-2">
-              {/* DISTANCE */}
               <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
                 <span className="text-[9px] font-bold uppercase text-stone-400 block">
                   Distance
@@ -436,7 +427,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
                 </div>
               </div>
 
-              {/* DÉNIVELÉ */}
               <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1">
                 <span className="text-[9px] font-bold uppercase text-stone-400 block">
                   Dénivelé (D+)
@@ -459,7 +449,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               </div>
             </div>
 
-            {/* TEMPS (H / MIN / SEC) & ALLURE */}
             <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1.5">
               <div className="flex justify-between items-center px-0.5">
                 <span className="text-[9px] font-bold uppercase text-stone-400">
@@ -525,9 +514,8 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
           </div>
         )}
 
-        {/* 3. FORMULAIRE RPE & COMMENTAIRE */}
         <form onSubmit={handleFormSubmit} className="space-y-3 pt-1">
-          {/* Chaussures */}
+          {/* Chaussures - Filtrées pour ne garder que les paires actives */}
           <div className="space-y-1">
             <label className="block text-[9px] uppercase font-bold text-stone-400">
               👟 Chaussures
@@ -538,15 +526,16 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
               className="w-full bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#CF9A61] cursor-pointer"
             >
               <option value="">-- Aucune paire spécifique --</option>
-              {safeShoes.map((shoe) => (
-                <option key={shoe.id} value={shoe.id}>
-                  {shoe.brand} {shoe.name} ({Number(shoe.currentKm || 0).toFixed(0)} / {shoe.maxKm} km)
-                </option>
-              ))}
+              {safeShoes
+                .filter((shoe) => shoe.isActive) // <-- Filtrage pour exclure les paires au placard
+                .map((shoe) => (
+                  <option key={shoe.id} value={shoe.id}>
+                    {shoe.brand} {shoe.name} ({Number(shoe.currentKm || 0).toFixed(0)} / {shoe.maxKm} km)
+                  </option>
+                ))}
             </select>
           </div>
 
-          {/* RPE SLIDER */}
           <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800 space-y-1.5">
             <div className="flex justify-between items-center">
               <label className="block text-[9px] uppercase font-bold text-stone-400">
@@ -573,7 +562,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             </div>
           </div>
 
-          {/* Commentaire */}
           <div className="space-y-1">
             <label className="block text-[9px] uppercase font-bold text-stone-400">
               Commentaires & Sensations
@@ -587,7 +575,6 @@ export const WorkoutDebriefView: React.FC<WorkoutDebriefViewProps> = ({
             />
           </div>
 
-          {/* ACTIONS */}
           <div className="space-y-1.5 pt-1.5 border-t border-stone-800">
             <div className="flex gap-2">
               <button
