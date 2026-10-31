@@ -2,7 +2,7 @@
 // app/api/sync-garmin/route.ts
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
-import { getZoneMinMax } from "../../utils/calculations";
+import { getZoneMinMax } from "../../../utils/calculations";
 
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
