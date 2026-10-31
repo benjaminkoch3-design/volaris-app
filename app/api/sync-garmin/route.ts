@@ -2,6 +2,7 @@
 // app/api/sync-garmin/route.ts
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
+import { getZoneMinMax } from "../../utils/calculations";
 
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
@@ -70,8 +71,7 @@ const parsePaceStringToSeconds = (str: string): number | null => {
 
 const calculateBpmFromZone = (zone: any, fcRest: number, fcMax: number) => {
   if (!zone) return null;
-  const minPercent = zone.minPercent !== undefined ? zone.minPercent : (zone.min || 0);
-  const maxPercent = zone.maxPercent !== undefined ? zone.maxPercent : (zone.max || 100);
+  const { min: minPercent, max: maxPercent } = getZoneMinMax(zone);
 
   const maxToUse = fcMax && fcMax > 0 ? fcMax : 190;
   const restToUse = fcRest && fcRest > 0 ? fcRest : 50;
@@ -117,26 +117,28 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
+  // Résolution précise via le template VMA et getZoneMinMax
   if ((!fastSec || !slowSec) && step.goalType === "vma_zone" && step.targetZoneId && vma > 0 && vmaTemplates.length > 0) {
     const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
     const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
       String(z.id) === String(step.targetZoneId) || 
       String(z.name) === String(step.targetZoneId) ||
-      String(zIdx) === String(step.targetZoneId)
+      String(zIdx) === String(step.targetZoneId) ||
+      (step.targetZoneName && String(z.name) === String(step.targetZoneName))
     );
 
     if (zone) {
-      const minPct = zone.minPercent !== undefined ? zone.minPercent : (zone.min || 0);
-      const maxPct = zone.maxPercent !== undefined ? zone.maxPercent : (zone.max || 100);
+      const { min: minPct, max: maxPct } = getZoneMinMax(zone);
+      if (minPct > 0 && maxPct > 0) {
+        const speedMinMs = (vma * minPct) / 100 / 3.6;
+        const speedMaxMs = (vma * maxPct) / 100 / 3.6;
 
-      const speedMinMs = (vma * (minPct / 100)) / 3.6;
-      const speedMaxMs = (vma * (maxPct / 100)) / 3.6;
-
-      if (speedMinMs > 0 && speedMaxMs > 0) {
-        return {
-          slowSpeedMs: Math.min(speedMinMs, speedMaxMs),
-          fastSpeedMs: Math.max(speedMinMs, speedMaxMs),
-        };
+        if (speedMinMs > 0 && speedMaxMs > 0) {
+          return {
+            slowSpeedMs: Math.min(speedMinMs, speedMaxMs),
+            fastSpeedMs: Math.max(speedMinMs, speedMaxMs),
+          };
+        }
       }
     }
   }
@@ -260,7 +262,8 @@ export async function POST(request: Request) {
         const zone = defaultHrTemplate?.zones?.find((z: any, zIdx: number) => 
           String(z.id) === String(step.targetZoneId) || 
           String(z.name) === String(step.targetZoneId) ||
-          String(zIdx) === String(step.targetZoneId)
+          String(zIdx) === String(step.targetZoneId) ||
+          (step.targetZoneName && String(z.name) === String(step.targetZoneName))
         );
 
         if (zone) {
