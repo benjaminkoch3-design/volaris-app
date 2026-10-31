@@ -2,7 +2,6 @@
 // app/api/sync-garmin/route.ts
 import { NextResponse } from "next/server";
 import { GarminConnect } from "garmin-connect";
-import { getZoneMinMax } from "../../utils/calculations";
 
 const parseDurationOrDist = (val: string): { type: "time" | "distance"; value: number } => {
   const clean = (val || "").toLowerCase().trim();
@@ -69,6 +68,25 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   return null;
 };
 
+const getZoneMinMax = (zone: any) => {
+  if (!zone) return { min: 0, max: 0 };
+  const rawMin = zone.minVmaPercent ?? zone.percentageMin ?? zone.minPercent ?? zone.min ?? zone.percentage_min ?? zone.min_percent ?? zone.fcMinPercent ?? 0;
+  const rawMax = zone.maxVmaPercent ?? zone.percentageMax ?? zone.maxPercent ?? zone.max ?? zone.percentage_max ?? zone.max_percent ?? zone.fcMaxPercent ?? 0;
+
+  let min = parseFloat(String(rawMin).replace(",", ".")) || 0;
+  let max = parseFloat(String(rawMax).replace(",", ".")) || 0;
+
+  const textSource = zone.name || zone.label || "";
+  if ((min === 0 || max === 0) && textSource) {
+    const matches = textSource.match(/(\d+)\s*%\s*-\s*(\d+)\s*%/);
+    if (matches && matches[1] && matches[2]) {
+      min = parseFloat(matches[1]);
+      max = parseFloat(matches[2]);
+    }
+  }
+  return { min, max };
+};
+
 const calculateBpmFromZone = (zone: any, fcRest: number, fcMax: number) => {
   if (!zone) return null;
   const { min: minPercent, max: maxPercent } = getZoneMinMax(zone);
@@ -117,7 +135,6 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // Résolution précise via le template VMA et getZoneMinMax
   if ((!fastSec || !slowSec) && step.goalType === "vma_zone" && step.targetZoneId && vma > 0 && vmaTemplates.length > 0) {
     const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
     const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
