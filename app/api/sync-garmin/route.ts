@@ -49,7 +49,6 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   if (!str) return null;
   const clean = str.toString().trim().toLowerCase();
 
-  // Ne pas parser si le texte fait référence à du temps de récupération (ex: "2 min")
   if (clean.includes("min de recup") || clean.includes("recup")) {
     return null;
   }
@@ -69,8 +68,33 @@ const parsePaceStringToSeconds = (str: string): number | null => {
   return null;
 };
 
+const calculateBpmFromZone = (zone: any, fcRest: number, fcMax: number) => {
+  if (!zone) return null;
+  const minPercent = zone.minPercent !== undefined ? zone.minPercent : (zone.min || 0);
+  const maxPercent = zone.maxPercent !== undefined ? zone.maxPercent : (zone.max || 100);
+
+  const maxToUse = fcMax && fcMax > 0 ? fcMax : 190;
+  const restToUse = fcRest && fcRest > 0 ? fcRest : 50;
+
+  let minBpm = 0;
+  let maxBpm = 0;
+
+  if (maxToUse > restToUse) {
+    const reserve = maxToUse - restToUse;
+    minBpm = Math.round(restToUse + reserve * (minPercent / 100));
+    maxBpm = Math.round(restToUse + reserve * (maxPercent / 100));
+  } else {
+    minBpm = Math.round((minPercent / 100) * maxToUse);
+    maxBpm = Math.round((maxPercent / 100) * maxToUse);
+  }
+
+  return { minBpm, maxBpm };
+};
+
 const extractPaceRangeInMetersPerSecond = (
-  step: any
+  step: any,
+  vma: number,
+  vmaTemplates: any[]
 ): { slowSpeedMs: number; fastSpeedMs: number } | null => {
   let fastSec: number | null = null;
   let slowSec: number | null = null;
@@ -78,7 +102,6 @@ const extractPaceRangeInMetersPerSecond = (
   const explicitMin = step.paceMin || step.targetPaceMin || step.minPace;
   const explicitMax = step.paceMax || step.targetPaceMax || step.maxPace;
 
-  // 1. Allures explicites min / max renseignées dans le bloc
   if (explicitMin && explicitMax) {
     const s1 = parsePaceStringToSeconds(explicitMin);
     const s2 = parsePaceStringToSeconds(explicitMax);
@@ -94,7 +117,30 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // 2. Vérification ciblée dans les champs d'allure du bloc uniquement (pas de fallback parasite)
+  if ((!fastSec || !slowSec) && step.goalType === "vma_zone" && step.targetZoneId && vma > 0 && vmaTemplates.length > 0) {
+    const defaultTemplate = vmaTemplates.find((t: any) => t.isDefault || t.is_default) || vmaTemplates[0];
+    const zone = defaultTemplate?.zones?.find((z: any, zIdx: number) => 
+      String(z.id) === String(step.targetZoneId) || 
+      String(z.name) === String(step.targetZoneId) ||
+      String(zIdx) === String(step.targetZoneId)
+    );
+
+    if (zone) {
+      const minPct = zone.minPercent !== undefined ? zone.minPercent : (zone.min || 0);
+      const maxPct = zone.maxPercent !== undefined ? zone.maxPercent : (zone.max || 100);
+
+      const speedMinMs = (vma * (minPct / 100)) / 3.6;
+      const speedMaxMs = (vma * (maxPct / 100)) / 3.6;
+
+      if (speedMinMs > 0 && speedMaxMs > 0) {
+        return {
+          slowSpeedMs: Math.min(speedMinMs, speedMaxMs),
+          fastSpeedMs: Math.max(speedMinMs, speedMaxMs),
+        };
+      }
+    }
+  }
+
   if (!fastSec || !slowSec) {
     const textToScan = [
       step.pace,
@@ -123,7 +169,6 @@ const extractPaceRangeInMetersPerSecond = (
     }
   }
 
-  // Validation d'une allure de course réaliste (entre 2:00/km et 11:40/km)
   if (fastSec && slowSec && fastSec >= 120 && slowSec <= 700) {
     return {
       slowSpeedMs: 1000 / slowSec,
@@ -151,7 +196,7 @@ const getGarminStepType = (type: string) => {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, workout, testOnly } = body || {};
+    const { email, password, workout, testOnly, athleteVma, athleteFcRest, athleteFcMax, vmaTemplates, hrTemplates } = body || {};
 
     if (!email || !password) {
       return NextResponse.json({ error: "Identifiants Garmin manquants." }, { status: 400 });
@@ -169,10 +214,14 @@ export async function POST(request: Request) {
     }
 
     const workoutTitle = (workout.title || workout.sessionName || "Séance").substring(0, 45);
-    const workoutDesc = workout.description || "";
+    let workoutDesc = workout.description || "";
 
     const workoutSteps: any[] = [];
     let stepOrder = 1;
+
+    const numericVma = parseFloat(athleteVma) || 0;
+    const numericFcRest = parseFloat(athleteFcRest) || 50;
+    const numericFcMax = parseFloat(athleteFcMax) || 190;
 
     const buildStepDTO = (step: any, customOrder: number) => {
       const isLapButton =
@@ -185,8 +234,7 @@ export async function POST(request: Request) {
       );
       const isTime = parsed.type === "time";
 
-      // Scan strict du bloc sans fallback parasite sur la description générale
-      const paceRange = extractPaceRangeInMetersPerSecond(step);
+      const paceRange = extractPaceRangeInMetersPerSecond(step, numericVma, vmaTemplates || []);
 
       let targetType = {
         workoutTargetTypeId: 1,
@@ -196,8 +244,8 @@ export async function POST(request: Request) {
       };
       let targetValueOne = null;
       let targetValueTwo = null;
+      let stepDescription = step.description || null;
 
-      // Si une allure cible est bien définie sur CE bloc précis
       if (paceRange) {
         targetType = {
           workoutTargetTypeId: 6,
@@ -207,9 +255,37 @@ export async function POST(request: Request) {
         };
         targetValueOne = paceRange.slowSpeedMs;
         targetValueTwo = paceRange.fastSpeedMs;
+      } else if (step.goalType === "hr_zone" && step.targetZoneId && hrTemplates && hrTemplates.length > 0) {
+        const defaultHrTemplate = hrTemplates.find((t: any) => t.isDefault || t.is_default) || hrTemplates[0];
+        const zone = defaultHrTemplate?.zones?.find((z: any, zIdx: number) => 
+          String(z.id) === String(step.targetZoneId) || 
+          String(z.name) === String(step.targetZoneId) ||
+          String(zIdx) === String(step.targetZoneId)
+        );
+
+        if (zone) {
+          const bpmRange = calculateBpmFromZone(zone, numericFcRest, numericFcMax);
+          if (bpmRange) {
+            targetType = {
+              workoutTargetTypeId: 4,
+              workoutTargetTypeKey: "heart.rate.zone",
+              displayOrder: 4,
+              displayable: true,
+            };
+            targetValueOne = bpmRange.minBpm;
+            targetValueTwo = bpmRange.maxBpm;
+          }
+        }
+      } else if (step.goalType === "rpe" && step.targetRpe) {
+        const rpeComment = `RPE Cible : ${step.targetRpe}/10`;
+        stepDescription = stepDescription ? `${stepDescription} - ${rpeComment}` : rpeComment;
       }
 
-      // Configuration de la condition de fin : Bouton Lap ou Durée/Distance
+      if (step.targetRpe && !stepDescription?.includes("RPE")) {
+        const rpeComment = `RPE : ${step.targetRpe}/10`;
+        stepDescription = stepDescription ? `${stepDescription} (${rpeComment})` : rpeComment;
+      }
+
       const endConditionObj = isLapButton
         ? {
             conditionTypeId: 1,
@@ -230,7 +306,7 @@ export async function POST(request: Request) {
         stepOrder: customOrder,
         stepType: getGarminStepType(step.type),
         childStepId: null,
-        description: step.description || null,
+        description: stepDescription,
         endCondition: endConditionObj,
         endConditionValue: isLapButton ? null : parsed.value,
         endConditionCompare: null,
@@ -259,7 +335,6 @@ export async function POST(request: Request) {
           if (skipLast && reps > 1 && hasRecoveryAtEnd) {
             const stepsWithoutLastRecovery = step.nestedSteps.slice(0, lastNestedIndex);
 
-            // 1. Première partie : boucle de (reps - 1) répétitions complètes
             if (reps - 1 === 1) {
               step.nestedSteps.forEach((nStep: any) => {
                 workoutSteps.push(buildStepDTO(nStep, stepOrder++));
@@ -281,7 +356,6 @@ export async function POST(request: Request) {
               });
             }
 
-            // 2. Dernière répétition : uniquement le travail
             stepsWithoutLastRecovery.forEach((nStep: any) => {
               workoutSteps.push(buildStepDTO(nStep, stepOrder++));
             });
@@ -318,6 +392,10 @@ export async function POST(request: Request) {
           1
         )
       );
+    }
+
+    if (workout.rpe && !workoutDesc.includes("RPE")) {
+      workoutDesc = workoutDesc ? `${workoutDesc} - RPE global : ${workout.rpe}/10` : `RPE global : ${workout.rpe}/10`;
     }
 
     const payload = {
