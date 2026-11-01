@@ -161,6 +161,8 @@ export default function Home() {
   const [athleteVmaTemplates, setAthleteVmaTemplates] = useState<any[]>([]);
   const [athleteHrTemplates, setAthleteHrTemplates] = useState<any[]>([]);
 
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+
   const handleSaveCoachZoneTemplate = async (template: ZoneTemplate) => {
     if (!session?.user) return;
 
@@ -2293,6 +2295,7 @@ export default function Home() {
 
   const handleEditActivePlan = () => {
     if (!activePlan) return;
+    setEditingPlanId(activePlan.id);
     setDraftWorkouts([...activePlan.workouts]);
     setDraftWeekTypes(activePlan.weekTypes ? { ...activePlan.weekTypes } : {});
     setNewPlanForm({
@@ -2773,9 +2776,10 @@ export default function Home() {
       formattedDistance = `${dist}${elev}`;
     }
 
-    const planId = activePlan?.id || `plan_${Date.now()}`;
+    const isEditingExisting = Boolean(editingPlanId);
+    const targetPlanId = isEditingExisting ? editingPlanId! : `plan_${Date.now()}`;
 
-    if (activePlan && activePlan.id !== planId) {
+    if (activePlan && !isEditingExisting) {
       await supabase
         .from("plans")
         .update({ is_active: false, is_archived: true })
@@ -2788,7 +2792,7 @@ export default function Home() {
     }
 
     const { error: planError } = await supabase.from("plans").upsert({
-      id: planId,
+      id: targetPlanId,
       user_id: targetUserId,
       name: newPlanForm.name || `Plan ${formattedDistance}`,
       target_distance: formattedDistance,
@@ -2810,8 +2814,8 @@ export default function Home() {
     }
 
     const workoutsPayload = draftWorkouts.map((w, idx) => ({
-      id: w.id || `w_${planId}_${w.weekNumber}_${w.dayIndex}_${idx}`,
-      plan_id: planId,
+      id: w.id && !w.id.includes("temp") ? w.id : `w_${targetPlanId}_${w.weekNumber}_${w.dayIndex}_${idx}_${Date.now()}`,
+      plan_id: targetPlanId,
       user_id: targetUserId,
       week_number: w.weekNumber,
       day_index: w.dayIndex,
@@ -2846,7 +2850,7 @@ export default function Home() {
     }
 
     const createdPlan: Plan = {
-      id: planId,
+      id: targetPlanId,
       name: newPlanForm.name || `Plan ${formattedDistance}`,
       targetDistance: formattedDistance,
       targetTime: newPlanForm.targetTime || undefined,
@@ -2861,17 +2865,21 @@ export default function Home() {
 
     if (userRole === "coach") {
       setAllCoachAthletesWorkouts((prev) => [
-        ...prev.filter((w) => (w.planId || (w as any).plan_id) !== planId),
+        ...prev.filter((w) => (w.planId || (w as any).plan_id) !== targetPlanId),
         ...draftWorkouts.map((w) => ({
           ...w,
-          planId: planId,
+          planId: targetPlanId,
           userId: targetUserId,
         })),
       ]);
 
-      setAllCoachAthletesPlans((prev) =>
-        prev.map((p) => (p.id === planId ? createdPlan : p))
-      );
+      setAllCoachAthletesPlans((prev) => {
+        const exists = prev.some((p) => p.id === targetPlanId);
+        if (exists) {
+          return prev.map((p) => (p.id === targetPlanId ? createdPlan : p));
+        }
+        return [createdPlan, ...prev];
+      });
     }
 
     const currentWeekNum = getCurrentWeekNumber(
@@ -2883,6 +2891,7 @@ export default function Home() {
     setGoal(formattedDistance);
     setIsCreatingPlan(false);
     setPlanCreationStep(1);
+    setEditingPlanId(null);
     setSelectedPlanWeek(currentWeekNum);
     setOpenWeeks({ [currentWeekNum]: true });
     changeActiveTab("plan");
@@ -3572,6 +3581,7 @@ export default function Home() {
                 onToggleWorkout={toggleWorkout}
                 onOpenDebrief={(workout) => setDebriefWorkout(workout)}
                 onCreatePlanRequest={() => {
+                  setEditingPlanId(null);
                   changeActiveTab("plan");
                   setIsCreatingPlan(true);
                   setPlanCreationStep(1);
@@ -3642,6 +3652,7 @@ export default function Home() {
 
                       <button
                         onClick={() => {
+                          setEditingPlanId(null);
                           setDraftWorkouts([]);
                           setDraftWeekTypes({});
                           setNewPlanForm({
@@ -3686,6 +3697,7 @@ export default function Home() {
 
                     <button
                       onClick={() => {
+                        setEditingPlanId(null);
                         setIsCreatingPlan(true);
                         setPlanCreationStep(1);
                       }}
@@ -3713,7 +3725,10 @@ export default function Home() {
                     onUpdateDraftWorkout={handleUpdateDraftWorkout}
                     onEditWorkout={setEditingWorkoutId}
                     onFinalizePlan={handleFinalizePlan}
-                    onCancel={() => setIsCreatingPlan(false)}
+                    onCancel={() => {
+                      setIsCreatingPlan(false);
+                      setEditingPlanId(null);
+                    }}
                   />
                 )}
 
