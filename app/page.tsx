@@ -1007,6 +1007,7 @@ export default function Home() {
   const [completedRuns, setCompletedRuns] = useState<CompletedRun[]>([]);
   const [goal, setGoal] = useState("10 km");
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
+  const [activePlansList, setActivePlansList] = useState<Plan[]>([]);
   const [archivedPlans, setArchivedPlans] = useState<Plan[]>([]);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [planCreationStep, setPlanCreationStep] = useState<1 | 2>(1);
@@ -1017,36 +1018,65 @@ export default function Home() {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
 
-    await supabase
-      .from("plans")
-      .update({ is_active: false, is_archived: true })
-      .eq("user_id", targetUserId);
+    // Charger STRICTEMENT les séances appartenant à CE plan
+    const { data: targetWorkouts } = await supabase
+      .from("workouts")
+      .select("*")
+      .eq("plan_id", targetPlan.id);
 
-    await supabase
-      .from("plans")
-      .update({ is_active: true, is_archived: false })
-      .eq("id", targetPlan.id);
+    const formattedWorkouts: Workout[] = (targetWorkouts || []).map((w: any) => ({
+      id: w.id,
+      planId: w.plan_id,
+      userId: w.user_id,
+      weekNumber: Number(w.week_number ?? 1),
+      dayIndex: Number(w.day_index ?? 0),
+      dayName: w.day_name,
+      sessionName: w.session_name,
+      isRest: Boolean(w.is_rest),
+      type: w.type,
+      title: w.title,
+      description: w.description || "",
+      km: w.km || "",
+      rpe: w.rpe || "",
+      remark: w.remark || "",
+      steps: Array.isArray(w.steps) ? w.steps : [],
+      completed: Boolean(w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name),
+      completedRpe: w.completed_rpe,
+      athleteComment: w.athlete_comment,
+      shoeId: w.shoe_id,
+      completedKm: w.completed_km,
+      completedTimeMinutes: w.completed_time_minutes,
+      completedElevationGain: w.completed_elevation_gain,
+      importedActivityName: w.imported_activity_name,
+      activityTelemetry: w.activity_telemetry || null,
+    })).sort((a, b) => {
+      if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+      return a.dayIndex - b.dayIndex;
+    });
 
-    const newlyActivatedPlan: Plan = {
+    const newlySelectedPlan: Plan = {
       ...targetPlan,
+      workouts: formattedWorkouts,
       isActive: true,
       isArchived: false,
     };
 
-    setArchivedPlans((prev) => {
-      const filtered = prev.filter((p) => p.id !== targetPlan.id);
-      if (activePlan) {
-        return [{ ...activePlan, isActive: false, isArchived: true }, ...filtered];
-      }
-      return filtered;
-    });
+    await supabase
+      .from("plans")
+      .update({ is_active: false })
+      .eq("user_id", targetUserId);
 
-    setActivePlan(newlyActivatedPlan);
-    setGoal(newlyActivatedPlan.targetDistance);
+    await supabase
+      .from("plans")
+      .update({ is_active: true })
+      .eq("id", targetPlan.id);
+
+    setActivePlan(newlySelectedPlan);
+    setGoal(newlySelectedPlan.targetDistance);
 
     const currentWNum = getCurrentWeekNumber(
-      newlyActivatedPlan.startDate,
-      newlyActivatedPlan.durationWeeks || "12"
+      newlySelectedPlan.startDate,
+      newlySelectedPlan.durationWeeks || "12"
     );
     setSelectedPlanWeek(currentWNum);
     setOpenWeeks({ [currentWNum]: true });
@@ -1060,8 +1090,10 @@ export default function Home() {
     await supabase.from("plans").delete().eq("id", planId);
 
     setArchivedPlans((prev) => prev.filter((p) => p.id !== planId));
+    setActivePlansList((prev) => prev.filter((p) => p.id !== planId));
     if (activePlan?.id === planId) {
-      setActivePlan(null);
+      const remaining = activePlansList.filter((p) => p.id !== planId);
+      setActivePlan(remaining.length > 0 ? remaining[0] : null);
     }
 
     if (userRole === "coach") {
@@ -1221,7 +1253,7 @@ export default function Home() {
 
         setManagedAthletes(
           athletesData.map((a: any) => {
-            const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id && p.is_active && !p.is_archived);
+            const activePlanForAthlete = activePlansData?.find((p: any) => p.user_id === a.id && !p.is_archived);
             const athleteWorkouts = workoutsData?.filter((w: any) => w.user_id === a.id) || [];
             const settingsForAth = coachAthSettings?.find((s: any) => s.athlete_id === a.id);
 
@@ -1338,6 +1370,7 @@ export default function Home() {
     if (!targetUserId) {
       if (userRole === "coach" && !inspectingAthleteId) {
         setActivePlan(null);
+        setActivePlansList([]);
       }
       return;
     }
@@ -1678,29 +1711,34 @@ export default function Home() {
       };
 
       if (plansData && plansData.length > 0) {
-        const activePlanDb = plansData.find((p: any) => p.is_active && !p.is_archived);
-        const archivedPlansDb = plansData.filter((p: any) => !p.is_active || p.is_archived);
+        const nonArchivedPlansDb = plansData.filter((p: any) => !p.is_archived);
+        const archivedPlansDb = plansData.filter((p: any) => p.is_archived);
 
-        if (activePlanDb) {
-          const planWorkouts = formatWorkoutsList(
-            (workoutsData || []).filter((w: any) => w.plan_id === activePlanDb.id)
-          );
+        const formattedActivePlans: Plan[] = nonArchivedPlansDb.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          targetDistance: p.target_distance,
+          targetTime: p.target_time,
+          raceCategory: p.race_category,
+          elevationGain: p.elevation_gain,
+          startDate: p.start_date,
+          eventDate: p.event_date,
+          durationWeeks: p.duration_weeks,
+          weekTypes: p.week_types || {},
+          workouts: formatWorkoutsList(
+            (workoutsData || []).filter((w: any) => w.plan_id === p.id)
+          ),
+          isActive: p.is_active,
+          isArchived: p.is_archived,
+        }));
 
-          setActivePlan({
-            id: activePlanDb.id,
-            name: activePlanDb.name,
-            targetDistance: activePlanDb.target_distance,
-            targetTime: activePlanDb.target_time,
-            raceCategory: activePlanDb.race_category,
-            elevationGain: activePlanDb.elevation_gain,
-            startDate: activePlanDb.start_date,
-            eventDate: activePlanDb.event_date,
-            durationWeeks: activePlanDb.duration_weeks,
-            weekTypes: activePlanDb.week_types || {},
-            workouts: planWorkouts,
-          } as any);
+        setActivePlansList(formattedActivePlans);
 
-          setGoal(activePlanDb.target_distance);
+        const currentActiveDb = formattedActivePlans.find((p: any) => p.isActive) || formattedActivePlans[0];
+
+        if (currentActiveDb) {
+          setActivePlan(currentActiveDb);
+          setGoal(currentActiveDb.targetDistance);
         } else {
           setActivePlan(null);
         }
@@ -1721,8 +1759,12 @@ export default function Home() {
               workouts: formatWorkoutsList(
                 (workoutsData || []).filter((w: any) => w.plan_id === p.id)
               ),
+              isActive: p.is_active,
+              isArchived: p.is_archived,
             } as any))
           );
+        } else {
+          setArchivedPlans([]);
         }
 
         (workoutsData || []).forEach((w: any) => {
@@ -1733,6 +1775,7 @@ export default function Home() {
         setCompletedWorkouts(completedMap);
       } else {
         setActivePlan(null);
+        setActivePlansList([]);
         setArchivedPlans([]);
         (workoutsData || []).forEach((w: any) => {
           if (w.completed_rpe !== null || w.completed_km !== null || w.imported_activity_name !== null) {
@@ -2217,7 +2260,10 @@ export default function Home() {
     if (activePlan && targetUserId) {
       const archived = { ...activePlan, isActive: false, isArchived: true };
       setArchivedPlans([archived, ...archivedPlans]);
-      setActivePlan(null);
+
+      const remainingActive = activePlansList.filter((p) => p.id !== activePlan.id);
+      setActivePlansList(remainingActive);
+      setActivePlan(remainingActive.length > 0 ? remainingActive[0] : null);
 
       await supabase.from("plans").update({
         is_active: false,
@@ -2231,7 +2277,9 @@ export default function Home() {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (activePlan && targetUserId) {
       await supabase.from("plans").delete().eq("id", activePlan.id);
-      setActivePlan(null);
+      const remaining = activePlansList.filter((p) => p.id !== activePlan.id);
+      setActivePlansList(remaining);
+      setActivePlan(remaining.length > 0 ? remaining[0] : null);
     }
     setShowDeletePlanModal(false);
   };
@@ -2779,17 +2827,8 @@ export default function Home() {
     const isEditingExisting = Boolean(editingPlanId);
     const targetPlanId = isEditingExisting ? editingPlanId! : `plan_${Date.now()}`;
 
-    if (activePlan && !isEditingExisting) {
-      await supabase
-        .from("plans")
-        .update({ is_active: false, is_archived: true })
-        .eq("id", activePlan.id);
-
-      setArchivedPlans((prev) => [
-        { ...activePlan, isActive: false, isArchived: true },
-        ...prev.filter((p) => p.id !== activePlan.id),
-      ]);
-    }
+    // IMPORTANT : On n'archive plus automatiquement l'ancien plan. 
+    // Les deux plans restent actifs en parallèle tant que l'utilisateur n'archive pas explicitement l'1 d'entre eux.
 
     const { error: planError } = await supabase.from("plans").upsert({
       id: targetPlanId,
@@ -2861,7 +2900,17 @@ export default function Home() {
       durationWeeks: calculatedWeeks.toString(),
       weekTypes: draftWeekTypes,
       workouts: draftWorkouts,
+      isActive: true,
+      isArchived: false,
     } as any;
+
+    setActivePlansList((prev) => {
+      const exists = prev.some((p) => p.id === targetPlanId);
+      if (exists) {
+        return prev.map((p) => (p.id === targetPlanId ? createdPlan : p));
+      }
+      return [createdPlan, ...prev];
+    });
 
     if (userRole === "coach") {
       setAllCoachAthletesWorkouts((prev) => [
@@ -3421,7 +3470,6 @@ export default function Home() {
                   .from("plans")
                   .select("*")
                   .eq("user_id", id)
-                  .eq("is_active", true)
                   .eq("is_archived", false)
                   .maybeSingle();
 
@@ -3602,27 +3650,22 @@ export default function Home() {
               <div className="space-y-6 animate-fadeIn">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-stone-900/60 p-3.5 rounded-2xl border border-stone-800">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {(activePlan || archivedPlans.length > 0) && (
+                    {(activePlansList.length > 0 || archivedPlans.length > 0) && (
                       <div className="flex items-center gap-2 bg-stone-950 border border-stone-800 px-3 py-1.5 rounded-xl shadow-md">
-                        <span className="text-[10px] font-bold uppercase text-[#CDCF61]">Plan actif :</span>
+                        <span className="text-[10px] font-bold uppercase text-[#CDCF61]">Plans actifs :</span>
                         <select
                           value={activePlan?.id || ""}
                           onChange={(e) => {
                             const selectedId = e.target.value;
                             if (selectedId === activePlan?.id) return;
-                            const target = archivedPlans.find((p) => p.id === selectedId);
+                            const target = activePlansList.find((p) => p.id === selectedId);
                             if (target) handleSwitchActivePlan(target);
                           }}
                           className="bg-stone-900 text-stone-100 text-xs font-black rounded-lg px-2 py-1 border border-stone-700 focus:outline-none focus:border-[#CDCF61] cursor-pointer"
                         >
-                          {activePlan && (
-                            <option value={activePlan.id}>
-                              {activePlan.name} (En cours)
-                            </option>
-                          )}
-                          {archivedPlans.map((p) => (
+                          {activePlansList.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name}
+                              {p.name} {p.id === activePlan?.id ? "(Actif)" : ""}
                             </option>
                           ))}
                         </select>
