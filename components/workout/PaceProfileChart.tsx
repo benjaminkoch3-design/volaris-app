@@ -161,11 +161,17 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
       let intensityPct = 75; // Valeur médiane par défaut
       let displayLabel = "Intensité relative";
 
-      if (matchingStep) {
+    if (matchingStep) {
         const goalType = matchingStep.goalType || "allure";
+        const stepType = matchingStep.type;
 
+        // 0. Si c'est explicitement de la marche ou une récup active de marche (30%)
+        if (stepType === "recup_marche" || Boolean((matchingStep as any).isWalkingRecovery)) {
+          intensityPct = 30;
+          displayLabel = "Marche (30%)";
+        } 
         // 1. Zone VMA
-        if (goalType === "vma_zone" && matchingStep.targetZoneId && defaultVmaTemplate?.zones) {
+        else if (goalType === "vma_zone" && matchingStep.targetZoneId && defaultVmaTemplate?.zones) {
           const zone = defaultVmaTemplate.zones.find(
             (z: any, zIdx: number) =>
               String(z.id) === String(matchingStep.targetZoneId) ||
@@ -178,29 +184,29 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
             displayLabel = `${Math.round(intensityPct)}% VMA (${zone.name || "Zone"})`;
           }
         } 
-        // 2. RPE Cible (Échelle cohérente : 1 = 55%, 10 = 100%)
+        // 2. RPE Cible (Échelle 1 = 55% jusqu'à 10 = 100%)
         else if (goalType === "rpe" && matchingStep.targetRpe) {
           const rpeVal = Math.min(10, Math.max(1, Number(matchingStep.targetRpe) || 5));
           intensityPct = 55 + (rpeVal - 1) * 5;
           displayLabel = `RPE ${rpeVal}/10 (${Math.round(intensityPct)}% effort)`;
-        }
+        } 
         // 3. Zone FC
         else if (goalType === "hr_zone") {
           intensityPct = 75;
           displayLabel = matchingStep.targetZoneName || "Zone FC";
         } 
-        // 4. Allure brute (Sec / Km estimée depuis la moyenne)
+        // 4. Allure brute
         else if (goalType === "allure" && (matchingStep.paceMin || matchingStep.paceMax)) {
           intensityPct = 80;
           const minP = matchingStep.paceMin || matchingStep.paceMax;
           const maxP = matchingStep.paceMax || matchingStep.paceMin;
           displayLabel = minP === maxP ? `${minP} /km` : `${minP} - ${maxP} /km`;
         }
-        // 5. Par défaut selon la phase de la séance
+        // 5. Par défaut selon le type de phase
         else {
-          if (matchingStep.type === "echauffement" || matchingStep.type === "recup" || matchingStep.type === "recup_marche") {
+          if (stepType === "echauffement" || stepType === "recup") {
             intensityPct = 60;
-          } else if (matchingStep.type === "retour_calme") {
+          } else if (stepType === "retour_calme") {
             intensityPct = 50;
           } else {
             intensityPct = 85;
