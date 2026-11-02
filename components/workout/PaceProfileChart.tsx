@@ -119,14 +119,35 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
   const defaultVmaTemplate =
     availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
-  // Helper récursif pour aplatir les steps (en dépliant les repeat)
+  // Helper récursif pour aplatir les steps (en dépliant les repeat et en appliquant skipLastRecovery)
   const flattenSteps = (stepList: WorkoutStep[]): WorkoutStep[] => {
     let result: WorkoutStep[] = [];
     stepList.forEach((st) => {
       if (st.type === "repeat" && st.nestedSteps && st.nestedSteps.length > 0) {
         const reps = Math.max(1, Number(st.reps) || 1);
+        const skipLast = Boolean((st as any).skipLastRecovery);
+
         for (let r = 0; r < reps; r++) {
-          result = result.concat(flattenSteps(st.nestedSteps));
+          const isLastIteration = r === reps - 1;
+
+          st.nestedSteps.forEach((nestedSt, nIdx) => {
+            const isLastNestedStep = nIdx === st.nestedSteps!.length - 1;
+            const isRecovery =
+              nestedSt.type === "recup" ||
+              nestedSt.type === "recup_marche" ||
+              nestedSt.type === "retour_calme" ||
+              Boolean((nestedSt as any).isWalkingRecovery);
+
+            if (isLastIteration && isLastNestedStep && isRecovery && skipLast) {
+              return;
+            }
+
+            if (nestedSt.type === "repeat") {
+              result = result.concat(flattenSteps([nestedSt]));
+            } else {
+              result.push(nestedSt);
+            }
+          });
         }
       } else {
         result.push(st);
@@ -161,7 +182,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
       let intensityPct = 75; // Valeur médiane par défaut
       let displayLabel = "Intensité relative";
 
-    if (matchingStep) {
+      if (matchingStep) {
         const goalType = matchingStep.goalType || "allure";
         const stepType = matchingStep.type;
 

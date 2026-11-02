@@ -351,6 +351,28 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* CASE À COCHER : Ne pas répéter la récupération sur la dernière série */}
+                <div className="pt-1.5 border-t border-stone-800/60">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-stone-300 hover:text-stone-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={Boolean((step as any).skipLastRecovery)}
+                      onChange={(e) => {
+                        onUpdateStep(
+                          workout.id,
+                          currentPath,
+                          "skipLastRecovery" as any,
+                          e.target.checked
+                        );
+                      }}
+                      className="w-3.5 h-3.5 rounded border-stone-700 bg-stone-950 text-[#CF9A61] focus:ring-0 cursor-pointer accent-[#CF9A61]"
+                    />
+                    <span className="font-semibold">
+                      🚫 Ne pas répéter la récupération sur la dernière série
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {step.nestedSteps && step.nestedSteps.length > 0 && (
