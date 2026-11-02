@@ -178,12 +178,12 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
             displayLabel = `${Math.round(intensityPct)}% VMA (${zone.name || "Zone"})`;
           }
         } 
-        // 2. RPE Cible
+        // 2. RPE Cible (Échelle cohérente : 1 = 55%, 10 = 100%)
         else if (goalType === "rpe" && matchingStep.targetRpe) {
-          const rpeVal = Number(matchingStep.targetRpe) || 5;
-          intensityPct = (rpeVal / 10) * 100;
-          displayLabel = `RPE ${rpeVal}/10`;
-        } 
+          const rpeVal = Math.min(10, Math.max(1, Number(matchingStep.targetRpe) || 5));
+          intensityPct = 55 + (rpeVal - 1) * 5;
+          displayLabel = `RPE ${rpeVal}/10 (${Math.round(intensityPct)}% effort)`;
+        }
         // 3. Zone FC
         else if (goalType === "hr_zone") {
           intensityPct = 75;
