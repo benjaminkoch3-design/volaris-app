@@ -890,12 +890,14 @@ export const WorkoutEditor: React.FC<WorkoutEditorProps> = ({
           </div>
         </div>
 
+        {/* Transmission de la prop isLibraryEditing au composant PaceProfileChart */}
         <PaceProfileChart
           steps={workout.steps}
           vma={vma}
           userRole={userRole}
           athleteVmaTemplates={athleteVmaTemplates}
           coachVmaTemplates={coachVmaTemplates}
+          isLibraryEditing={isLibraryEditing}
         />
 
         <div className="space-y-3">

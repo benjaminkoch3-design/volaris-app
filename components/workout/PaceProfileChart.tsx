@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { WorkoutStep } from "../../types";
-import { generatePaceProfile } from "../../utils/calculations";
+import { generatePaceProfile, getZoneMinMax } from "../../utils/calculations";
 
 interface PaceProfileChartProps {
   steps?: WorkoutStep[];
@@ -10,6 +10,7 @@ interface PaceProfileChartProps {
   athleteVmaTemplates?: any[];
   coachVmaTemplates?: any[];
   userRole?: string;
+  isLibraryEditing?: boolean; // <--- Ajouté pour détecter le mode bibliothèque du coach
 }
 
 const formatMinutesToHours = (totalMinutes: number): string => {
@@ -106,6 +107,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
   athleteVmaTemplates = [],
   coachVmaTemplates = [],
   userRole = "athlete",
+  isLibraryEditing = false,
 }) => {
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -114,13 +116,235 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
 
-  // On génère le profil en passant directement les templates VMA centralisés dans calculations.ts
+  const defaultVmaTemplate =
+    availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
+
+  // Extraction ou calcul récursif des %VMA si on est dans la bibliothèque du coach sans VMA fixe
+  const getStepVmaPercent = (step: WorkoutStep): number => {
+    if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
+      const zone = defaultVmaTemplate.zones.find(
+        (z: any, zIdx: number) =>
+          String(z.id) === String(step.targetZoneId) ||
+          String(z.name) === String(step.targetZoneId) ||
+          String(zIdx) === String(step.targetZoneId)
+      );
+      if (zone) {
+        const { min, max } = getZoneMinMax(zone);
+        return (min + max) / 2;
+      }
+    }
+    // Valeur par défaut indicative selon le type de bloc si aucune zone n'est liée
+    if (step.type === "echauffement" || step.type === "recup" || step.type === "recup_marche") return 65;
+    if (step.type === "retour_calme") return 55;
+    return 85; // Corps / fractionné par défaut
+  };
+
+  const traverseStepsForVmaPercents = (stepList: WorkoutStep[]): number[] => {
+    let percents: number[] = [];
+    stepList.forEach((st) => {
+      if (st.type === "repeat" && st.nestedSteps && st.nestedSteps.length > 0) {
+        const repsCount = Math.max(1, Number(st.reps) || 1);
+        for (let r = 0; r < repsCount; r++) {
+          percents = percents.concat(traverseStepsForVmaPercents(st.nestedSteps));
+        }
+      } else {
+        const durationSec = st.endCondition === "distance"
+          ? (parseFloat(st.durationOrDist || "0") || 1000) / 4 // Estimation visuelle
+          : (parseFloat(st.durationOrDist || "0") || 5) * 60;
+        
+        const pct = getStepVmaPercent(st);
+        percents.push(...Array(Math.max(1, Math.round(durationSec / 10))).fill(pct));
+      }
+    });
+    return percents;
+  };
+
+  // Si mode bibliothèque coach actif, on génère un profil basé sur les %VMA
+  if (isLibraryEditing && isCoach) {
+    const profile = generatePaceProfile(
+      steps,
+      vma,
+      availableVmaTemplates,
+      userRole,
+      coachVmaTemplates,
+      athleteVmaTemplates
+    );
+
+    const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
+    if (totalTimeSec <= 0) return null;
+
+    let currentPct = 0;
+    const bars = profile.map((point, index) => {
+      const widthPct = ((point.durationSec || 0) / totalTimeSec) * 100;
+      const leftPct = currentPct;
+      currentPct += widthPct;
+
+      // On déduit proprement le %VMA depuis le point généré ou via son type de cible / type de bloc
+      let vmaPct = 75;
+      if (point.type === "echauffement" || point.type === "recup" || point.type === "recup_marche") {
+        vmaPct = 65;
+      } else if (point.type === "retour_calme") {
+        vmaPct = 55;
+      } else {
+        vmaPct = 85; // Corps / fractionné
+      }
+
+      // Hauteur proportionnelle au %VMA
+      const height = Math.max(15, Math.min(95, ((vmaPct - 50) / 50) * 80 + 20));
+
+      return {
+        ...point,
+        index,
+        leftPct,
+        widthPct,
+        height,
+        vmaPct,
+        colors: getColors(point.type),
+      };
+    });
+
+    const active = hovered !== null ? bars[hovered] : null;
+
+    return (
+      <div className="w-full space-y-3 rounded-2xl border border-stone-800 bg-stone-950 p-4 font-sans shadow-sm">
+        <div className="flex items-center justify-between min-h-[22px]">
+          {active ? (
+            <div className="flex items-center gap-2 flex-wrap text-[10px] animate-fadeIn">
+              <span
+                className="h-2 w-2 rounded-full inline-block"
+                style={{ backgroundColor: active.colors.dark }}
+              />
+              <span className="font-bold uppercase tracking-wider text-stone-200">
+                {active.label}
+              </span>
+              <span className="text-stone-600">•</span>
+              <span className="font-mono font-bold text-[#CDCF61]">
+                {active.vmaPct}% VMA
+              </span>
+              <span className="text-stone-600">•</span>
+              <span className="font-semibold text-stone-300">
+                {formatDetailedDuration(active.durationSec || 0)}
+              </span>
+            </div>
+          ) : (
+            <>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">
+                Répartition des intensités (% VMA)
+              </span>
+              <span className="rounded-full border border-stone-800 bg-stone-900 px-2.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-stone-300">
+                {formatMinutesToHours(Math.round(totalTimeSec / 60))}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Graphique %VMA */}
+        <div className="flex gap-2">
+          <div className="relative h-32 w-10 shrink-0">
+            <span className="absolute right-0 top-0 font-mono text-[9px] font-semibold text-stone-500">100%</span>
+            <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-[9px] font-semibold text-stone-500">75%</span>
+            <span className="absolute right-0 bottom-0 font-mono text-[9px] font-semibold text-stone-500">50%</span>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div
+              className="relative h-32 select-none"
+              onMouseLeave={() => setHovered(null)}
+            >
+              {bars.map((bar, i) => {
+                const isHovered = hovered === i;
+                const isDimmed = hovered !== null && !isHovered;
+
+                return (
+                  <div
+                    key={i}
+                    className="absolute bottom-0 top-0 cursor-pointer"
+                    style={{
+                      left: `${bar.leftPct}%`,
+                      width: `${bar.widthPct}%`,
+                      minWidth: 3,
+                    }}
+                    onMouseEnter={() => setHovered(i)}
+                    onTouchStart={() => setHovered(i)}
+                  >
+                    <div
+                      className="absolute bottom-0 inset-x-[0.5px] rounded-t-[3px] border border-b-0 transition-all duration-150"
+                      style={{
+                        height: `${bar.height}%`,
+                        backgroundImage: bar.colors.gradient,
+                        borderColor: bar.colors.border,
+                        opacity: isDimmed ? 0.35 : 1,
+                        filter: isHovered ? "brightness(1.2)" : "none",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+
+              {active && (
+                <div
+                  className="pointer-events-none absolute z-20 -translate-x-1/2 whitespace-nowrap rounded-xl border border-stone-700 bg-stone-900/95 px-3 py-2 shadow-xl backdrop-blur"
+                  style={{
+                    left: `${Math.min(84, Math.max(16, active.leftPct + active.widthPct / 2))}%`,
+                    bottom: `calc(${active.height}% + 10px)`,
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full inline-block"
+                      style={{ backgroundColor: active.colors.dark }}
+                    />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-200">
+                      {active.label}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[10px] tabular-nums text-stone-300">
+                    <span className="text-[#CDCF61] font-bold">
+                      {active.vmaPct}% VMA
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-stone-400 mt-0.5">
+                    Durée : {formatDetailedDuration(active.durationSec || 0)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative mt-1.5 h-3 border-t border-stone-800">
+              <span className="absolute top-1 left-0 font-mono text-[9px] text-stone-500">0 min</span>
+              <span className="absolute top-1 right-0 font-mono text-[9px] text-stone-500">{formatMinutesToHours(Math.round(totalTimeSec / 60))}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-stone-900">
+          {LEGEND.map((l) => (
+            <span
+              key={l.label}
+              className="flex items-center gap-1.5 text-[10px] font-medium text-stone-400"
+            >
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: l.dark }}
+              />
+              {l.label}
+            </span>
+          ))}
+          <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-stone-600">
+            Intensité %VMA
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDU STANDARD (POUR TOUS LES AUTRES CAS : PLANS D'ENTRAÎNEMENT, ATHLÈTES, ETC.) ---
   const profile = generatePaceProfile(
-    steps, 
-    vma, 
-    availableVmaTemplates, 
-    userRole, 
-    coachVmaTemplates, 
+    steps,
+    vma,
+    availableVmaTemplates,
+    userRole,
+    coachVmaTemplates,
     athleteVmaTemplates
   );
 
@@ -175,7 +399,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
 
   return (
     <div className="w-full space-y-3 rounded-2xl border border-stone-200 bg-white p-4 font-sans shadow-sm dark:border-stone-800 dark:bg-stone-950 dark:shadow-none">
-      {/* En-tête : Titre & Durée globale ou informations du bloc survolé */}
       <div className="flex items-center justify-between min-h-[22px]">
         {active ? (
           <div className="flex items-center gap-2 flex-wrap text-[10px] animate-fadeIn">
@@ -210,7 +433,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
         )}
       </div>
 
-      {/* Graphique */}
       <div className="flex gap-2">
         <div className="relative h-32 w-10 shrink-0">
           {yTicks.map((t, i) => (
