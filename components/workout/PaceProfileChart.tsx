@@ -10,7 +10,7 @@ interface PaceProfileChartProps {
   athleteVmaTemplates?: any[];
   coachVmaTemplates?: any[];
   userRole?: string;
-  isLibraryEditing?: boolean; // <--- Ajouté pour détecter le mode bibliothèque du coach
+  isLibraryEditing?: boolean;
 }
 
 const formatMinutesToHours = (totalMinutes: number): string => {
@@ -38,7 +38,7 @@ const formatDetailedDuration = (sec: number) => {
   return `${m} min ${remainingS}s`;
 };
 
-// Couleurs avec dégradés verticaux préservant les teintes Volaris
+// Couleurs Volaris
 const COLORS: Record<
   string,
   { light: string; dark: string; border: string; gradient: string }
@@ -119,47 +119,23 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
   const defaultVmaTemplate =
     availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
-  // Extraction ou calcul récursif des %VMA si on est dans la bibliothèque du coach sans VMA fixe
-  const getStepVmaPercent = (step: WorkoutStep): number => {
-    if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
-      const zone = defaultVmaTemplate.zones.find(
-        (z: any, zIdx: number) =>
-          String(z.id) === String(step.targetZoneId) ||
-          String(z.name) === String(step.targetZoneId) ||
-          String(zIdx) === String(step.targetZoneId)
-      );
-      if (zone) {
-        const { min, max } = getZoneMinMax(zone);
-        return (min + max) / 2;
-      }
-    }
-    // Valeur par défaut indicative selon le type de bloc si aucune zone n'est liée
-    if (step.type === "echauffement" || step.type === "recup" || step.type === "recup_marche") return 65;
-    if (step.type === "retour_calme") return 55;
-    return 85; // Corps / fractionné par défaut
-  };
-
-  const traverseStepsForVmaPercents = (stepList: WorkoutStep[]): number[] => {
-    let percents: number[] = [];
+  // Helper récursif pour aplatir les steps (en dépliant les repeat)
+  const flattenSteps = (stepList: WorkoutStep[]): WorkoutStep[] => {
+    let result: WorkoutStep[] = [];
     stepList.forEach((st) => {
       if (st.type === "repeat" && st.nestedSteps && st.nestedSteps.length > 0) {
-        const repsCount = Math.max(1, Number(st.reps) || 1);
-        for (let r = 0; r < repsCount; r++) {
-          percents = percents.concat(traverseStepsForVmaPercents(st.nestedSteps));
+        const reps = Math.max(1, Number(st.reps) || 1);
+        for (let r = 0; r < reps; r++) {
+          result = result.concat(flattenSteps(st.nestedSteps));
         }
       } else {
-        const durationSec = st.endCondition === "distance"
-          ? (parseFloat(st.durationOrDist || "0") || 1000) / 4 // Estimation visuelle
-          : (parseFloat(st.durationOrDist || "0") || 5) * 60;
-        
-        const pct = getStepVmaPercent(st);
-        percents.push(...Array(Math.max(1, Math.round(durationSec / 10))).fill(pct));
+        result.push(st);
       }
     });
-    return percents;
+    return result;
   };
 
-  // Si mode bibliothèque coach actif, on génère un profil basé sur les %VMA
+  // --- RENDU DANS LA BIBLIOTHÈQUE COACH (% VMA ET INTENSITÉ UNIFIÉE) ---
   if (isLibraryEditing && isCoach) {
     const profile = generatePaceProfile(
       steps,
@@ -173,24 +149,68 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     const totalTimeSec = profile.reduce((acc, p) => acc + (p.durationSec || 0), 0);
     if (totalTimeSec <= 0) return null;
 
+    const flatSteps = steps ? flattenSteps(steps) : [];
+
     let currentPct = 0;
     const bars = profile.map((point, index) => {
       const widthPct = ((point.durationSec || 0) / totalTimeSec) * 100;
       const leftPct = currentPct;
       currentPct += widthPct;
 
-      // On déduit proprement le %VMA depuis le point généré ou via son type de cible / type de bloc
-      let vmaPct = 75;
-      if (point.type === "echauffement" || point.type === "recup" || point.type === "recup_marche") {
-        vmaPct = 65;
-      } else if (point.type === "retour_calme") {
-        vmaPct = 55;
-      } else {
-        vmaPct = 85; // Corps / fractionné
+      const matchingStep = flatSteps[index];
+      let intensityPct = 75; // Valeur médiane par défaut
+      let displayLabel = "Intensité relative";
+
+      if (matchingStep) {
+        const goalType = matchingStep.goalType || "allure";
+
+        // 1. Zone VMA
+        if (goalType === "vma_zone" && matchingStep.targetZoneId && defaultVmaTemplate?.zones) {
+          const zone = defaultVmaTemplate.zones.find(
+            (z: any, zIdx: number) =>
+              String(z.id) === String(matchingStep.targetZoneId) ||
+              String(z.name) === String(matchingStep.targetZoneId) ||
+              String(zIdx) === String(matchingStep.targetZoneId)
+          );
+          if (zone) {
+            const { min, max } = getZoneMinMax(zone);
+            intensityPct = (min + max) / 2;
+            displayLabel = `${Math.round(intensityPct)}% VMA (${zone.name || "Zone"})`;
+          }
+        } 
+        // 2. RPE Cible
+        else if (goalType === "rpe" && matchingStep.targetRpe) {
+          const rpeVal = Number(matchingStep.targetRpe) || 5;
+          intensityPct = (rpeVal / 10) * 100;
+          displayLabel = `RPE ${rpeVal}/10`;
+        } 
+        // 3. Zone FC
+        else if (goalType === "hr_zone") {
+          intensityPct = 75;
+          displayLabel = matchingStep.targetZoneName || "Zone FC";
+        } 
+        // 4. Allure brute (Sec / Km estimée depuis la moyenne)
+        else if (goalType === "allure" && (matchingStep.paceMin || matchingStep.paceMax)) {
+          intensityPct = 80;
+          const minP = matchingStep.paceMin || matchingStep.paceMax;
+          const maxP = matchingStep.paceMax || matchingStep.paceMin;
+          displayLabel = minP === maxP ? `${minP} /km` : `${minP} - ${maxP} /km`;
+        }
+        // 5. Par défaut selon la phase de la séance
+        else {
+          if (matchingStep.type === "echauffement" || matchingStep.type === "recup" || matchingStep.type === "recup_marche") {
+            intensityPct = 60;
+          } else if (matchingStep.type === "retour_calme") {
+            intensityPct = 50;
+          } else {
+            intensityPct = 85;
+          }
+          displayLabel = `${Math.round(intensityPct)}% d'effort`;
+        }
       }
 
-      // Hauteur proportionnelle au %VMA
-      const height = Math.max(15, Math.min(95, ((vmaPct - 50) / 50) * 80 + 20));
+      // Calcul de la hauteur relative sur l'échelle 50% - 100%
+      const height = Math.max(15, Math.min(95, ((intensityPct - 40) / 65) * 80 + 15));
 
       return {
         ...point,
@@ -198,7 +218,8 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
         leftPct,
         widthPct,
         height,
-        vmaPct,
+        intensityPct: Math.round(intensityPct),
+        displayLabel,
         colors: getColors(point.type),
       };
     });
@@ -219,7 +240,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
               </span>
               <span className="text-stone-600">•</span>
               <span className="font-mono font-bold text-[#CDCF61]">
-                {active.vmaPct}% VMA
+                {active.displayLabel}
               </span>
               <span className="text-stone-600">•</span>
               <span className="font-semibold text-stone-300">
@@ -229,7 +250,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
           ) : (
             <>
               <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-400">
-                Répartition des intensités (% VMA)
+                Profil d'intensité de la séance (Bibliothèque Coach)
               </span>
               <span className="rounded-full border border-stone-800 bg-stone-900 px-2.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-stone-300">
                 {formatMinutesToHours(Math.round(totalTimeSec / 60))}
@@ -238,12 +259,12 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
           )}
         </div>
 
-        {/* Graphique %VMA */}
+        {/* Axis & Graphique */}
         <div className="flex gap-2">
           <div className="relative h-32 w-10 shrink-0">
-            <span className="absolute right-0 top-0 font-mono text-[9px] font-semibold text-stone-500">100%</span>
+            <span className="absolute right-0 top-0 font-mono text-[9px] font-semibold text-stone-500">105%</span>
             <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-[9px] font-semibold text-stone-500">75%</span>
-            <span className="absolute right-0 bottom-0 font-mono text-[9px] font-semibold text-stone-500">50%</span>
+            <span className="absolute right-0 bottom-0 font-mono text-[9px] font-semibold text-stone-500">45%</span>
           </div>
 
           <div className="min-w-0 flex-1">
@@ -300,7 +321,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
                   </div>
                   <div className="font-mono text-[10px] tabular-nums text-stone-300">
                     <span className="text-[#CDCF61] font-bold">
-                      {active.vmaPct}% VMA
+                      {active.displayLabel}
                     </span>
                   </div>
                   <div className="text-[9px] text-stone-400 mt-0.5">
@@ -331,14 +352,14 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
             </span>
           ))}
           <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-stone-600">
-            Intensité %VMA
+            Intensité / Cibles
           </span>
         </div>
       </div>
     );
   }
 
-  // --- RENDU STANDARD (POUR TOUS LES AUTRES CAS : PLANS D'ENTRAÎNEMENT, ATHLÈTES, ETC.) ---
+  // --- RENDU STANDARD POUR TOUS LES AUTRES CAS ---
   const profile = generatePaceProfile(
     steps,
     vma,
