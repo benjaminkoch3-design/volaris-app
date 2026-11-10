@@ -3150,26 +3150,37 @@ export default function Home() {
   };
 
   const getTodayWorkouts = (plan: Plan | null) => {
-    if (!plan || !plan.startDate) return [];
+    if (!plan || !plan.startDate || !plan.eventDate) return [];
 
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    // 1. Vérifier si la date du jour est strictement comprise dans la période du plan
+    const [sY, sM, sD] = plan.startDate.split("-").map(Number);
+    const [eY, eM, eD] = plan.eventDate.split("-").map(Number);
+    const startDateObj = new Date(sY, sM - 1, sD);
+    startDateObj.setHours(0, 0, 0, 0);
+    const eventDateObj = new Date(eY, eM - 1, eD);
+    eventDateObj.setHours(0, 0, 0, 0);
+
+    // Si on est avant le début du plan ou après l'événement, ce n'est pas actif -> Afficher repos
+    if (now < startDateObj || now > eventDateObj) {
+      return [];
+    }
+
+    // 2. Formatage de la date du jour au format "JJ/MM/AA" (utilisé par getExactDayDate)
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const day = String(now.getDate()).padStart(2, "0");
     const todayStr = safeFormatDateFr(`${year}-${month}-${day}`);
 
+    // 3. Recherche STRICTE par correspondance de date exacte dans le plan actif
     const exactMatches = plan.workouts.filter(
       (w) => getExactDayDate(plan.startDate, w.weekNumber, w.dayIndex) === todayStr
     );
-    if (exactMatches.length > 0) return exactMatches;
 
-    const currentWeek = getCurrentWeekNumber(plan.startDate, String(plan.durationWeeks || "12"));
-    const jsDay = now.getDay();
-    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
-
-    return plan.workouts.filter(
-      (w) => w.weekNumber === currentWeek && w.dayIndex === dayIndex
-    );
+    // Si aucune séance n'est programmée ce jour-là, renvoie un tableau vide (affichera "Repos")
+    return exactMatches;
   };
 
   if (loadingAuth) {
