@@ -90,14 +90,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ id: string; msg: string; isError?: boolean } | null>(null);
 
-  // Modale plein écran (ordinateur)
   const [zoomedChart, setZoomedChart] = useState<ZoomableChartType | null>(null);
-
-  // Index du carrousel mobile
   const [activeMobileSlide, setActiveMobileSlide] = useState(0);
   const carouselScrollRef = useRef<HTMLDivElement>(null);
 
-  // Modale Garmin
   const [showGarminModal, setShowGarminModal] = useState<Workout | null>(null);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -120,14 +116,25 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   }, []);
 
-  const currentWeekNum = activePlan
-    ? getCurrentWeekNumber(
-        activePlan.startDate,
-        activePlan.durationWeeks || "12"
-      )
-    : 1;
+  // Vérification stricte des dates pour la semaine active du dashboard
+  const currentWeekNum = React.useMemo(() => {
+    if (!activePlan || !activePlan.startDate || !activePlan.eventDate) return null;
 
-  // Calcul du jour actuel (Lundi = 0 ... Dimanche = 6)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const [sY, sM, sD] = activePlan.startDate.split("-").map(Number);
+    const [eY, eM, eD] = activePlan.eventDate.split("-").map(Number);
+    const startDateObj = new Date(sY, sM - 1, sD);
+    startDateObj.setHours(0, 0, 0, 0);
+    const eventDateObj = new Date(eY, eM - 1, eD);
+    eventDateObj.setHours(0, 0, 0, 0);
+
+    if (now < startDateObj || now > eventDateObj) return null;
+
+    return getCurrentWeekNumber(activePlan.startDate, activePlan.durationWeeks || "12");
+  }, [activePlan]);
+
   const currentJsDay = new Date().getDay();
   const currentDayIndex = currentJsDay === 0 ? 6 : currentJsDay - 1;
 
@@ -158,7 +165,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Synchronisation Garmin
   const executeGarminSync = async (workout: Workout, emailToUse: string, pwdToUse: string) => {
     setSyncLoadingId(workout.id);
     setSyncStatus({ id: workout.id, msg: "⏳ Envoi vers Garmin Connect..." });
@@ -194,7 +200,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Synchronisation COROS
   const executeCorosSync = async (workout: Workout) => {
     const emailToUse = localStorage.getItem("volaris_coros_email") || "";
     const pwdToUse = localStorage.getItem("volaris_coros_pwd") || "";
@@ -247,11 +252,10 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   };
 
-  // Données journalières de la semaine en cours (avec les templates VMA actifs)
   const dailyMetricsData = Array.from({ length: 7 }, (_, dIdx) => {
-    const dayWorkouts = (activePlan?.workouts || []).filter(
+    const dayWorkouts = currentWeekNum !== null ? (activePlan?.workouts || []).filter(
       (w) => Number(w.weekNumber) === currentWeekNum && Number(w.dayIndex) === dIdx && !w.isRest
-    );
+    ) : [];
 
     let plannedKm = 0;
     let completedKm = 0;
@@ -269,25 +273,21 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         ? calculateStepMetrics(w.steps, vma, activeVmaTemplates) 
         : { totalKm: 0, totalMinutes: 0 };
 
-      // Distance
       if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
         plannedKm += parseFloat(String(w.km).replace(",", ".")) || 0;
       } else {
         plannedKm += stepM.totalKm || 0;
       }
 
-      // Durée prévue
       const pMin = stepM.totalMinutes || 0;
       plannedMinutes += pMin;
 
-      // RPE prévu
       const pRpe = w.rpe ? parseInt(String(w.rpe), 10) || 5 : 5;
       plannedLoad += pMin * pRpe;
       dayPlannedRpes.push(pRpe);
 
       const isDone = completedWorkouts[w.id] || w.completed;
       if (isDone) {
-        // Distance réalisée
         if (w.completedKm !== undefined && w.completedKm !== null && String(w.completedKm).trim() !== "") {
           completedKm += parseFloat(String(w.completedKm).replace(",", ".")) || 0;
         } else if (w.km !== undefined && w.km !== null && String(w.km).trim() !== "") {
@@ -296,20 +296,17 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           completedKm += stepM.totalKm || 0;
         }
 
-        // Durée réalisée
         const cMin = w.completedTimeMinutes !== undefined && w.completedTimeMinutes !== null
           ? Number(w.completedTimeMinutes)
           : pMin;
         completedMinutes += cMin;
 
-        // RPE & Charge réalisée
         const cRpe = w.completedRpe !== undefined && w.completedRpe !== null
           ? Number(w.completedRpe)
           : pRpe;
         completedLoad += cMin * cRpe;
         dayCompletedRpes.push(cRpe);
 
-        // Dénivelé
         const elev = (w as any).completedElevationGain ?? (w as any).completed_elevation_gain ?? 0;
         completedElevation += Number(elev) || 0;
       }
@@ -327,7 +324,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
       dayIndex: dIdx,
       dayShort: DAYS_SHORT[dIdx],
       dayFull: DAYS_FULL[dIdx],
-      isToday: dIdx === currentDayIndex,
+      isToday: currentWeekNum !== null && dIdx === currentDayIndex,
       plannedKm: Math.round(plannedKm * 10) / 10,
       completedKm: Math.round(completedKm * 10) / 10,
       plannedMinutes: Math.round(plannedMinutes),
@@ -341,7 +338,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     };
   });
 
-  // Totaux hebdomadaires
   const weekVolumePlanned = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.plannedKm, 0) * 10) / 10;
   const weekVolumeCompleted = Math.round(dailyMetricsData.reduce((acc, d) => acc + d.completedKm, 0) * 10) / 10;
   const weekVolumePct = weekVolumePlanned > 0
@@ -364,13 +360,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   const weekElevationMax = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 0);
   const weekElevationAvg = Math.round(weekElevationTotal / 7);
 
-  // Maximums pour l'échelle SVG
   const maxVolumeKm = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedKm, d.completedKm)), 10);
   const maxLoadVal = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedLoad, d.completedLoad)), 300);
   const maxTimeMinutes = Math.max(...dailyMetricsData.map((d) => Math.max(d.plannedMinutes, d.completedMinutes)), 60);
   const maxElevationVal = Math.max(...dailyMetricsData.map((d) => d.completedElevation), 150);
 
-  // Histogramme générique sans pointillés
   const renderGenericBarChart = (
     data: {
       plannedVal: number;
@@ -417,7 +411,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           </linearGradient>
         </defs>
 
-        {/* AXE Y (ORDONNÉES) SANS POINTILLÉS */}
         <line
           x1={paddingLeft}
           y1={paddingTop - 6}
@@ -455,7 +448,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           );
         })}
 
-        {/* AXE X (LIGNE DE BASE) */}
         <line
           x1={paddingLeft}
           y1={baselineY}
@@ -465,7 +457,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
           strokeWidth="1.2"
         />
 
-        {/* Colonnes par jour */}
         {data.map((item, i) => {
           const d = dailyMetricsData[i];
           const colCenterX = paddingLeft + i * colWidth + colWidth / 2;
@@ -486,7 +477,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
           return (
             <g key={i} className="group cursor-pointer">
-              {/* Fond colonne jour actuel */}
               {d.isToday && (
                 <rect
                   x={colCenterX - colWidth / 2 + 3}
@@ -499,7 +489,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Conteneur / Jauge de fond */}
               {containerH > 0 && (
                 <rect
                   x={barX}
@@ -514,7 +503,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Remplissage réalisé */}
               {fillH > 0 && (
                 <rect
                   x={barX}
@@ -527,7 +515,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 />
               )}
 
-              {/* Chiffre réalisé au-dessus de la barre */}
               {item.completedVal > 0 && (
                 <text
                   x={colCenterX}
@@ -542,7 +529,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 </text>
               )}
 
-              {/* Étiquette jour */}
               <text
                 x={colCenterX}
                 y={baselineY + 16}
@@ -555,7 +541,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                 {d.dayShort}
               </text>
 
-              {/* Indicateur point pour aujourd'hui */}
               {d.isToday && (
                 <circle
                   cx={colCenterX}
@@ -573,7 +558,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     );
   };
 
-  // Données prêtes
   const volumeChartItems = dailyMetricsData.map((d) => ({
     plannedVal: d.plannedKm,
     completedVal: d.completedKm,
@@ -602,7 +586,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     tooltipText: `${d.dayFull} - ${d.completedElevation} m D+ (réalisé)`,
   }));
 
-  // Détection d'un jour de repos
   const isRestDay =
     todayWorkouts.length === 0 ||
     todayWorkouts.every((w) => w.isRest || w.type === "repos");
@@ -611,7 +594,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full">
-      {/* ===================== 1. ÉVÉNEMENT CIBLE ===================== */}
       {activePlan && (
         <div className="bg-gradient-to-r from-[#CF6361]/20 via-[#CF6361]/10 to-stone-900 border border-[#CF6361]/30 p-4 md:p-5 rounded-3xl flex items-center justify-between shadow-lg w-full">
           <div className="space-y-1">
@@ -642,7 +624,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* ===================== 2. CARTE SÉANCE DU JOUR ===================== */}
       <div className="bg-stone-900/90 border border-stone-800 rounded-3xl p-5 md:p-6 shadow-2xl space-y-4 w-full">
         <div className="flex justify-between items-center border-b border-stone-800/80 pb-3">
           <div>
@@ -654,7 +635,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             </h2>
           </div>
 
-          {activePlan && (
+          {activePlan && currentWeekNum !== null && (
             <span className="text-[9.5px] md:text-xs font-extrabold uppercase px-3 py-1 rounded-full border bg-stone-950 border-stone-700 text-stone-100">
               S{currentWeekNum} / {activePlan.durationWeeks || "12"}
             </span>
@@ -685,7 +666,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             )}
           </div>
         ) : isRestDay ? (
-          /* AFFICHAGE DU JOUR DE REPOS */
           <div className="bg-stone-950/80 border border-stone-800 rounded-3xl p-6 shadow-xl space-y-3 text-center">
             <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-2xl">
               ☕
@@ -733,7 +713,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </span>
                   </div>
 
-                  {/* 1. DISTANCE & RPE (+ DÉTAILS) */}
                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-stone-800/80">
                     <div className="flex items-center gap-2">
                       {todayWorkout.km && (
@@ -772,7 +751,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </button>
                   </div>
 
-                  {/* 2. DESCRIPTION DE LA SÉANCE */}
                   {todayWorkout.description ? (
                     <div className="bg-stone-900/70 p-3 rounded-xl border border-stone-800 space-y-1">
                       <span className="text-[9px] font-black uppercase tracking-wider text-[#CF9A61] block">
@@ -793,7 +771,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </div>
                   )}
 
-                  {/* 3. PROFIL D'ALLURE DE LA SÉANCE */}
                   {todayWorkout.steps && todayWorkout.steps.length > 0 && (
                     <div className="pt-1">
                       <PaceProfileChart
@@ -806,7 +783,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
                     </div>
                   )}
 
-                  {/* Boutons d'action */}
                   {!isReadOnly && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-stone-800/80">
                       <button
@@ -857,7 +833,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         )}
       </div>
 
-      {/* ===================== 3. GRILLE DE 4 GRAPHIQUES ===================== */}
       {activePlan && (
         <div className="space-y-2 w-full">
           <div className="sm:hidden flex items-center justify-between px-1 text-[10px] font-bold text-stone-400">
@@ -884,7 +859,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
             onScroll={handleCarouselScroll}
             className="w-full flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible"
           >
-            {/* 1. VOLUME KILOMÉTRIQUE (BORDEAUX / ROUGE) */}
             <div
               onClick={() => handleOpenZoom("volume")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -892,9 +866,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                      Semaine {currentWeekNum}
-                    </span>
+                    {currentWeekNum !== null && (
+                      <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                        Semaine {currentWeekNum}
+                      </span>
+                    )}
                     <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF6361] transition">
                       Volume kilométrique
                     </h3>
@@ -956,7 +932,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 2. CHARGE D'ENTRAÎNEMENT (DORÉ) */}
             <div
               onClick={() => handleOpenZoom("load")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -964,9 +939,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                      Semaine {currentWeekNum}
-                    </span>
+                    {currentWeekNum !== null && (
+                      <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                        Semaine {currentWeekNum}
+                      </span>
+                    )}
                     <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#CF9A61] transition">
                       Charge d'entraînement
                     </h3>
@@ -1028,7 +1005,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 3. TEMPS PASSÉ À COURIR (BLEU) */}
             <div
               onClick={() => handleOpenZoom("time")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -1036,9 +1012,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                      Semaine {currentWeekNum}
-                    </span>
+                    {currentWeekNum !== null && (
+                      <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                        Semaine {currentWeekNum}
+                      </span>
+                    )}
                     <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#4D80B3] transition">
                       Temps passé à courir
                     </h3>
@@ -1100,7 +1078,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               </div>
             </div>
 
-            {/* 4. DÉNIVELÉ POSITIF (VERT ÉMERAUDE) */}
             <div
               onClick={() => handleOpenZoom("elevation")}
               className="w-full min-w-full flex-shrink-0 snap-center sm:min-w-0 bg-stone-900/90 sm:hover:border-stone-700 border border-stone-800 p-5 rounded-3xl space-y-4 shadow-xl font-sans flex flex-col justify-between transition sm:cursor-pointer group"
@@ -1108,9 +1085,11 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
               <div className="space-y-3 border-b border-stone-800/80 pb-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
-                      Semaine {currentWeekNum}
-                    </span>
+                    {currentWeekNum !== null && (
+                      <span className="text-[10px] font-extrabold uppercase text-[#CF9A61] tracking-widest block">
+                        Semaine {currentWeekNum}
+                      </span>
+                    )}
                     <h3 className="text-sm md:text-base font-black uppercase text-stone-100 tracking-tight mt-0.5 sm:group-hover:text-[#4DB380] transition">
                       Dénivelé positif
                     </h3>
@@ -1174,7 +1153,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* ===================== MODALE ZOOM PLEIN ÉCRAN (ORDINATEUR UNIQUEMENT) ===================== */}
       {zoomedChart && (
         <div
           onClick={() => setZoomedChart(null)}
@@ -1398,7 +1376,6 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
         </div>
       )}
 
-      {/* MODALE GARMIN */}
       {showGarminModal && (
         <div className="fixed inset-0 bg-stone-950/95 flex items-center justify-center p-4 z-60">
           <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl animate-fadeIn">

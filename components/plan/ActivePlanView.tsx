@@ -72,17 +72,30 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
       ? activePlan.durationWeeks
       : parseInt(String(activePlan.durationWeeks), 10) || 4;
 
-  const currentWeekNum = getCurrentWeekNumber(
-    activePlan.startDate,
-    durationWeeksStr
-  );
+  // Vérification stricte de la semaine active en fonction de la date du jour
+  const currentWeekNum = React.useMemo(() => {
+    if (!activePlan || !activePlan.startDate || !activePlan.eventDate) return null;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const [sY, sM, sD] = activePlan.startDate.split("-").map(Number);
+    const [eY, eM, eD] = activePlan.eventDate.split("-").map(Number);
+    const startDateObj = new Date(sY, sM - 1, sD);
+    startDateObj.setHours(0, 0, 0, 0);
+    const eventDateObj = new Date(eY, eM - 1, eD);
+    eventDateObj.setHours(0, 0, 0, 0);
+
+    if (now < startDateObj || now > eventDateObj) return null;
+
+    return getCurrentWeekNumber(activePlan.startDate, durationWeeksStr);
+  }, [activePlan, durationWeeksStr]);
 
   const [draggedWorkoutId, setDraggedWorkoutId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
   const [coachDayNotes, setCoachDayNotes] = useState<Record<string, string>>({});
 
-  // Récupération sécurisée des notes du coach pour l'athlète connecté ou inspecté
   useEffect(() => {
     const fetchPublicCoachNotes = async () => {
       let targetAthleteId = activePlan.userId || (activePlan as any).user_id;
@@ -153,7 +166,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* BANNIÈRE HEADER */}
       <div className="bg-gradient-to-br from-[#CF9A61] to-[#b88652] rounded-3xl p-6 text-stone-950 shadow-xl relative overflow-hidden space-y-4">
         <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
 
@@ -208,7 +220,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
 
         <div className="flex justify-between items-center pt-2 border-t border-stone-950/10 flex-wrap gap-2">
           {(() => {
-            const curWeekType = activePlan.weekTypes?.[currentWeekNum];
+            const curWeekType = currentWeekNum !== null ? activePlan.weekTypes?.[currentWeekNum] : undefined;
             const badgeClass = getWeekTypeBadgeClass(curWeekType);
             return curWeekType ? (
               <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shadow-sm ${badgeClass}`}>
@@ -241,7 +253,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
         </div>
       </div>
 
-      {/* SEMAINES */}
       <div className="space-y-4">
         <div className="flex justify-between items-center flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -269,7 +280,7 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
             const weekTypeVal = activePlan.weekTypes?.[wNum];
             const wLabel = getWeekTypeLabel(weekTypeVal);
             const badgeClass = getWeekTypeBadgeClass(weekTypeVal);
-            const isCurrentWeek = wNum === currentWeekNum;
+            const isCurrentWeek = currentWeekNum !== null && wNum === currentWeekNum;
             const isOpen = openWeeks[wNum] ?? isCurrentWeek;
 
             const rawWeekWorkouts = activePlan.workouts.filter(
@@ -358,7 +369,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                           dIdx
                         );
 
-                        // Conversion sécurisée en format ISO AAAA-MM-JJ pour correspondre à la base de données
                         const isoDateStr = (() => {
                           if (!exactDate) return "";
                           if (/^\d{4}-\d{2}-\d{2}$/.test(exactDate)) return exactDate;
@@ -409,7 +419,6 @@ export const ActivePlanView: React.FC<ActivePlanViewProps> = ({
                               </span>
                             </div>
 
-                            {/* 📋 AFFICHAGE DE LA NOTE DU COACH SUR LA PAGE DU PLAN */}
                             {coachNoteForDay && (
                               <div className="bg-[#CDCF61]/20 border border-[#CDCF61]/60 rounded-xl p-3 flex items-start gap-2 shadow-md animate-fadeIn">
                                 <span className="text-sm">📋</span>
