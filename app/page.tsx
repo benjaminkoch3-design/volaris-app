@@ -2819,9 +2819,7 @@ export default function Home() {
           : newPlanForm.trackPreset;
     } else {
       const catLabel = newPlanForm.raceCategory === "trail" ? "Trail" : "Course Nature";
-      const dist = newPlanForm.customDistance ? `${newPlanForm.customDistance} km` : catLabel;
-      const elev = newPlanForm.elevationGain ? ` (${newPlanForm.elevationGain}m D+)` : "";
-      formattedDistance = `${dist}${elev}`;
+      formattedDistance = newPlanForm.customDistance ? `${newPlanForm.customDistance} km` : catLabel;
     }
 
     const isEditingExisting = Boolean(editingPlanId);
