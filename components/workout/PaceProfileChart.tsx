@@ -38,7 +38,6 @@ const formatDetailedDuration = (sec: number) => {
   return `${m} min ${remainingS}s`;
 };
 
-// Couleurs Volaris
 const COLORS: Record<
   string,
   { light: string; dark: string; border: string; gradient: string }
@@ -111,15 +110,14 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
 }) => {
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const isCoach = userRole === "coach";
-  const availableVmaTemplates = isCoach
-    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+  // CORRECTION CLÉ : Utilisation prioritaire des templates du coach s'ils sont renseignés
+  const availableVmaTemplates = (coachVmaTemplates && coachVmaTemplates.length > 0)
+    ? coachVmaTemplates
     : athleteVmaTemplates;
 
   const defaultVmaTemplate =
     availableVmaTemplates.find((t: any) => t.isDefault || t.is_default) || availableVmaTemplates[0];
 
-  // Helper récursif pour aplatir les steps (en dépliant les repeat et en appliquant skipLastRecovery)
   const flattenSteps = (stepList: WorkoutStep[]): WorkoutStep[] => {
     let result: WorkoutStep[] = [];
     stepList.forEach((st) => {
@@ -156,8 +154,7 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     return result;
   };
 
-  // --- RENDU DANS LA BIBLIOTHÈQUE COACH (% VMA ET INTENSITÉ UNIFIÉE) ---
-  if (isLibraryEditing && isCoach) {
+  if (isLibraryEditing && userRole === "coach") {
     const profile = generatePaceProfile(
       steps,
       vma,
@@ -179,20 +176,17 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
       currentPct += widthPct;
 
       const matchingStep = flatSteps[index];
-      let intensityPct = 75; // Valeur médiane par défaut
+      let intensityPct = 75;
       let displayLabel = "Intensité relative";
 
       if (matchingStep) {
         const goalType = matchingStep.goalType || "allure";
         const stepType = matchingStep.type;
 
-        // 0. Si c'est explicitement de la marche ou une récup active de marche (30%)
         if (stepType === "recup_marche" || Boolean((matchingStep as any).isWalkingRecovery)) {
           intensityPct = 30;
           displayLabel = "Marche (30%)";
-        } 
-        // 1. Zone VMA
-        else if (goalType === "vma_zone" && matchingStep.targetZoneId && defaultVmaTemplate?.zones) {
+        } else if (goalType === "vma_zone" && matchingStep.targetZoneId && defaultVmaTemplate?.zones) {
           const zone = defaultVmaTemplate.zones.find(
             (z: any, zIdx: number) =>
               String(z.id) === String(matchingStep.targetZoneId) ||
@@ -204,27 +198,19 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
             intensityPct = (min + max) / 2;
             displayLabel = `${Math.round(intensityPct)}% VMA (${zone.name || "Zone"})`;
           }
-        } 
-        // 2. RPE Cible (Échelle 1 = 55% jusqu'à 10 = 100%)
-        else if (goalType === "rpe" && matchingStep.targetRpe) {
+        } else if (goalType === "rpe" && matchingStep.targetRpe) {
           const rpeVal = Math.min(10, Math.max(1, Number(matchingStep.targetRpe) || 5));
           intensityPct = 55 + (rpeVal - 1) * 5;
           displayLabel = `RPE ${rpeVal}/10 (${Math.round(intensityPct)}% effort)`;
-        } 
-        // 3. Zone FC
-        else if (goalType === "hr_zone") {
+        } else if (goalType === "hr_zone") {
           intensityPct = 75;
           displayLabel = matchingStep.targetZoneName || "Zone FC";
-        } 
-        // 4. Allure brute
-        else if (goalType === "allure" && (matchingStep.paceMin || matchingStep.paceMax)) {
+        } else if (goalType === "allure" && (matchingStep.paceMin || matchingStep.paceMax)) {
           intensityPct = 80;
           const minP = matchingStep.paceMin || matchingStep.paceMax;
           const maxP = matchingStep.paceMax || matchingStep.paceMin;
           displayLabel = minP === maxP ? `${minP} /km` : `${minP} - ${maxP} /km`;
-        }
-        // 5. Par défaut selon le type de phase
-        else {
+        } else {
           if (stepType === "echauffement" || stepType === "recup") {
             intensityPct = 60;
           } else if (stepType === "retour_calme") {
@@ -236,7 +222,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
         }
       }
 
-      // Calcul de la hauteur relative sur l'échelle 50% - 100%
       const height = Math.max(15, Math.min(95, ((intensityPct - 40) / 65) * 80 + 15));
 
       return {
@@ -286,7 +271,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
           )}
         </div>
 
-        {/* Axis & Graphique */}
         <div className="flex gap-2">
           <div className="relative h-32 w-10 shrink-0">
             <span className="absolute right-0 top-0 font-mono text-[9px] font-semibold text-stone-500">105%</span>
@@ -386,7 +370,6 @@ export const PaceProfileChart: React.FC<PaceProfileChartProps> = ({
     );
   }
 
-  // --- RENDU STANDARD POUR TOUS LES AUTRES CAS ---
   const profile = generatePaceProfile(
     steps,
     vma,
