@@ -74,15 +74,14 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   const isCoach = userRole === "coach";
   const typeConfig = WORKOUT_TYPES_CONFIG[workout.type] || WORKOUT_TYPES_CONFIG.footing;
 
-  // CORRECTION : Utilisation prioritaire absolue des templates de VMA du coach s'ils existent
-  const activeVmaTemplates = coachVmaTemplates.length > 0
-    ? coachVmaTemplates
+  const activeVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
 
   const metrics = calculateStepMetrics(
     workout.steps, 
     vma, 
-    activeVmaTemplates, 
+    athleteVmaTemplates, 
     userRole, 
     coachVmaTemplates, 
     athleteVmaTemplates
@@ -201,6 +200,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   };
 
   const renderPaceBadge = (step: WorkoutStep) => {
+    // 1. Si la cible est une zone VMA
     if (step.goalType === "vma_zone" && step.targetZoneId && defaultVmaTemplate?.zones) {
       const selectedVmaZone = defaultVmaTemplate.zones.find((z: any, zIdx: number) => 
         (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -226,6 +226,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
+    // 2. Si la cible est une zone FC
     if (step.goalType === "hr_zone" && step.targetZoneId && defaultHrTemplate?.zones) {
       const selectedHrZone = defaultHrTemplate.zones.find((z: any, zIdx: number) => 
         (step.targetZoneId && String(z.id) === String(step.targetZoneId)) || 
@@ -253,6 +254,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       }
     }
 
+    // 3. RPE Cible
     if (step.goalType === "rpe" && step.targetRpe) {
       return (
         <div className="text-right">
@@ -266,6 +268,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
       );
     }
 
+    // 4. Allure classique
     const slowPace = step.paceMax;
     const fastPace = step.paceMin;
 
@@ -468,7 +471,7 @@ export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
           steps={workout.steps}
           vma={vma}
           userRole={userRole}
-          athleteVmaTemplates={activeVmaTemplates}
+          athleteVmaTemplates={athleteVmaTemplates}
           coachVmaTemplates={coachVmaTemplates}
         />
 

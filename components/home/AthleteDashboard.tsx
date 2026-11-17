@@ -82,9 +82,9 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   coachVmaTemplates = [],
   userRole = "athlete",
 }) => {
-  // CORRECTION : L'athlète utilise en priorité absolue les templates de son coach s'ils existent
-  const activeVmaTemplates = coachVmaTemplates.length > 0
-    ? coachVmaTemplates
+  const isCoach = userRole === "coach";
+  const activeVmaTemplates = isCoach
+    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
     : athleteVmaTemplates;
 
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
@@ -116,6 +116,7 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
     }
   }, []);
 
+  // Vérification stricte des dates pour la semaine active du dashboard
   const currentWeekNum = React.useMemo(() => {
     if (!activePlan || !activePlan.startDate || !activePlan.eventDate) return null;
 

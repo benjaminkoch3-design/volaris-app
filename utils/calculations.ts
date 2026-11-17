@@ -355,10 +355,11 @@ export function getStepPaceInSeconds(
   if (step.targetPace) return parsePaceToSeconds(step.targetPace);
   if (step.goalValue) return parsePaceToSeconds(step.goalValue);
 
-  // CORRECTION : Priorité absolue aux templates du coach s'ils sont fournis (rétrocompatible si absents)
-  const activeTemplates = (coachVmaTemplates && coachVmaTemplates.length > 0)
-    ? coachVmaTemplates
-    : ((vmaTemplates && vmaTemplates.length > 0) ? vmaTemplates : (athleteVmaTemplates || []));
+  // Résolution des templates VMA selon le rôle (Coach vs Athlète)
+  const isCoach = userRole === "coach";
+  const activeTemplates = isCoach
+    ? (coachVmaTemplates && coachVmaTemplates.length > 0 ? coachVmaTemplates : vmaTemplates)
+    : (vmaTemplates || athleteVmaTemplates);
 
   const parsedVma = typeof vma === "string" ? parseFloat(vma.replace(",", ".")) : Number(vma);
   const hasValidVma = !isNaN(parsedVma) && parsedVma > 0;
@@ -474,8 +475,9 @@ export function calculateStepMetrics(
     let km = rawKm;
     let seconds = rawSec;
 
+    // Triangulation : si on a 1 info de durée/distance ET l'allure, ou cas sans info du tout
     if (step.endCondition === "lap_button" || (!hasParsed && step.endCondition !== "distance" && step.endCondition !== "temps")) {
-      seconds = 120;
+      seconds = 120; // 2 min par défaut si aucune info (bouton lap)
       km = paceSec > 0 ? seconds / paceSec : 0;
     } else if (km > 0 && seconds === 0 && paceSec > 0) {
       seconds = km * paceSec;
@@ -694,7 +696,7 @@ export function generatePaceProfile(
     let seconds = rawSec;
 
     if (step.endCondition === "lap_button" || (!hasParsed)) {
-      durSec = 120;
+      durSec = 120; // 2 min par défaut pour le lap button ou bloc vide
     } else if (km > 0 && seconds === 0 && paceSec > 0) {
       durSec = km * paceSec;
     } else if (seconds > 0 && km === 0) {

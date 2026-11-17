@@ -31,7 +31,6 @@ import {
   safeFormatDateFr,
   DAYS_LIST_FR,
   calculateWeeklyPlannedKm,
-  calculateStepMetrics,
 } from "../utils/calculations";
 
 import { parseDistanceTextToMeters, parseTimeToSeconds } from "../utils/vdot";
@@ -124,43 +123,6 @@ const deriveRecordsFromRaces = (racesList: Race[], existingRecords: Record<strin
   });
 
   return newRecords;
-};
-
-// Fonction pour hydrater et recalculer dynamiquement toutes les séances du plan à la volée
-const hydrateActivePlanWorkouts = (
-  plan: Plan | null,
-  vmaVal: number | string,
-  athleteTemplates: any[],
-  coachTemplates: any[],
-  role: string
-): Plan | null => {
-  if (!plan || !plan.workouts) return plan;
-
-  // Priorité absolue aux templates du coach s'ils existent (ex: ATHLETE SUB-ELITE)
-  const activeVmaTemplates = coachTemplates.length > 0 ? coachTemplates : athleteTemplates;
-
-  const hydratedWorkouts = plan.workouts.map((workout) => {
-    if (!workout.steps || workout.steps.length === 0) return workout;
-
-    const metrics = calculateStepMetrics(
-      workout.steps,
-      vmaVal,
-      activeVmaTemplates,
-      role,
-      coachTemplates,
-      athleteTemplates
-    );
-
-    return {
-      ...workout,
-      km: workout.km || metrics.totalKm,
-    };
-  });
-
-  return {
-    ...plan,
-    workouts: hydratedWorkouts,
-  };
 };
 
 export default function Home() {
@@ -791,17 +753,6 @@ export default function Home() {
     ? parseFcValue(selectedAthlete?.fcMax) || parseFcValue(fcMax)
     : parseFcValue(fcMax);
 
-  // Hydratation dynamique et automatique du plan actif avec prise en compte des templates coach ou athlète
-  const currentActivePlan = React.useMemo(() => {
-    return hydrateActivePlanWorkouts(
-      activePlan,
-      currentAthleteVma,
-      athleteVmaTemplates,
-      coachZoneTemplates,
-      userRole
-    );
-  }, [activePlan, currentAthleteVma, athleteVmaTemplates, coachZoneTemplates, userRole]);
-
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
@@ -1067,6 +1018,7 @@ export default function Home() {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
 
+    // Charger STRICTEMENT les séances appartenant à CE plan
     const { data: targetWorkouts } = await supabase
       .from("workouts")
       .select("*")
@@ -2873,6 +2825,9 @@ export default function Home() {
     const isEditingExisting = Boolean(editingPlanId);
     const targetPlanId = isEditingExisting ? editingPlanId! : `plan_${Date.now()}`;
 
+    // IMPORTANT : On n'archive plus automatiquement l'ancien plan. 
+    // Les deux plans restent actifs en parallèle tant que l'utilisateur n'archive pas explicitement l'1 d'entre eux.
+
     const { error: planError } = await supabase.from("plans").upsert({
       id: targetPlanId,
       user_id: targetUserId,
@@ -2995,7 +2950,7 @@ export default function Home() {
   };
 
   const handleDeleteWorkoutImport = async (workoutId: string) => {
-    const targetWorkout = currentActivePlan?.workouts.find((w) => w.id === workoutId);
+    const targetWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
     const assignedShoeId = (targetWorkout as any)?.shoeId ?? (targetWorkout as any)?.shoe_id;
     const recordedKm = Number(targetWorkout?.completedKm || 0);
 
@@ -3073,7 +3028,7 @@ export default function Home() {
   }: any) => {
     const kmNumber = Number(completedKm) || 0;
 
-    const prevWorkout = currentActivePlan?.workouts.find((w) => w.id === workoutId);
+    const prevWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
     const prevShoeId = (prevWorkout as any)?.shoeId ?? (prevWorkout as any)?.shoe_id;
     const prevKm = Number(prevWorkout?.completedKm || 0);
 
@@ -3198,6 +3153,7 @@ export default function Home() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
+    // 1. Vérifier si la date du jour est strictement comprise dans la période du plan
     const [sY, sM, sD] = plan.startDate.split("-").map(Number);
     const [eY, eM, eD] = plan.eventDate.split("-").map(Number);
     const startDateObj = new Date(sY, sM - 1, sD);
@@ -3205,19 +3161,23 @@ export default function Home() {
     const eventDateObj = new Date(eY, eM - 1, eD);
     eventDateObj.setHours(0, 0, 0, 0);
 
+    // Si on est avant le début du plan ou après l'événement, ce n'est pas actif -> Afficher repos
     if (now < startDateObj || now > eventDateObj) {
       return [];
     }
 
+    // 2. Formatage de la date du jour au format "JJ/MM/AA" (utilisé par getExactDayDate)
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const day = String(now.getDate()).padStart(2, "0");
     const todayStr = safeFormatDateFr(`${year}-${month}-${day}`);
 
+    // 3. Recherche STRICTE par correspondance de date exacte dans le plan actif
     const exactMatches = plan.workouts.filter(
       (w) => getExactDayDate(plan.startDate, w.weekNumber, w.dayIndex) === todayStr
     );
 
+    // Si aucune séance n'est programmée ce jour-là, renvoie un tableau vide (affichera "Repos")
     return exactMatches;
   };
 
@@ -3396,11 +3356,11 @@ export default function Home() {
     );
   }
 
-  if (selectedWorkoutDetail && currentActivePlan) {
+  if (selectedWorkoutDetail && activePlan) {
     return (
       <WorkoutDetail
         workout={selectedWorkoutDetail}
-        plan={currentActivePlan}
+        plan={activePlan}
         completedWorkouts={completedWorkouts}
         onClose={() => setSelectedWorkoutDetail(null)}
         onOpenDebrief={(workout) => setDebriefWorkout(workout)}
@@ -3410,8 +3370,6 @@ export default function Home() {
         fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
-        coachVmaTemplates={coachZoneTemplates}
-        coachHrTemplates={coachHrZoneTemplates}
       />
     );
   }
@@ -3673,9 +3631,9 @@ export default function Home() {
           <>
             {userRole === "athlete" && activeTab === "accueil" && (
               <AthleteDashboard
-                activePlan={currentActivePlan}
+                activePlan={activePlan}
                 completedWorkouts={completedWorkouts}
-                todayWorkouts={getTodayWorkouts(currentActivePlan)}
+                todayWorkouts={getTodayWorkouts(activePlan)}
                 onSelectWorkoutDetail={setSelectedWorkoutDetail}
                 onToggleWorkout={toggleWorkout}
                 onOpenDebrief={(workout) => setDebriefWorkout(workout)}
@@ -3723,7 +3681,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {currentActivePlan && !isCreatingPlan && (
+                    {activePlan && !isCreatingPlan && (
                       <button
                         onClick={navigateToPlanStats}
                         className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-2 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
@@ -3735,7 +3693,7 @@ export default function Home() {
 
                   {!isCreatingPlan && (
                     <div className="flex items-center gap-2 flex-wrap">
-                      {currentActivePlan && (
+                      {activePlan && (
                         <button
                           onClick={() => setShowDeletePlanModal(true)}
                           className="text-[10px] font-bold text-stone-300 hover:text-stone-100 bg-stone-900 hover:bg-stone-850 border border-stone-700 px-3 py-2 rounded-xl uppercase transition cursor-pointer shadow-sm"
@@ -3771,7 +3729,7 @@ export default function Home() {
                   )}
                 </div>
 
-                {!currentActivePlan && !isCreatingPlan && (
+                {!activePlan && !isCreatingPlan && (
                   <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-xl">
                     <div className="w-16 h-16 bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CDCF61] text-2xl">
                       📋
@@ -3826,9 +3784,9 @@ export default function Home() {
                   />
                 )}
 
-                {!isCreatingPlan && currentActivePlan && (
+                {!isCreatingPlan && activePlan && (
                   <ActivePlanView
-                    activePlan={currentActivePlan}
+                    activePlan={activePlan}
                     completedWorkouts={completedWorkouts}
                     openWeeks={openWeeks}
                     toggleWeekAccordion={toggleWeekAccordion}
@@ -3836,7 +3794,7 @@ export default function Home() {
                     onChangePlanRequest={() => setShowDeletePlanModal(true)}
                     onSelectWorkoutDetail={setSelectedWorkoutDetail}
                     onToggleWorkout={(id) => {
-                      const targetWorkout = currentActivePlan.workouts.find((w) => w.id === id);
+                      const targetWorkout = activePlan.workouts.find((w) => w.id === id);
                       if (targetWorkout) {
                         setDebriefWorkout(targetWorkout);
                       } else {
@@ -3876,7 +3834,7 @@ export default function Home() {
             {activeTab === "stats" && (
               <AnnualStats
                 completedRuns={completedRuns}
-                activePlan={currentActivePlan}
+                activePlan={activePlan}
                 completedWorkouts={completedWorkouts}
                 onAddRun={handleAddCompletedRun}
                 draftWorkouts={draftWorkouts}
