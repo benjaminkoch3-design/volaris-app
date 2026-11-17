@@ -59,6 +59,7 @@ const calculateHrRangeFromKarvonenOrMax = (fcRestVal: number, fcMaxVal: number, 
 
 export const WorkoutDetail: React.FC<WorkoutDetailProps> = ({
   workout,
+  plan,
   completedWorkouts = {},
   onClose,
   onOpenDebrief,

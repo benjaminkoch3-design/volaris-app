@@ -31,6 +31,7 @@ import {
   safeFormatDateFr,
   DAYS_LIST_FR,
   calculateWeeklyPlannedKm,
+  calculateStepMetrics,
 } from "../utils/calculations";
 
 import { parseDistanceTextToMeters, parseTimeToSeconds } from "../utils/vdot";
@@ -123,6 +124,43 @@ const deriveRecordsFromRaces = (racesList: Race[], existingRecords: Record<strin
   });
 
   return newRecords;
+};
+
+// Fonction pour hydrater et recalculer dynamiquement toutes les séances du plan à la volée
+const hydrateActivePlanWorkouts = (
+  plan: Plan | null,
+  vmaVal: number | string,
+  athleteTemplates: any[],
+  coachTemplates: any[],
+  role: string
+): Plan | null => {
+  if (!plan || !plan.workouts) return plan;
+
+  // Priorité absolue aux templates du coach s'ils existent (ex: ATHLETE SUB-ELITE)
+  const activeVmaTemplates = coachTemplates.length > 0 ? coachTemplates : athleteTemplates;
+
+  const hydratedWorkouts = plan.workouts.map((workout) => {
+    if (!workout.steps || workout.steps.length === 0) return workout;
+
+    const metrics = calculateStepMetrics(
+      workout.steps,
+      vmaVal,
+      activeVmaTemplates,
+      role,
+      coachTemplates,
+      athleteTemplates
+    );
+
+    return {
+      ...workout,
+      km: workout.km || metrics.totalKm,
+    };
+  });
+
+  return {
+    ...plan,
+    workouts: hydratedWorkouts,
+  };
 };
 
 export default function Home() {
@@ -753,6 +791,17 @@ export default function Home() {
     ? parseFcValue(selectedAthlete?.fcMax) || parseFcValue(fcMax)
     : parseFcValue(fcMax);
 
+  // Hydratation dynamique et automatique du plan actif avec prise en compte des templates coach ou athlète
+  const currentActivePlan = React.useMemo(() => {
+    return hydrateActivePlanWorkouts(
+      activePlan,
+      currentAthleteVma,
+      athleteVmaTemplates,
+      coachZoneTemplates,
+      userRole
+    );
+  }, [activePlan, currentAthleteVma, athleteVmaTemplates, coachZoneTemplates, userRole]);
+
   const handleSendMessage = async (text: string, targetAthleteId?: string) => {
     if (!session?.user) return;
 
@@ -1381,7 +1430,6 @@ export default function Home() {
         .eq("id", targetUserId)
         .maybeSingle();
 
-      // Identifiant du coach pour charger les templates et réglages personnalisés
       const coachIdForTemplates = isCoachInspecting ? session.user.id : profile?.coach_id;
 
       let coachSettings = null;
@@ -1448,16 +1496,26 @@ export default function Home() {
         if (profile.height !== null && profile.height !== undefined) setHeight(profile.height.toString());
         if (profile.weight !== null && profile.weight !== undefined) setWeight(profile.weight.toString());
 
-        // CORRECTION : Utilisation de custom_vma et custom_fc fournis par le coach si disponibles (pour l'athlète ou le coach)
-        const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
-        const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
-        const coachFcMax = coachSettings?.custom_fc_max != null ? coachSettings.custom_fc_max.toString() : "";
+        if (isCoachInspecting) {
+          const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
+          const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
+          const coachFcMax = coachSettings?.custom_fc_max != null ? coachSettings.custom_fc_max.toString() : "";
 
-        const finalVma = coachVma !== "" ? coachVma : (profile.vma ? profile.vma.toString() : "");
-        setVma(finalVma);
-        setUnknownVma(finalVma === "");
-        setFcRest(coachFcRest !== "" ? coachFcRest : (profile.fc_rest ? profile.fc_rest.toString() : ""));
-        setFcMax(coachFcMax !== "" ? coachFcMax : (profile.fc_max ? profile.fc_max.toString() : ""));
+          const finalVma = coachVma !== "" ? coachVma : (profile.vma ? profile.vma.toString() : "");
+          setVma(finalVma);
+          setUnknownVma(finalVma === "");
+          setFcRest(coachFcRest !== "" ? coachFcRest : (profile.fc_rest ? profile.fc_rest.toString() : ""));
+          setFcMax(coachFcMax !== "" ? coachFcMax : (profile.fc_max ? profile.fc_max.toString() : ""));
+        } else {
+          const athVma = profile.vma != null ? profile.vma.toString() : "";
+          const athFcRest = profile.fc_rest != null ? profile.fc_rest.toString() : "";
+          const athFcMax = profile.fc_max != null ? profile.fc_max.toString() : "";
+
+          setVma(athVma);
+          setUnknownVma(athVma === "");
+          setFcRest(athFcRest);
+          setFcMax(athFcMax);
+        }
 
         const initialRecords = profile.records && typeof profile.records === 'object' ? profile.records : {};
         const synchronizedRecords = deriveRecordsFromRaces(loadedRaces, initialRecords);
@@ -1563,8 +1621,7 @@ export default function Home() {
         })));
       }
 
-      // CORRECTION : Permettre l'application des templates du coach pour l'athlète dès lors qu'un coach est rattaché
-      if (coachIdForTemplates) {
+      if (isCoachInspecting && coachIdForTemplates) {
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
 
@@ -2938,7 +2995,7 @@ export default function Home() {
   };
 
   const handleDeleteWorkoutImport = async (workoutId: string) => {
-    const targetWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
+    const targetWorkout = currentActivePlan?.workouts.find((w) => w.id === workoutId);
     const assignedShoeId = (targetWorkout as any)?.shoeId ?? (targetWorkout as any)?.shoe_id;
     const recordedKm = Number(targetWorkout?.completedKm || 0);
 
@@ -3016,7 +3073,7 @@ export default function Home() {
   }: any) => {
     const kmNumber = Number(completedKm) || 0;
 
-    const prevWorkout = activePlan?.workouts.find((w) => w.id === workoutId);
+    const prevWorkout = currentActivePlan?.workouts.find((w) => w.id === workoutId);
     const prevShoeId = (prevWorkout as any)?.shoeId ?? (prevWorkout as any)?.shoe_id;
     const prevKm = Number(prevWorkout?.completedKm || 0);
 
@@ -3339,11 +3396,11 @@ export default function Home() {
     );
   }
 
-  if (selectedWorkoutDetail && activePlan) {
+  if (selectedWorkoutDetail && currentActivePlan) {
     return (
       <WorkoutDetail
         workout={selectedWorkoutDetail}
-        plan={activePlan}
+        plan={currentActivePlan}
         completedWorkouts={completedWorkouts}
         onClose={() => setSelectedWorkoutDetail(null)}
         onOpenDebrief={(workout) => setDebriefWorkout(workout)}
@@ -3353,6 +3410,8 @@ export default function Home() {
         fcMax={currentAthleteFcMax}
         athleteVmaTemplates={athleteVmaTemplates}
         athleteHrTemplates={athleteHrTemplates}
+        coachVmaTemplates={coachZoneTemplates}
+        coachHrTemplates={coachHrZoneTemplates}
       />
     );
   }
@@ -3614,9 +3673,9 @@ export default function Home() {
           <>
             {userRole === "athlete" && activeTab === "accueil" && (
               <AthleteDashboard
-                activePlan={activePlan}
+                activePlan={currentActivePlan}
                 completedWorkouts={completedWorkouts}
-                todayWorkouts={getTodayWorkouts(activePlan)}
+                todayWorkouts={getTodayWorkouts(currentActivePlan)}
                 onSelectWorkoutDetail={setSelectedWorkoutDetail}
                 onToggleWorkout={toggleWorkout}
                 onOpenDebrief={(workout) => setDebriefWorkout(workout)}
@@ -3664,7 +3723,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {activePlan && !isCreatingPlan && (
+                    {currentActivePlan && !isCreatingPlan && (
                       <button
                         onClick={navigateToPlanStats}
                         className="text-[10px] font-black text-stone-100 hover:text-white bg-stone-900 border border-stone-700 hover:border-stone-500 px-3 py-2 rounded-xl uppercase transition cursor-pointer flex items-center gap-1.5 shadow-md"
@@ -3676,7 +3735,7 @@ export default function Home() {
 
                   {!isCreatingPlan && (
                     <div className="flex items-center gap-2 flex-wrap">
-                      {activePlan && (
+                      {currentActivePlan && (
                         <button
                           onClick={() => setShowDeletePlanModal(true)}
                           className="text-[10px] font-bold text-stone-300 hover:text-stone-100 bg-stone-900 hover:bg-stone-850 border border-stone-700 px-3 py-2 rounded-xl uppercase transition cursor-pointer shadow-sm"
@@ -3712,7 +3771,7 @@ export default function Home() {
                   )}
                 </div>
 
-                {!activePlan && !isCreatingPlan && (
+                {!currentActivePlan && !isCreatingPlan && (
                   <div className="bg-stone-900/60 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-xl">
                     <div className="w-16 h-16 bg-[#CDCF61]/10 border border-[#CDCF61]/30 rounded-2xl flex items-center justify-center mx-auto text-[#CDCF61] text-2xl">
                       📋
@@ -3767,9 +3826,9 @@ export default function Home() {
                   />
                 )}
 
-                {!isCreatingPlan && activePlan && (
+                {!isCreatingPlan && currentActivePlan && (
                   <ActivePlanView
-                    activePlan={activePlan}
+                    activePlan={currentActivePlan}
                     completedWorkouts={completedWorkouts}
                     openWeeks={openWeeks}
                     toggleWeekAccordion={toggleWeekAccordion}
@@ -3777,7 +3836,7 @@ export default function Home() {
                     onChangePlanRequest={() => setShowDeletePlanModal(true)}
                     onSelectWorkoutDetail={setSelectedWorkoutDetail}
                     onToggleWorkout={(id) => {
-                      const targetWorkout = activePlan.workouts.find((w) => w.id === id);
+                      const targetWorkout = currentActivePlan.workouts.find((w) => w.id === id);
                       if (targetWorkout) {
                         setDebriefWorkout(targetWorkout);
                       } else {
@@ -3817,7 +3876,7 @@ export default function Home() {
             {activeTab === "stats" && (
               <AnnualStats
                 completedRuns={completedRuns}
-                activePlan={activePlan}
+                activePlan={currentActivePlan}
                 completedWorkouts={completedWorkouts}
                 onAddRun={handleAddCompletedRun}
                 draftWorkouts={draftWorkouts}
