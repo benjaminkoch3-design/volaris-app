@@ -1573,7 +1573,7 @@ export default function Home() {
         })));
       }
 
-      if (isCoachInspecting && coachIdForTemplates) {
+      if (coachIdForTemplates) {
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
 
