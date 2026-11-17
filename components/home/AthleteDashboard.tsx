@@ -83,8 +83,8 @@ export const AthleteDashboard: React.FC<AthleteDashboardProps> = ({
   userRole = "athlete",
 }) => {
   const isCoach = userRole === "coach";
-  const activeVmaTemplates = isCoach
-    ? (coachVmaTemplates.length > 0 ? coachVmaTemplates : athleteVmaTemplates)
+  const activeVmaTemplates = coachVmaTemplates.length > 0 
+    ? coachVmaTemplates 
     : athleteVmaTemplates;
 
   const [syncLoadingId, setSyncLoadingId] = useState<string | null>(null);
