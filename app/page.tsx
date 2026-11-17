@@ -1018,7 +1018,6 @@ export default function Home() {
     const targetUserId = isCoachInspecting ? inspectingAthleteId : session?.user?.id;
     if (!targetUserId) return;
 
-    // Charger STRICTEMENT les séances appartenant à CE plan
     const { data: targetWorkouts } = await supabase
       .from("workouts")
       .select("*")
@@ -1382,6 +1381,7 @@ export default function Home() {
         .eq("id", targetUserId)
         .maybeSingle();
 
+      // Identifiant du coach pour charger les templates et réglages personnalisés
       const coachIdForTemplates = isCoachInspecting ? session.user.id : profile?.coach_id;
 
       let coachSettings = null;
@@ -1448,26 +1448,16 @@ export default function Home() {
         if (profile.height !== null && profile.height !== undefined) setHeight(profile.height.toString());
         if (profile.weight !== null && profile.weight !== undefined) setWeight(profile.weight.toString());
 
-        if (isCoachInspecting) {
-          const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
-          const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
-          const coachFcMax = coachSettings?.custom_fc_max != null ? coachSettings.custom_fc_max.toString() : "";
+        // CORRECTION : Utilisation de custom_vma et custom_fc fournis par le coach si disponibles (pour l'athlète ou le coach)
+        const coachVma = coachSettings?.custom_vma != null ? coachSettings.custom_vma.toString() : "";
+        const coachFcRest = coachSettings?.custom_fc_min != null ? coachSettings.custom_fc_min.toString() : "";
+        const coachFcMax = coachSettings?.custom_fc_max != null ? coachSettings.custom_fc_max.toString() : "";
 
-          const finalVma = coachVma !== "" ? coachVma : (profile.vma ? profile.vma.toString() : "");
-          setVma(finalVma);
-          setUnknownVma(finalVma === "");
-          setFcRest(coachFcRest !== "" ? coachFcRest : (profile.fc_rest ? profile.fc_rest.toString() : ""));
-          setFcMax(coachFcMax !== "" ? coachFcMax : (profile.fc_max ? profile.fc_max.toString() : ""));
-        } else {
-          const athVma = profile.vma != null ? profile.vma.toString() : "";
-          const athFcRest = profile.fc_rest != null ? profile.fc_rest.toString() : "";
-          const athFcMax = profile.fc_max != null ? profile.fc_max.toString() : "";
-
-          setVma(athVma);
-          setUnknownVma(athVma === "");
-          setFcRest(athFcRest);
-          setFcMax(athFcMax);
-        }
+        const finalVma = coachVma !== "" ? coachVma : (profile.vma ? profile.vma.toString() : "");
+        setVma(finalVma);
+        setUnknownVma(finalVma === "");
+        setFcRest(coachFcRest !== "" ? coachFcRest : (profile.fc_rest ? profile.fc_rest.toString() : ""));
+        setFcMax(coachFcMax !== "" ? coachFcMax : (profile.fc_max ? profile.fc_max.toString() : ""));
 
         const initialRecords = profile.records && typeof profile.records === 'object' ? profile.records : {};
         const synchronizedRecords = deriveRecordsFromRaces(loadedRaces, initialRecords);
@@ -1573,6 +1563,7 @@ export default function Home() {
         })));
       }
 
+      // CORRECTION : Permettre l'application des templates du coach pour l'athlète dès lors qu'un coach est rattaché
       if (coachIdForTemplates) {
         let assignedVmaTmplId = coachSettings?.vma_zone_template_id;
         let assignedHrTmplId = coachSettings?.hr_zone_template_id;
@@ -2825,9 +2816,6 @@ export default function Home() {
     const isEditingExisting = Boolean(editingPlanId);
     const targetPlanId = isEditingExisting ? editingPlanId! : `plan_${Date.now()}`;
 
-    // IMPORTANT : On n'archive plus automatiquement l'ancien plan. 
-    // Les deux plans restent actifs en parallèle tant que l'utilisateur n'archive pas explicitement l'1 d'entre eux.
-
     const { error: planError } = await supabase.from("plans").upsert({
       id: targetPlanId,
       user_id: targetUserId,
@@ -3153,7 +3141,6 @@ export default function Home() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // 1. Vérifier si la date du jour est strictement comprise dans la période du plan
     const [sY, sM, sD] = plan.startDate.split("-").map(Number);
     const [eY, eM, eD] = plan.eventDate.split("-").map(Number);
     const startDateObj = new Date(sY, sM - 1, sD);
@@ -3161,23 +3148,19 @@ export default function Home() {
     const eventDateObj = new Date(eY, eM - 1, eD);
     eventDateObj.setHours(0, 0, 0, 0);
 
-    // Si on est avant le début du plan ou après l'événement, ce n'est pas actif -> Afficher repos
     if (now < startDateObj || now > eventDateObj) {
       return [];
     }
 
-    // 2. Formatage de la date du jour au format "JJ/MM/AA" (utilisé par getExactDayDate)
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const day = String(now.getDate()).padStart(2, "0");
     const todayStr = safeFormatDateFr(`${year}-${month}-${day}`);
 
-    // 3. Recherche STRICTE par correspondance de date exacte dans le plan actif
     const exactMatches = plan.workouts.filter(
       (w) => getExactDayDate(plan.startDate, w.weekNumber, w.dayIndex) === todayStr
     );
 
-    // Si aucune séance n'est programmée ce jour-là, renvoie un tableau vide (affichera "Repos")
     return exactMatches;
   };
 
